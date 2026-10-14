@@ -1,0 +1,24 @@
+# Local development: backend runs on the host, Postgres/MinIO run via `docker compose up -d postgres minio`.
+# Never use these values outside a developer machine.
+server:
+  port: ${SERVER_PORT:8081}
+
+app:
+  security:
+    jwt:
+      secret: ${JWT_SECRET:ZGV2LW9ubHktc2VjcmV0LWNoYW5nZS1tZS1kZXYtb25seS1zZWNyZXQtY2hhbmdlLW1l}
+    refresh-cookie:
+      secure: ${REFRESH_COOKIE_SECURE:false}
+    cors:
+      allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4201}
+  bootstrap:
+    admin:
+      email: ${BOOTSTRAP_ADMIN_EMAIL:admin@erezer.local}
+      password: ${BOOTSTRAP_ADMIN_PASSWORD:Admin@12345678}
+  storage:
+    access-key: ${STORAGE_ACCESS_KEY:erezer}
+    secret-key: ${STORAGE_SECRET_KEY:erezer-dev-secret}
+
+logging:
+  level:
+    com.erezer: DEBUG

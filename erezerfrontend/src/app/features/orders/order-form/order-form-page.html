@@ -1,0 +1,208 @@
+<a [routerLink]="isEdit() ? ['/orders', id()] : ['/orders']" class="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white">
+  <i class="fas fa-arrow-left text-xs"></i> {{ isEdit() ? 'Back to order' : 'Orders' }}
+</a>
+<h1 class="page-title">{{ isEdit() ? 'Edit Order' : 'Add Order' }}</h1>
+
+@if (loading()) {
+  <div class="flex justify-center py-24 text-slate-400"><i class="fas fa-circle-notch fa-spin text-2xl"></i></div>
+} @else {
+  @if (serverErrors().length) {
+    <div class="mt-4 rounded-lg border border-red-800 bg-red-950/60 px-4 py-3 text-sm text-red-200" role="alert">
+      <p class="font-semibold">The order could not be saved</p>
+      <ul class="mt-1 list-inside list-disc">
+        @for (message of serverErrors(); track $index) {
+          <li>{{ message }}</li>
+        }
+      </ul>
+    </div>
+  }
+
+  <form [formGroup]="form" (ngSubmit)="submit()" class="mt-6 grid grid-cols-1 gap-6 pb-24 lg:grid-cols-3" novalidate>
+    <!-- Products -->
+    <section class="space-y-4 lg:col-span-2" formArrayName="items">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-semibold text-white"><i class="fas fa-boxes mr-2 text-slate-400"></i>Products</h2>
+        <button type="button" class="btn-secondary" (click)="addItem()"><i class="fas fa-plus"></i> Add product</button>
+      </div>
+
+      @for (item of items.controls; track item.controls.key.value; let i = $index) {
+        <div class="card p-5" [formGroupName]="i">
+          <div class="mb-4 flex items-center justify-between">
+            <h3 class="font-semibold text-white">Product {{ i + 1 }}</h3>
+            @if (items.length > 1) {
+              <button type="button" class="cursor-pointer rounded p-1.5 text-sm text-red-300 hover:bg-red-500/10" (click)="removeItem(i)" [attr.aria-label]="'Remove product ' + (i + 1)">
+                <i class="fas fa-trash mr-1"></i>Remove
+              </button>
+            }
+          </div>
+
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-6">
+            <label class="block sm:col-span-4">
+              <span class="field-label">Product name *</span>
+              <input formControlName="productName" class="field" placeholder="e.g. Regular Fit T-Shirt" [class.field-invalid]="item.controls.productName.invalid && item.controls.productName.touched" />
+            </label>
+            <label class="block sm:col-span-2">
+              <span class="field-label">Product code *</span>
+              <input formControlName="productCode" class="field font-mono uppercase" placeholder="TS-1006" [class.field-invalid]="item.controls.productCode.invalid && item.controls.productCode.touched" />
+            </label>
+            <label class="block sm:col-span-6">
+              <span class="field-label">Description</span>
+              <textarea formControlName="description" rows="2" class="field" placeholder="Fabric, print, special instructions…"></textarea>
+            </label>
+            <label class="block sm:col-span-2">
+              <span class="field-label">Color</span>
+              <input formControlName="color" class="field" placeholder="White" />
+            </label>
+            <label class="block sm:col-span-1">
+              <span class="field-label">Size</span>
+              <input formControlName="size" class="field" placeholder="L" [attr.list]="'sizes-' + i" />
+              <datalist [id]="'sizes-' + i">
+                @for (s of sizeSuggestions; track s) {
+                  <option [value]="s"></option>
+                }
+              </datalist>
+            </label>
+            <label class="block sm:col-span-1">
+              <span class="field-label">Qty *</span>
+              <input type="number" min="1" step="1" formControlName="quantity" class="field" [class.field-invalid]="item.controls.quantity.invalid && item.controls.quantity.touched" />
+            </label>
+            <label class="block sm:col-span-2">
+              <span class="field-label">Unit price (৳) *</span>
+              <input type="number" min="0" step="0.01" formControlName="unitPrice" class="field" placeholder="0.00" [class.field-invalid]="item.controls.unitPrice.invalid && item.controls.unitPrice.touched" />
+            </label>
+          </div>
+          <p class="mt-3 text-right text-sm text-slate-400">
+            Line total:
+            <span class="font-semibold text-white">{{ (item.controls.unitPrice.value ?? 0) * (item.controls.quantity.value || 0) | taka }}</span>
+          </p>
+
+          <!-- Images -->
+          <div class="mt-4 border-t border-line pt-4">
+            <p class="field-label">Product images <span class="font-normal text-slate-500">({{ item.controls.images.value.length }}/{{ maxImages }})</span></p>
+            <div class="flex flex-wrap gap-3">
+              @for (image of item.controls.images.value; track image.fileId) {
+                <div class="group relative h-40 w-40 overflow-hidden rounded-lg border border-line bg-app">
+                  <img [src]="image.url" alt="" class="h-full w-full object-cover" />
+                  <button
+                    type="button"
+                    class="absolute right-1.5 top-1.5 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full bg-black/70 text-white hover:bg-red-600"
+                    (click)="removeImage(item, image.fileId)"
+                    aria-label="Remove image"
+                  >
+                    <i class="fas fa-times text-xs"></i>
+                  </button>
+                </div>
+              }
+              @for (n of placeholders(uploadingCount(item.controls.key.value)); track $index) {
+                <div class="flex h-40 w-40 items-center justify-center rounded-lg border border-line bg-app text-slate-400">
+                  <i class="fas fa-circle-notch fa-spin text-xl"></i>
+                </div>
+              }
+              @if (item.controls.images.value.length + uploadingCount(item.controls.key.value) < maxImages) {
+                <label
+                  class="flex h-40 w-40 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed text-center text-slate-400 transition hover:border-brand hover:text-brand-light"
+                  [class]="dragOverKey() === item.controls.key.value ? 'border-brand bg-brand/10 text-brand-light' : 'border-line'"
+                  (dragover)="onDragOver(item, $event)"
+                  (dragleave)="dragOverKey.set(null)"
+                  (drop)="onDrop(item, $event)"
+                >
+                  <i class="fas fa-cloud-upload-alt text-3xl"></i>
+                  <span class="px-3 text-xs leading-tight">Drop images here<br />or <span class="text-brand-light underline">browse</span></span>
+                  <span class="text-[10px] text-slate-500">JPEG, PNG, WebP · 10 MB</span>
+                  <input type="file" class="sr-only" accept="image/jpeg,image/png,image/webp" multiple (change)="onFilesSelected(item, $any($event.target))" />
+                </label>
+              }
+            </div>
+          </div>
+        </div>
+      } @empty {
+        <div class="card px-6 py-10 text-center text-slate-400">
+          No products yet.
+          <button type="button" class="ml-1 cursor-pointer text-brand-light hover:underline" (click)="addItem()">Add the first one</button>
+        </div>
+      }
+    </section>
+
+    <!-- Side column -->
+    <div class="space-y-6">
+      <section class="card space-y-4 p-5">
+        <h2 class="font-semibold text-white"><i class="fas fa-file-invoice mr-2 text-slate-400"></i>Order details</h2>
+        <label class="block">
+          <span class="field-label">Order ID</span>
+          <input formControlName="orderNumber" class="field font-mono uppercase" placeholder="Generated automatically" [class.field-invalid]="form.controls.orderNumber.invalid" />
+          @if (form.controls.orderNumber.invalid) {
+            <span class="field-error">Letters, digits and dashes only (max 30)</span>
+          } @else if (!isEdit()) {
+            <span class="mt-1 block text-xs text-slate-500">Leave empty to generate one like EZ-583882</span>
+          }
+        </label>
+        <label class="block">
+          <span class="field-label">Payment method *</span>
+          <select formControlName="paymentMethod" class="field">
+            @for (p of paymentMethods; track p) {
+              <option [value]="p">{{ paymentLabels[p] }}</option>
+            }
+          </select>
+        </label>
+      </section>
+
+      <section class="card space-y-4 p-5" formGroupName="customer">
+        <h2 class="font-semibold text-white"><i class="fas fa-user mr-2 text-slate-400"></i>Customer</h2>
+        <label class="block">
+          <span class="field-label">Name *</span>
+          <input formControlName="name" class="field" autocomplete="off" [class.field-invalid]="form.controls.customer.controls.name.invalid && form.controls.customer.controls.name.touched" />
+        </label>
+        <label class="block">
+          <span class="field-label">Phone *</span>
+          <input formControlName="phone" type="tel" class="field" placeholder="01XXXXXXXXX" [class.field-invalid]="form.controls.customer.controls.phone.invalid && form.controls.customer.controls.phone.touched" />
+          @if (form.controls.customer.controls.phone.invalid && form.controls.customer.controls.phone.touched) {
+            <span class="field-error">Enter a valid phone number</span>
+          }
+        </label>
+        <label class="block">
+          <span class="field-label">Email</span>
+          <input formControlName="email" type="email" class="field" [class.field-invalid]="form.controls.customer.controls.email.invalid && form.controls.customer.controls.email.touched" />
+        </label>
+        <label class="block">
+          <span class="field-label">Delivery address *</span>
+          <textarea formControlName="address" rows="3" class="field" [class.field-invalid]="form.controls.customer.controls.address.invalid && form.controls.customer.controls.address.touched"></textarea>
+        </label>
+      </section>
+
+      <section class="card space-y-3 p-5 lg:sticky lg:top-20">
+        <h2 class="font-semibold text-white"><i class="fas fa-calculator mr-2 text-slate-400"></i>Summary</h2>
+        <div class="flex justify-between text-sm text-slate-400"><span>Subtotal</span><span>{{ subtotal() | taka }}</span></div>
+        <label class="flex items-center justify-between gap-3 text-sm text-slate-400">
+          <span>Delivery charge *</span>
+          <input type="number" min="0" step="0.01" formControlName="deliveryCharge" class="field w-32 text-right" />
+        </label>
+        <label class="flex items-center justify-between gap-3 text-sm text-slate-400">
+          <span>Discount</span>
+          <input type="number" min="0" step="0.01" formControlName="discount" class="field w-32 text-right" [class.field-invalid]="discountTooLarge()" />
+        </label>
+        @if (discountTooLarge()) {
+          <p class="field-error text-right">Discount cannot exceed the subtotal</p>
+        }
+        <div class="flex justify-between border-t border-line pt-3 text-lg font-bold text-white">
+          <span>Total</span><span class="text-brand-light">{{ total() | taka }}</span>
+        </div>
+      </section>
+    </div>
+
+    <!-- Sticky actions -->
+    <div class="fixed inset-x-0 bottom-0 z-10 border-t border-line bg-panel/95 px-4 py-3 backdrop-blur lg:left-64">
+      <div class="flex items-center justify-end gap-3">
+        @if (isUploading()) {
+          <span class="mr-auto text-sm text-slate-400"><i class="fas fa-circle-notch fa-spin mr-1"></i>Uploading images…</span>
+        }
+        <a [routerLink]="isEdit() ? ['/orders', id()] : ['/orders']" class="btn-secondary">Cancel</a>
+        <button type="submit" class="btn-primary" [disabled]="saving() || isUploading()">
+          @if (saving()) {
+            <i class="fas fa-circle-notch fa-spin"></i>
+          }
+          {{ isEdit() ? 'Save changes' : 'Create order' }}
+        </button>
+      </div>
+    </div>
+  </form>
+}

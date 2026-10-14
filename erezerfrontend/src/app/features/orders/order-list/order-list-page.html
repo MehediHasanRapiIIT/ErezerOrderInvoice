@@ -1,0 +1,196 @@
+<!-- Header -->
+<div class="flex flex-wrap items-center justify-between gap-4">
+  <div class="flex flex-wrap items-center gap-4">
+    <div>
+      <h1 class="page-title">Order Management</h1>
+      <p class="page-subtitle">View and manage all customer orders</p>
+    </div>
+    <div class="flex rounded-lg border border-line bg-panel p-1" role="tablist">
+      @for (t of ['active', 'history']; track t) {
+        <button
+          type="button"
+          role="tab"
+          class="cursor-pointer rounded-md px-4 py-1.5 text-sm font-medium capitalize transition"
+          [class]="tab() === t ? 'bg-app text-white shadow' : 'text-slate-400 hover:text-white'"
+          [attr.aria-selected]="tab() === t"
+          (click)="setTab($any(t))"
+        >
+          {{ t }}
+        </button>
+      }
+    </div>
+  </div>
+  <div class="flex gap-2">
+    <button type="button" class="btn-secondary" (click)="exportExcel()" [disabled]="exporting()" title="Export the filtered orders to Excel">
+      <i class="fas" [class.fa-file-excel]="!exporting()" [class.text-emerald-400]="!exporting()" [class.fa-circle-notch]="exporting()" [class.fa-spin]="exporting()"></i> Export
+    </button>
+    <button type="button" class="btn-secondary" (click)="refresh()">
+      <i class="fas fa-sync-alt" [class.fa-spin]="orders.isLoading()"></i> Refresh
+    </button>
+    <a *appHasPermission="'ORDER_CREATE'" routerLink="/orders/new" class="btn-primary">
+      <i class="fas fa-plus"></i> Add Order
+    </a>
+  </div>
+</div>
+
+<!-- Stats -->
+<div class="mt-6 grid grid-cols-2 gap-4 xl:grid-cols-4">
+  @for (card of statCards(); track card.label) {
+    <div class="card flex items-center justify-between p-4 sm:p-5">
+      <div>
+        <p class="text-xs text-slate-400 sm:text-sm">{{ card.label }}</p>
+        <p class="mt-1 text-2xl font-bold sm:text-3xl" [class]="card.tone">
+          {{ card.value ?? '–' }}
+        </p>
+      </div>
+      <span class="hidden h-11 w-11 items-center justify-center rounded-full sm:flex" [class]="card.chip">
+        <i class="fas" [class]="card.icon"></i>
+      </span>
+    </div>
+  }
+</div>
+
+<!-- Table card -->
+<section class="card mt-6 overflow-hidden">
+  <div class="space-y-3 border-b border-line p-4">
+    <div class="relative">
+      <i class="fas fa-search pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500"></i>
+      <input
+        type="search"
+        class="field pl-9"
+        placeholder="Search by order number, customer name, phone, email or product code…"
+        [value]="search()"
+        (input)="onSearch($any($event.target).value)"
+        aria-label="Search orders"
+      />
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <select class="field w-auto" [value]="range()" (change)="setFilter('range', $any($event.target).value)" aria-label="Date range">
+        @for (r of dateRanges; track r.value) {
+          <option [value]="r.value">Date: {{ r.label }}</option>
+        }
+      </select>
+      <select class="field w-auto" [value]="status()" (change)="setFilter('status', $any($event.target).value)" aria-label="Status">
+        <option value="">Status: All</option>
+        @for (s of tabStatuses(); track s) {
+          <option [value]="s">{{ statusLabels[s] }}</option>
+        }
+      </select>
+      <select class="field w-auto" [value]="payment()" (change)="setFilter('payment', $any($event.target).value)" aria-label="Payment method">
+        <option value="">Payment: All</option>
+        @for (p of paymentMethods; track p) {
+          <option [value]="p">{{ paymentLabels[p] }}</option>
+        }
+      </select>
+      @if (hasFilters()) {
+        <button type="button" class="cursor-pointer px-2 text-sm text-slate-400 hover:text-white" (click)="clearFilters()">
+          <i class="fas fa-times mr-1"></i>Clear filters
+        </button>
+      }
+    </div>
+  </div>
+
+  @if (orders.error()) {
+    <div class="flex flex-col items-center gap-3 px-6 py-16 text-center">
+      <i class="fas fa-exclamation-triangle text-3xl text-red-400"></i>
+      <p class="text-slate-300">Could not load orders.</p>
+      <button type="button" class="btn-secondary" (click)="orders.reload()">Try again</button>
+    </div>
+  } @else {
+    <div class="overflow-x-auto">
+      <table class="w-full min-w-[860px] text-left text-sm">
+        <thead class="bg-app/60 text-xs uppercase tracking-wider text-slate-400">
+          <tr>
+            <th class="px-4 py-3 font-semibold">Order ID</th>
+            <th class="px-4 py-3 font-semibold">Customer</th>
+            <th class="px-4 py-3 font-semibold">Date</th>
+            <th class="px-4 py-3 text-right font-semibold">Total</th>
+            <th class="px-4 py-3 font-semibold">Payment</th>
+            <th class="px-4 py-3 font-semibold">Status</th>
+            <th class="px-4 py-3 text-right font-semibold"><span class="sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-line" [class.opacity-50]="orders.isLoading()">
+          @for (order of rows(); track order.id) {
+            <tr class="cursor-pointer transition hover:bg-white/[0.03]" (click)="open(order)">
+              <td class="px-4 py-3">
+                <a [routerLink]="['/orders', order.id]" class="font-mono text-xs font-semibold text-slate-200 hover:text-white" (click)="$event.stopPropagation()">
+                  {{ order.orderNumber }}
+                </a>
+              </td>
+              <td class="px-4 py-3">
+                <p class="font-semibold text-white">{{ order.customerName }}</p>
+                <p class="text-xs text-slate-400">{{ order.customerPhone }}</p>
+              </td>
+              <td class="px-4 py-3">
+                <p class="text-slate-200">{{ order.createdAt | date: 'd MMM y' }}</p>
+                <p class="text-xs text-slate-400">{{ order.createdAt | date: 'HH:mm' }}</p>
+              </td>
+              <td class="px-4 py-3 text-right font-semibold text-white">{{ order.total | taka }}</td>
+              <td class="px-4 py-3 text-xs uppercase text-slate-300">{{ paymentLabels[order.paymentMethod] }}</td>
+              <td class="px-4 py-3"><app-status-badge [status]="order.status" /></td>
+              <td class="relative px-4 py-3 text-right">
+                <button
+                  type="button"
+                  class="cursor-pointer rounded p-2 text-slate-400 hover:bg-white/5 hover:text-white"
+                  (click)="toggleMenu(order.id, $event)"
+                  [attr.aria-expanded]="openMenuId() === order.id"
+                  aria-haspopup="menu"
+                  [attr.aria-label]="'Actions for ' + order.orderNumber"
+                >
+                  <i class="fas fa-ellipsis-v"></i>
+                </button>
+                @if (openMenuId() === order.id) {
+                  <div class="fixed inset-0 z-10" (click)="$event.stopPropagation(); openMenuId.set(null)"></div>
+                  <div role="menu" class="absolute right-4 top-11 z-20 w-40 rounded-md border border-line bg-panel py-1 text-left shadow-xl" (click)="$event.stopPropagation()">
+                    <a role="menuitem" [routerLink]="['/orders', order.id]" class="block px-4 py-2 text-slate-300 hover:bg-white/5">
+                      <i class="fas fa-eye mr-2 w-4"></i>View
+                    </a>
+                    @if (canEdit(order)) {
+                      <a role="menuitem" [routerLink]="['/orders', order.id, 'edit']" class="block px-4 py-2 text-slate-300 hover:bg-white/5">
+                        <i class="fas fa-pen mr-2 w-4"></i>Edit
+                      </a>
+                    }
+                    <button *appHasPermission="'ORDER_DELETE'" type="button" role="menuitem" class="block w-full cursor-pointer px-4 py-2 text-left text-red-300 hover:bg-white/5" (click)="remove(order)">
+                      <i class="fas fa-trash mr-2 w-4"></i>Delete
+                    </button>
+                  </div>
+                }
+              </td>
+            </tr>
+          } @empty {
+            @if (orders.isLoading()) {
+              @for (row of [1, 2, 3, 4, 5]; track row) {
+                <tr>
+                  <td colspan="7" class="px-4 py-4"><div class="h-5 animate-pulse rounded bg-white/5"></div></td>
+                </tr>
+              }
+            } @else {
+              <tr>
+                <td colspan="7" class="px-6 py-16 text-center">
+                  <i class="fas fa-receipt mb-3 text-3xl text-slate-600"></i>
+                  <p class="font-medium text-slate-300">{{ hasFilters() ? 'No orders match these filters' : 'No orders yet' }}</p>
+                  @if (hasFilters()) {
+                    <button type="button" class="mt-2 cursor-pointer text-sm text-brand-light hover:underline" (click)="clearFilters()">Clear filters</button>
+                  }
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+
+    @if (orders.hasValue() && orders.value(); as result) {
+      <div class="border-t border-line px-4 py-3">
+        <app-pagination
+          [page]="result.page"
+          [size]="result.size"
+          [totalElements]="result.totalElements"
+          [totalPages]="result.totalPages"
+          (pageChange)="goToPage($event)"
+        />
+      </div>
+    }
+  }
+</section>

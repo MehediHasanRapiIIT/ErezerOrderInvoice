@@ -1,0 +1,11 @@
+# Development overrides, loaded automatically by `docker compose up`.
+# Exposes Postgres and MinIO on host ports that don't clash with other local stacks.
+# Production deployments use `docker compose -f compose.yaml ...` and skip this file.
+services:
+  postgres:
+    ports:
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
+  minio:
+    ports:
+      - "${MINIO_API_HOST_PORT:-9010}:9000"
+      - "${MINIO_CONSOLE_HOST_PORT:-9011}:9001"

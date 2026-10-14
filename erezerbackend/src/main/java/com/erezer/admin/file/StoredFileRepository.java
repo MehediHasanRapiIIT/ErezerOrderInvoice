@@ -1,0 +1,22 @@
+package com.erezer.admin.file;
+
+import java.time.Instant;
+import java.util.List;
+import org.springframework.data.domain.Limit;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+public interface StoredFileRepository extends JpaRepository<StoredFile, Long> {
+
+    /**
+     * Files older than the cutoff that nothing references. Extend the NOT EXISTS list whenever
+     * another table starts referencing stored_files (e.g. expense receipts).
+     */
+    @Query("""
+            select f from StoredFile f
+            where f.createdAt < :cutoff
+              and not exists (select 1 from OrderItemImage i where i.file = f)
+            """)
+    List<StoredFile> findUnreferencedBefore(@Param("cutoff") Instant cutoff, Limit limit);
+}

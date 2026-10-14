@@ -1,0 +1,13 @@
+# Production: every secret comes from the environment (see ../.env.example). Missing secrets fail startup.
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+logging:
+  structured:
+    format:
+      console: ecs
+  level:
+    root: INFO

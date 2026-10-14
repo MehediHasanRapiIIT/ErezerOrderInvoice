@@ -1,0 +1,93 @@
+<div class="min-h-screen bg-app text-slate-200">
+  <!-- Mobile backdrop -->
+  @if (sidebarOpen()) {
+    <div class="fixed inset-0 z-30 bg-black/60 lg:hidden" (click)="sidebarOpen.set(false)" aria-hidden="true"></div>
+  }
+
+  <!-- Sidebar -->
+  <aside
+    class="fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-line bg-panel transition-transform duration-200 lg:translate-x-0"
+    [class.-translate-x-full]="!sidebarOpen()"
+    aria-label="Main navigation"
+  >
+    <div class="flex h-16 items-center gap-3 border-b border-line px-5">
+      <img src="logo.ico" alt="" class="h-9 w-9 rounded bg-white p-1" />
+      <div>
+        <p class="text-lg font-bold tracking-tight text-white">EREZER</p>
+        <p class="text-xs text-slate-400">Admin Panel</p>
+      </div>
+    </div>
+
+    <nav class="flex-1 space-y-1 overflow-y-auto p-3">
+      @for (item of navItems(); track item.route) {
+        <a
+          [routerLink]="item.route"
+          routerLinkActive="bg-brand/15 text-white border-brand"
+          #rla="routerLinkActive"
+          [attr.aria-current]="rla.isActive ? 'page' : null"
+          class="flex items-center gap-3 rounded-md border-l-2 border-transparent px-3 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-white/5 hover:text-white"
+        >
+          <i class="fas w-5 text-center" [class]="item.icon"></i>
+          {{ item.label }}
+        </a>
+      } @empty {
+        <p class="px-3 py-2 text-sm text-slate-500">No sections are available for your account.</p>
+      }
+    </nav>
+
+    <div class="border-t border-line p-4 text-xs text-slate-500">&copy; 2026 EREZER</div>
+  </aside>
+
+  <!-- Main column -->
+  <div class="flex min-h-screen flex-col lg:pl-64">
+    <header class="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-line bg-panel/95 px-4 backdrop-blur sm:px-6">
+      <button
+        type="button"
+        class="rounded p-2 text-slate-300 hover:bg-white/5 lg:hidden cursor-pointer"
+        (click)="sidebarOpen.set(true)"
+        aria-label="Open navigation"
+      >
+        <i class="fas fa-bars text-lg"></i>
+      </button>
+      <div class="hidden lg:block"></div>
+
+      <div class="relative">
+        <button
+          type="button"
+          class="flex items-center gap-3 rounded-md px-2 py-1.5 hover:bg-white/5 cursor-pointer"
+          (click)="userMenuOpen.set(!userMenuOpen())"
+          [attr.aria-expanded]="userMenuOpen()"
+          aria-haspopup="menu"
+        >
+          <span class="flex h-9 w-9 items-center justify-center rounded-full bg-brand text-sm font-semibold text-white">
+            {{ initials() }}
+          </span>
+          <span class="hidden text-left sm:block">
+            <span class="block text-sm font-medium text-white">{{ auth.user()?.fullName }}</span>
+            <span class="block text-xs text-slate-400">{{ auth.user()?.role === 'ADMIN' ? 'Administrator' : 'Moderator' }}</span>
+          </span>
+          <i class="fas fa-chevron-down text-xs text-slate-400"></i>
+        </button>
+
+        @if (userMenuOpen()) {
+          <div class="fixed inset-0 z-10" (click)="userMenuOpen.set(false)" aria-hidden="true"></div>
+          <div role="menu" class="absolute right-0 z-20 mt-2 w-56 rounded-md border border-line bg-panel py-1 shadow-xl">
+            <div class="border-b border-line px-4 py-2">
+              <p class="truncate text-sm text-white">{{ auth.user()?.email }}</p>
+            </div>
+            <a routerLink="/account/password" role="menuitem" class="flex items-center gap-2 px-4 py-2 text-sm text-slate-300 hover:bg-white/5">
+              <i class="fas fa-key w-4"></i> Change password
+            </a>
+            <button type="button" role="menuitem" (click)="logout()" class="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-red-300 hover:bg-white/5 cursor-pointer">
+              <i class="fas fa-sign-out-alt w-4"></i> Sign out
+            </button>
+          </div>
+        }
+      </div>
+    </header>
+
+    <main class="flex-1 p-4 sm:p-6">
+      <router-outlet />
+    </main>
+  </div>
+</div>

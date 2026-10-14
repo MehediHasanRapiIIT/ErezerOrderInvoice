@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+/* Admin panel palette (dark navy, matching the order-management screens). */
+@theme {
+  --color-app: #0b1222;
+  --color-panel: #141d31;
+  --color-panel-raised: #1b2640;
+  --color-line: #26324d;
+  --color-brand: #2563eb;
+  --color-brand-light: #60a5fa;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-app font-sans text-slate-200 antialiased;
+  }
+}
+
+@layer components {
+  .page-title {
+    @apply text-2xl font-bold text-white;
+  }
+
+  .page-subtitle {
+    @apply mt-1 text-sm text-slate-400;
+  }
+
+  .card {
+    @apply rounded-xl border border-line bg-panel;
+  }
+
+  .field {
+    @apply w-full rounded-md border border-line bg-app px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500
+      outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/30;
+  }
+
+  .field-label {
+    @apply mb-1.5 block text-sm font-medium text-slate-300;
+  }
+
+  .field-error {
+    @apply mt-1 block text-xs text-red-300;
+  }
+
+  .field-invalid {
+    @apply border-red-500 focus:border-red-500 focus:ring-red-500/30;
+  }
+
+  .btn-primary {
+    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-md bg-brand px-4 py-2 text-sm font-semibold
+      text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .btn-danger {
+    @apply bg-red-600 hover:bg-red-500;
+  }
+
+  .btn-secondary {
+    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-line bg-panel-raised px-4 py-2
+      text-sm font-medium text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-down {
+  animation: fadeInDown 0.25s ease-out;
+}

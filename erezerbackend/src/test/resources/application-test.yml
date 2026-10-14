@@ -1,0 +1,14 @@
+app:
+  security:
+    jwt:
+      secret: dGVzdC1vbmx5LXNlY3JldC10ZXN0LW9ubHktc2VjcmV0LXRlc3Qtb25seS1zZWNyZXQ=
+    refresh-cookie:
+      secure: false
+  bootstrap:
+    admin:
+      email: admin@test.local
+      password: Admin@12345678
+  storage:
+    access-key: test
+    secret-key: test-secret
+    initialize-bucket: false

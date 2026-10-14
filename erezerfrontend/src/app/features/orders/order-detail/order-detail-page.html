@@ -1,0 +1,331 @@
+@if (order(); as o) {
+  <div class="mx-auto max-w-6xl">
+    <!-- Header -->
+    <a routerLink="/orders" class="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white">
+      <i class="fas fa-arrow-left text-xs"></i> Orders
+    </a>
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <div class="flex flex-wrap items-center gap-3">
+          <h1 class="page-title">Order {{ o.orderNumber }}</h1>
+          <app-status-badge [status]="o.status" />
+        </div>
+        <p class="page-subtitle">
+          Created {{ o.createdAt | date: 'd MMM y, HH:mm' }}
+          @if (o.createdBy) {
+            by {{ o.createdBy.name }}
+          }
+        </p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <div class="flex">
+          <button type="button" class="btn-secondary rounded-r-none" (click)="printInvoice()" [disabled]="pdfBusy()">
+            <i class="fas" [class.fa-print]="!pdfBusy()" [class.fa-circle-notch]="pdfBusy()" [class.fa-spin]="pdfBusy()"></i>
+            Print Invoice
+          </button>
+          <button
+            type="button"
+            class="btn-secondary rounded-l-none border-l-0 px-3"
+            (click)="downloadInvoice()"
+            [disabled]="pdfBusy()"
+            title="Download PDF"
+            aria-label="Download invoice PDF"
+          >
+            <i class="fas fa-download"></i>
+          </button>
+        </div>
+        @if (o.editable && auth.hasPermission('ORDER_EDIT')) {
+          <a [routerLink]="['/orders', o.id, 'edit']" class="btn-secondary"><i class="fas fa-pen"></i> Edit Order</a>
+        }
+        <button *appHasPermission="'ORDER_DELETE'" type="button" class="btn-secondary text-red-300" (click)="remove()">
+          <i class="fas fa-trash"></i> Delete
+        </button>
+      </div>
+    </div>
+
+    <!-- Summary cards -->
+    <div class="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div class="card flex items-center gap-3 p-4">
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-500/15 text-indigo-300 font-bold">৳</span>
+        <div class="min-w-0">
+          <p class="text-xs text-slate-400">Total Amount</p>
+          <p class="truncate text-lg font-bold text-white">{{ o.total | taka }}</p>
+        </div>
+      </div>
+      <div class="card flex items-center gap-3 p-4">
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-500/15 text-violet-300"><i class="fas fa-credit-card"></i></span>
+        <div class="min-w-0">
+          <p class="text-xs text-slate-400">Payment Method</p>
+          <p class="truncate text-lg font-bold text-white">{{ paymentLabels[o.paymentMethod] }}</p>
+        </div>
+      </div>
+      <div class="card flex items-center gap-3 p-4">
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-orange-500/15 text-orange-300"><i class="fas fa-truck"></i></span>
+        <div class="min-w-0">
+          <p class="text-xs text-slate-400">Delivery Charge</p>
+          <p class="truncate text-lg font-bold text-white">{{ o.deliveryCharge | taka }}</p>
+        </div>
+      </div>
+      <div class="card flex items-center gap-3 p-4">
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300"><i class="fas fa-shopping-bag"></i></span>
+        <div class="min-w-0">
+          <p class="text-xs text-slate-400">Items</p>
+          <p class="text-lg font-bold text-white">{{ itemCount() }}</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <!-- Left column -->
+      <div class="space-y-6 lg:col-span-2">
+        <!-- Items -->
+        <section class="card overflow-hidden">
+          <h2 class="border-b border-line px-5 py-4 font-semibold text-white">Items Ordered</h2>
+          <div class="overflow-x-auto">
+            <table class="w-full min-w-[560px] text-sm">
+              <thead class="bg-app/60 text-xs uppercase tracking-wider text-slate-400">
+                <tr>
+                  <th class="px-5 py-3 text-left font-semibold">Product</th>
+                  <th class="px-5 py-3 text-right font-semibold">Unit Price</th>
+                  <th class="px-5 py-3 text-center font-semibold">Qty</th>
+                  <th class="px-5 py-3 text-right font-semibold">Total</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-line">
+                @for (item of o.items; track item.id) {
+                  <tr>
+                    <td class="px-5 py-4">
+                      <div class="flex items-center gap-3">
+                        <button
+                          type="button"
+                          class="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-line bg-app"
+                          [class.cursor-pointer]="item.images.length"
+                          (click)="openImages(item.images)"
+                          [attr.aria-label]="item.images.length ? 'View images of ' + item.productName : null"
+                        >
+                          @if (item.images[0]; as image) {
+                            <img [src]="image.url" [alt]="item.productName" class="h-full w-full object-cover" loading="lazy" />
+                            @if (item.images.length > 1) {
+                              <span class="absolute bottom-0.5 right-0.5 rounded bg-black/70 px-1 text-[10px] text-white">+{{ item.images.length - 1 }}</span>
+                            }
+                          } @else {
+                            <i class="far fa-image text-slate-500"></i>
+                          }
+                        </button>
+                        <div class="min-w-0">
+                          <p class="font-semibold text-white">{{ item.productName }}</p>
+                          <p class="font-mono text-xs text-slate-400">Code: {{ item.productCode }}</p>
+                          @if (item.color || item.size) {
+                            <p class="text-xs text-slate-400">{{ item.color }}{{ item.color && item.size ? ' / ' : '' }}{{ item.size }}</p>
+                          }
+                          @if (item.description) {
+                            <p class="mt-1 text-xs text-slate-500">{{ item.description }}</p>
+                          }
+                        </div>
+                      </div>
+                    </td>
+                    <td class="px-5 py-4 text-right text-slate-300">{{ item.unitPrice | taka }}</td>
+                    <td class="px-5 py-4 text-center text-slate-300">{{ item.quantity }}</td>
+                    <td class="px-5 py-4 text-right font-semibold text-white">{{ item.lineTotal | taka }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <dl class="space-y-2 border-t border-line px-5 py-4 text-sm">
+            <div class="flex justify-between text-slate-400"><dt>Subtotal</dt><dd>{{ o.subtotal | taka }}</dd></div>
+            @if (o.discount > 0) {
+              <div class="flex justify-between text-slate-400"><dt>Discount</dt><dd class="text-red-300">− {{ o.discount | taka }}</dd></div>
+            }
+            <div class="flex justify-between text-slate-400"><dt>Delivery Fee</dt><dd>{{ o.deliveryCharge | taka }}</dd></div>
+            <div class="flex justify-between border-t border-line pt-3 text-base font-bold text-white">
+              <dt>Grand Total</dt><dd class="text-brand-light">{{ o.total | taka }}</dd>
+            </div>
+            @if (o.status === 'RETURNED') {
+              <div class="flex justify-between text-rose-300"><dt>Return delivery charge</dt><dd>{{ o.returnDeliveryCharge | taka }}</dd></div>
+            }
+          </dl>
+        </section>
+
+        <!-- Customer -->
+        <section class="card p-5">
+          <h2 class="mb-4 font-semibold text-white">Customer Information</h2>
+          <dl class="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
+            <div><dt class="text-xs text-slate-400">Customer Name</dt><dd class="font-semibold text-white">{{ o.customer.name }}</dd></div>
+            <div>
+              <dt class="text-xs text-slate-400">Phone Number</dt>
+              <dd><a [href]="'tel:' + o.customer.phone" class="font-semibold text-white hover:underline">{{ o.customer.phone }}</a></dd>
+            </div>
+            @if (o.customer.email) {
+              <div><dt class="text-xs text-slate-400">Email</dt><dd class="font-semibold text-white break-all">{{ o.customer.email }}</dd></div>
+            }
+            <div class="sm:col-span-2">
+              <dt class="text-xs text-slate-400">Delivery Address</dt>
+              <dd class="whitespace-pre-line text-white"><i class="fas fa-map-marker-alt mr-1 text-slate-500"></i>{{ o.customer.address }}</dd>
+            </div>
+            @if (o.courier) {
+              <div><dt class="text-xs text-slate-400">Courier</dt><dd class="font-semibold text-white">{{ o.courier }}</dd></div>
+              <div><dt class="text-xs text-slate-400">Tracking Number</dt><dd class="font-mono text-white">{{ o.trackingNumber }}</dd></div>
+            }
+          </dl>
+        </section>
+
+        <!-- Internal notes -->
+        <section class="card p-5">
+          <h2 class="font-semibold text-white">Internal notes</h2>
+          <p class="text-xs text-slate-400">Visible to staff only. Never sent to the customer.</p>
+          <ul class="mt-4 space-y-3">
+            @for (note of o.notes; track note.id) {
+              <li class="rounded-lg border border-line bg-app/60 p-3 text-sm">
+                <p class="whitespace-pre-line text-slate-200">{{ note.body }}</p>
+                <p class="mt-1 text-xs text-slate-500">{{ note.author?.name ?? 'Unknown' }} · {{ note.createdAt | date: 'd MMM y, HH:mm' }}</p>
+              </li>
+            } @empty {
+              <li class="text-sm text-slate-500">No internal notes yet.</li>
+            }
+          </ul>
+          @if (auth.hasAnyPermission(['ORDER_EDIT', 'ORDER_STATUS_UPDATE'])) {
+            <form [formGroup]="noteForm" (ngSubmit)="submitNote()" class="mt-4 flex gap-2">
+              <input formControlName="body" class="field" placeholder="Add a note (Enter to save)" maxlength="2000" aria-label="New note" />
+              <button type="submit" class="btn-primary shrink-0" [disabled]="noteForm.invalid || savingNote()">Add note</button>
+            </form>
+          }
+        </section>
+      </div>
+
+      <!-- Right column -->
+      <div class="space-y-6">
+        <section class="card p-5">
+          <h2 class="mb-4 font-semibold text-white">Order Timeline</h2>
+          <ol>
+            @for (step of timeline(); track step.status; let last = $last) {
+              <li class="relative flex gap-3 pb-5 last:pb-0">
+                @if (!last) {
+                  <span class="absolute left-[11px] top-7 h-[calc(100%-1.5rem)] w-0.5" [class]="step.state === 'done' || step.state === 'current' ? 'bg-emerald-500' : 'bg-line'"></span>
+                }
+                <span
+                  class="relative z-[1] flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs"
+                  [class]="{
+                    done: 'bg-emerald-500 text-white',
+                    current: 'bg-emerald-500 text-white ring-4 ring-emerald-500/25',
+                    upcoming: 'bg-slate-700 text-slate-400',
+                    failed: 'bg-red-500 text-white'
+                  }[step.state]"
+                >
+                  @switch (step.state) {
+                    @case ('failed') { <i class="fas fa-times"></i> }
+                    @case ('upcoming') { }
+                    @default { <i class="fas fa-check"></i> }
+                  }
+                </span>
+                <div>
+                  <p class="text-sm font-semibold" [class]="step.state === 'upcoming' ? 'text-slate-500' : 'text-white'">{{ step.label }}</p>
+                  @if (step.at) {
+                    <p class="text-xs text-slate-400">{{ step.at | date: 'd MMM y, HH:mm' }}</p>
+                  }
+                </div>
+              </li>
+            }
+          </ol>
+
+          <details class="mt-4 border-t border-line pt-3 text-sm">
+            <summary class="cursor-pointer text-xs text-slate-400 hover:text-white">Audit log ({{ o.history.length }} entries)</summary>
+            <ul class="mt-3 space-y-3">
+              @for (entry of o.history; track $index) {
+                <li class="text-xs">
+                  <p class="text-slate-200">
+                    @if (entry.fromStatus) {
+                      {{ statusLabels[entry.fromStatus] }} → {{ statusLabels[entry.toStatus] }}
+                    } @else {
+                      Order placed
+                    }
+                  </p>
+                  <p class="text-slate-500">{{ entry.changedBy?.name ?? 'System' }} · {{ entry.changedAt | date: 'd MMM y, HH:mm' }}</p>
+                  @if (entry.note) {
+                    <p class="mt-1 italic text-slate-400">“{{ entry.note }}”</p>
+                  }
+                </li>
+              }
+            </ul>
+          </details>
+        </section>
+
+        @if (o.allowedNextStatuses.length && auth.hasPermission('ORDER_STATUS_UPDATE')) {
+          <section class="card p-5">
+            <h2 class="mb-4 font-semibold text-white">Update Status</h2>
+            <form [formGroup]="statusForm" (ngSubmit)="submitStatus()" class="space-y-4">
+              <label class="block">
+                <span class="field-label">Next status</span>
+                <select formControlName="status" class="field">
+                  @for (s of o.allowedNextStatuses; track s) {
+                    <option [value]="s">{{ statusLabels[s] }}</option>
+                  }
+                </select>
+              </label>
+              @if (needsShipment()) {
+                <label class="block">
+                  <span class="field-label">Courier *</span>
+                  <input formControlName="courier" class="field" placeholder="e.g. Pathao, Steadfast" maxlength="80" />
+                </label>
+                <label class="block">
+                  <span class="field-label">Tracking number *</span>
+                  <input formControlName="trackingNumber" class="field" placeholder="e.g. PT-123456789" maxlength="80" />
+                </label>
+              }
+              @if (isReturn()) {
+                <label class="block">
+                  <span class="field-label">Return delivery charge</span>
+                  <input type="number" min="0" step="0.01" formControlName="returnDeliveryCharge" class="field" placeholder="What the courier charged for the return" />
+                </label>
+              }
+              <label class="block">
+                <span class="field-label">Note (optional)</span>
+                <textarea formControlName="note" rows="2" class="field" maxlength="1000" placeholder="Saved in the audit log"></textarea>
+              </label>
+              <button type="submit" class="btn-primary w-full" [disabled]="savingStatus()">
+                @if (savingStatus()) {
+                  <i class="fas fa-circle-notch fa-spin"></i>
+                }
+                Update status
+              </button>
+            </form>
+          </section>
+        }
+      </div>
+    </div>
+  </div>
+
+  <!-- Image viewer -->
+  @if (lightbox(); as box) {
+    <div class="fixed inset-0 z-[80] flex items-center justify-center bg-black/90 p-4" (click)="lightbox.set(null)" role="dialog" aria-modal="true" aria-label="Product images">
+      <img [src]="box.images[box.index].url" alt="" class="max-h-[85vh] max-w-full rounded-lg object-contain" (click)="$event.stopPropagation()" />
+      <button type="button" class="absolute right-4 top-4 cursor-pointer text-2xl text-white/80 hover:text-white" (click)="lightbox.set(null)" aria-label="Close">
+        <i class="fas fa-times"></i>
+      </button>
+      @if (box.images.length > 1) {
+        <button type="button" class="absolute left-4 cursor-pointer rounded-full bg-white/10 p-3 text-white hover:bg-white/20" (click)="$event.stopPropagation(); stepLightbox(-1)" aria-label="Previous image">
+          <i class="fas fa-chevron-left"></i>
+        </button>
+        <button type="button" class="absolute right-4 cursor-pointer rounded-full bg-white/10 p-3 text-white hover:bg-white/20" (click)="$event.stopPropagation(); stepLightbox(1)" aria-label="Next image">
+          <i class="fas fa-chevron-right"></i>
+        </button>
+        <p class="absolute bottom-4 text-sm text-white/70">{{ box.index + 1 }} / {{ box.images.length }}</p>
+      }
+    </div>
+  }
+} @else if (resource.isLoading()) {
+  <div class="flex justify-center py-24 text-slate-400"><i class="fas fa-circle-notch fa-spin text-2xl"></i></div>
+} @else if (notFound()) {
+  <div class="card mx-auto mt-10 max-w-lg px-6 py-12 text-center">
+    <i class="fas fa-search mb-4 text-4xl text-slate-600"></i>
+    <h1 class="text-xl font-semibold text-white">Order not found</h1>
+    <p class="mt-2 text-sm text-slate-400">It may have been deleted.</p>
+    <a routerLink="/orders" class="btn-secondary mt-6">Back to orders</a>
+  </div>
+} @else {
+  <div class="card mx-auto mt-10 max-w-lg px-6 py-12 text-center">
+    <i class="fas fa-exclamation-triangle mb-4 text-4xl text-red-400"></i>
+    <p class="text-slate-300">Could not load this order.</p>
+    <button type="button" class="btn-secondary mt-6" (click)="resource.reload()">Try again</button>
+  </div>
+}

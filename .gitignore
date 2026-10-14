@@ -1,0 +1,8 @@
+# Secrets
+.env
+*.env.local
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
