@@ -32,6 +32,7 @@ public class FileService {
 
     public static final long MAX_IMAGE_BYTES = 10L * 1024 * 1024;
     public static final int MAX_FILES_PER_UPLOAD = 10;
+    public static final String PDF_TYPE = "application/pdf";
     /** Uploads must be attached to a record within this window or they are deleted. */
     private static final Duration ORPHAN_GRACE = Duration.ofHours(24);
 
@@ -55,9 +56,24 @@ public class FileService {
         }
         List<StoredFile> stored = new ArrayList<>();
         for (MultipartFile upload : uploads) {
-            stored.add(storeImage(upload, uploadedBy));
+            stored.add(store(upload, uploadedBy, "images", false));
         }
         return stored;
+    }
+
+    /** A bill or voucher for an expense: a photo (JPEG/PNG/WebP) or a PDF. */
+    @Transactional
+    public StoredFile uploadReceipt(MultipartFile upload, long uploadedBy) {
+        if (upload == null) {
+            throw ApiException.badRequest("NO_FILES", "Select a file");
+        }
+        return store(upload, uploadedBy, "receipts", true);
+    }
+
+    @Transactional(readOnly = true)
+    public StoredFile requireReceipt(long id) {
+        return files.findById(id).filter(f -> f.isImage() || f.getContentType().equals(PDF_TYPE))
+                .orElseThrow(() -> ApiException.badRequest("INVALID_RECEIPT", "The receipt no longer exists. Upload it again."));
     }
 
     /** Loads files by id, failing if any is missing or is not an image. */
@@ -96,30 +112,53 @@ public class FileService {
         }
     }
 
-    private StoredFile storeImage(MultipartFile upload, long uploadedBy) {
+    /**
+     * Stores an upload after checking its real type from the magic bytes (never the client's claim).
+     *
+     * @param allowPdf also accept PDF documents (receipts)
+     */
+    private StoredFile store(MultipartFile upload, long uploadedBy, String folder, boolean allowPdf) {
         if (upload.isEmpty()) {
             throw ApiException.badRequest("EMPTY_FILE", "One of the files is empty");
         }
         if (upload.getSize() > MAX_IMAGE_BYTES) {
-            throw ApiException.badRequest("FILE_TOO_LARGE", "Images must be 10 MB or smaller");
+            throw ApiException.badRequest("FILE_TOO_LARGE", "Files must be 10 MB or smaller");
         }
         try (InputStream in = new BufferedInputStream(upload.getInputStream())) {
             in.mark(ImageType.HEADER_LENGTH);
             byte[] header = in.readNBytes(ImageType.HEADER_LENGTH);
             in.reset();
-            ImageType type = ImageType.detect(header).orElseThrow(() -> ApiException.badRequest(
-                    "UNSUPPORTED_IMAGE", "Only JPEG, PNG and WebP images are supported"));
+
+            String contentType;
+            String extension;
+            var image = ImageType.detect(header);
+            if (image.isPresent()) {
+                contentType = image.get().contentType();
+                extension = image.get().extension();
+            } else if (allowPdf && isPdf(header)) {
+                contentType = PDF_TYPE;
+                extension = "pdf";
+            } else {
+                throw allowPdf
+                        ? ApiException.badRequest("UNSUPPORTED_FILE", "Only JPEG, PNG, WebP images or PDF files are supported")
+                        : ApiException.badRequest("UNSUPPORTED_IMAGE", "Only JPEG, PNG and WebP images are supported");
+            }
 
             Instant now = clock.instant();
             ZonedDateTime date = now.atZone(ZoneOffset.UTC);
-            String key = "images/%d/%02d/%s.%s".formatted(date.getYear(), date.getMonthValue(), UUID.randomUUID(),
-                    type.extension());
-            storage.put(key, in, upload.getSize(), type.contentType());
-            return files.save(new StoredFile(key, type.contentType(), upload.getSize(),
+            String key = "%s/%d/%02d/%s.%s".formatted(folder, date.getYear(), date.getMonthValue(), UUID.randomUUID(),
+                    extension);
+            storage.put(key, in, upload.getSize(), contentType);
+            return files.save(new StoredFile(key, contentType, upload.getSize(),
                     truncate(upload.getOriginalFilename(), 255), uploadedBy, now));
         } catch (IOException ex) {
             throw new IllegalStateException("Could not read uploaded file", ex);
         }
+    }
+
+    private static boolean isPdf(byte[] header) {
+        return header.length >= 5 && header[0] == '%' && header[1] == 'P' && header[2] == 'D' && header[3] == 'F'
+                && header[4] == '-';
     }
 
     private static String truncate(String value, int max) {

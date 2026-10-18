@@ -1,0 +1,187 @@
+<!-- Header -->
+<div class="flex flex-wrap items-center justify-between gap-4">
+  <div>
+    <h1 class="page-title">Expenses</h1>
+    <p class="page-subtitle">Track every cost of running the business</p>
+  </div>
+  <div class="flex flex-wrap gap-2">
+    <button *appHasPermission="['EXPENSE_CREATE', 'EXPENSE_EDIT']" type="button" class="btn-secondary" (click)="showCategories.set(true)">
+      <i class="fas fa-tags"></i> Categories
+    </button>
+    <button type="button" class="btn-secondary" (click)="exportExcel()" [disabled]="exporting()">
+      <i class="fas" [class.fa-file-excel]="!exporting()" [class.text-emerald-400]="!exporting()" [class.fa-circle-notch]="exporting()" [class.fa-spin]="exporting()"></i> Export
+    </button>
+    <a *appHasPermission="'EXPENSE_CREATE'" routerLink="/expenses/new" class="btn-primary">
+      <i class="fas fa-plus"></i> Add Expense
+    </a>
+  </div>
+</div>
+
+<!-- Summary -->
+<div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
+  <div class="grid grid-cols-2 gap-4 lg:col-span-1 lg:grid-cols-1">
+    <div class="card p-5">
+      <p class="text-sm text-slate-400">{{ hasFilters() ? 'Total (filtered)' : 'Total spent' }}</p>
+      <p class="mt-1 text-2xl font-bold text-rose-300 sm:text-3xl">{{ result()?.totalAmount ?? null | taka }}</p>
+    </div>
+    <div class="card p-5">
+      <p class="text-sm text-slate-400">Entries</p>
+      <p class="mt-1 text-2xl font-bold text-white sm:text-3xl">{{ result()?.totalElements ?? '–' }}</p>
+    </div>
+  </div>
+  <div class="card p-5 lg:col-span-2">
+    <p class="mb-3 text-sm text-slate-400">By category</p>
+    @for (c of topCategories(); track c.categoryId) {
+      <button type="button" class="mb-2.5 block w-full cursor-pointer text-left last:mb-0" (click)="setFilter('category', '' + c.categoryId)" [title]="'Show only ' + c.name">
+        <div class="mb-1 flex justify-between text-sm">
+          <span class="text-slate-200">{{ c.name }} <span class="text-xs text-slate-500">· {{ c.count }}</span></span>
+          <span class="font-medium text-white">{{ c.total | taka }}</span>
+        </div>
+        <div class="h-1.5 overflow-hidden rounded-full bg-white/5">
+          <div class="h-full rounded-full bg-rose-400/70" [style.width.%]="c.share"></div>
+        </div>
+      </button>
+    } @empty {
+      <p class="text-sm text-slate-500">No expenses for these filters.</p>
+    }
+  </div>
+</div>
+
+<!-- Table card -->
+<section class="card mt-6 overflow-hidden">
+  <div class="space-y-3 border-b border-line p-4">
+    <div class="relative">
+      <i class="fas fa-search pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500"></i>
+      <input type="search" class="field pl-9" placeholder="Search description, reference, notes or category…" [value]="search()" (input)="debounced('q', $any($event.target).value)" aria-label="Search expenses" />
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <select class="field w-auto" (change)="setFilter('range', $any($event.target).value)" aria-label="Date range">
+        @for (r of dateRanges; track r.value) {
+          <option [value]="r.value" [selected]="r.value === range()">Date: {{ r.label }}</option>
+        }
+      </select>
+      @if (range() === 'custom') {
+        <input type="date" class="field w-auto" [value]="customFrom()" (change)="setFilter('from', $any($event.target).value)" aria-label="From date" />
+        <span class="text-slate-500">–</span>
+        <input type="date" class="field w-auto" [value]="customTo()" (change)="setFilter('to', $any($event.target).value)" aria-label="To date" />
+      }
+      <select class="field w-auto" (change)="setFilter('category', $any($event.target).value)" aria-label="Category">
+        <option value="" [selected]="'' === categoryId()">Category: All</option>
+        @for (c of categoryOptions(); track c.id) {
+          <option [value]="'' + c.id" [selected]="'' + c.id === categoryId()">{{ c.name }}{{ c.active ? '' : ' (inactive)' }}</option>
+        }
+      </select>
+      <select class="field w-auto" (change)="setFilter('payment', $any($event.target).value)" aria-label="Payment method">
+        <option value="" [selected]="'' === payment()">Payment: All</option>
+        @for (p of paymentMethods; track p) {
+          <option [value]="p" [selected]="p === payment()">{{ paymentLabels[p] }}</option>
+        }
+      </select>
+      <input type="number" min="0" class="field w-28" placeholder="Min ৳" [value]="minAmount()" (input)="debounced('min', $any($event.target).value)" aria-label="Minimum amount" />
+      <input type="number" min="0" class="field w-28" placeholder="Max ৳" [value]="maxAmount()" (input)="debounced('max', $any($event.target).value)" aria-label="Maximum amount" />
+      @if (hasFilters()) {
+        <button type="button" class="cursor-pointer px-2 text-sm text-slate-400 hover:text-white" (click)="clearFilters()">
+          <i class="fas fa-times mr-1"></i>Clear filters
+        </button>
+      }
+    </div>
+  </div>
+
+  @if (expenses.error()) {
+    <div class="flex flex-col items-center gap-3 px-6 py-16 text-center">
+      <i class="fas fa-exclamation-triangle text-3xl text-red-400"></i>
+      <p class="text-slate-300">Could not load expenses.</p>
+      <button type="button" class="btn-secondary" (click)="expenses.reload()">Try again</button>
+    </div>
+  } @else {
+    <div class="overflow-x-auto">
+      <table class="w-full min-w-[820px] text-left text-sm">
+        <thead class="bg-app/60 text-xs uppercase tracking-wider text-slate-400">
+          <tr>
+            <th class="px-4 py-3 font-semibold">Date</th>
+            <th class="px-4 py-3 font-semibold">Description</th>
+            <th class="px-4 py-3 font-semibold">Category</th>
+            <th class="px-4 py-3 font-semibold">Payment</th>
+            <th class="px-4 py-3 text-right font-semibold">Amount</th>
+            <th class="px-4 py-3 text-center font-semibold">Receipt</th>
+            <th class="px-4 py-3"><span class="sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-line" [class.opacity-50]="expenses.isLoading()">
+          @for (e of rows(); track e.id) {
+            <tr class="transition hover:bg-white/[0.03]" [class.cursor-pointer]="auth.hasPermission('EXPENSE_EDIT')" (click)="open(e)">
+              <td class="whitespace-nowrap px-4 py-3 text-slate-200">{{ e.expenseDate | bdDate: 'd MMM y' }}</td>
+              <td class="px-4 py-3">
+                <p class="font-semibold text-white">{{ e.description }}</p>
+                @if (e.reference || e.createdBy) {
+                  <p class="text-xs text-slate-400">
+                    @if (e.reference) { <span class="font-mono">{{ e.reference }}</span> · }
+                    {{ e.createdBy?.name }}
+                  </p>
+                }
+              </td>
+              <td class="px-4 py-3">
+                <span class="rounded-full border border-line bg-white/5 px-2.5 py-0.5 text-xs text-slate-300">{{ e.category.name }}</span>
+              </td>
+              <td class="px-4 py-3 text-xs uppercase text-slate-300">{{ paymentLabels[e.paymentMethod] }}</td>
+              <td class="px-4 py-3 text-right font-semibold text-white">{{ e.amount | taka }}</td>
+              <td class="px-4 py-3 text-center">
+                @if (e.receipt) {
+                  <a [href]="e.receipt.url" target="_blank" rel="noopener" class="text-brand-light hover:text-white" (click)="$event.stopPropagation()" [title]="e.receipt.fileName ?? 'Receipt'">
+                    <i class="fas" [class.fa-file-pdf]="e.receipt.contentType === 'application/pdf'" [class.fa-image]="e.receipt.contentType !== 'application/pdf'"></i>
+                  </a>
+                } @else {
+                  <span class="text-slate-600">—</span>
+                }
+              </td>
+              <td class="relative px-4 py-3 text-right">
+                @if (auth.hasAnyPermission(['EXPENSE_EDIT', 'EXPENSE_DELETE'])) {
+                  <button type="button" class="cursor-pointer rounded p-2 text-slate-400 hover:bg-white/5 hover:text-white" (click)="toggleMenu(e.id, $event)" aria-haspopup="menu" [attr.aria-expanded]="openMenuId() === e.id" aria-label="Actions">
+                    <i class="fas fa-ellipsis-v"></i>
+                  </button>
+                }
+                @if (openMenuId() === e.id) {
+                  <div class="fixed inset-0 z-10" (click)="$event.stopPropagation(); openMenuId.set(null)"></div>
+                  <div role="menu" class="absolute right-4 top-11 z-20 w-36 rounded-md border border-line bg-panel py-1 text-left shadow-xl" (click)="$event.stopPropagation()">
+                    <a *appHasPermission="'EXPENSE_EDIT'" role="menuitem" [routerLink]="['/expenses', e.id, 'edit']" class="block px-4 py-2 text-slate-300 hover:bg-white/5">
+                      <i class="fas fa-pen mr-2 w-4"></i>Edit
+                    </a>
+                    <button *appHasPermission="'EXPENSE_DELETE'" type="button" role="menuitem" class="block w-full cursor-pointer px-4 py-2 text-left text-red-300 hover:bg-white/5" (click)="remove(e)">
+                      <i class="fas fa-trash mr-2 w-4"></i>Delete
+                    </button>
+                  </div>
+                }
+              </td>
+            </tr>
+          } @empty {
+            @if (expenses.isLoading()) {
+              @for (row of [1, 2, 3, 4, 5]; track row) {
+                <tr><td colspan="7" class="px-4 py-4"><div class="h-5 animate-pulse rounded bg-white/5"></div></td></tr>
+              }
+            } @else {
+              <tr>
+                <td colspan="7" class="px-6 py-16 text-center">
+                  <i class="fas fa-wallet mb-3 text-3xl text-slate-600"></i>
+                  <p class="font-medium text-slate-300">{{ hasFilters() ? 'No expenses match these filters' : 'No expenses yet' }}</p>
+                  @if (hasFilters()) {
+                    <button type="button" class="mt-2 cursor-pointer text-sm text-brand-light hover:underline" (click)="clearFilters()">Clear filters</button>
+                  }
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+
+    @if (result(); as r) {
+      <div class="border-t border-line px-4 py-3">
+        <app-pagination [page]="r.page" [size]="r.size" [totalElements]="r.totalElements" [totalPages]="r.totalPages" (pageChange)="goToPage($event)" />
+      </div>
+    }
+  }
+</section>
+
+@if (showCategories()) {
+  <app-expense-categories-dialog (closed)="onCategoriesClosed($event)" />
+}

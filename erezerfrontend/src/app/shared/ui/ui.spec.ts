@@ -8,6 +8,7 @@ describe('TakaPipe', () => {
   it('formats with the taka sign, grouping and two decimals', () => {
     expect(pipe.transform(1810)).toBe('৳ 1,810.00');
     expect(pipe.transform(0.5)).toBe('৳ 0.50');
+    expect(pipe.transform(-4090.5)).toBe('−৳ 4,090.50');
   });
 
   it('renders a dash for missing values', () => {

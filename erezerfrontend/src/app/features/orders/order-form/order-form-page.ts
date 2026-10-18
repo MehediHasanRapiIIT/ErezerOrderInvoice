@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, OnInit, signal } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import {
   FormArray,
   FormControl,
@@ -9,15 +9,18 @@ import {
   Validators,
 } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { startWith } from 'rxjs';
+import { catchError, debounceTime, distinctUntilChanged, map, of, startWith, switchMap, tap } from 'rxjs';
 import { AuthService } from '../../../core/auth/auth.service';
 import { errorMessage, toProblem } from '../../../core/http/api-error';
 import { ToastService } from '../../../core/notify/toast.service';
+import { COMPLETE_PHONE_DIGITS, phoneKey } from '../../../shared/phone';
 import { HasUnsavedChanges } from '../../../shared/unsaved-changes.guard';
+import { Customer, CustomerApi } from '../../customers/customer.api';
 import { TakaPipe } from '../../../shared/ui/taka.pipe';
 import { OrderApi } from '../data/order.api';
 import { PAYMENT_LABELS, PAYMENT_METHODS, SIZE_SUGGESTIONS } from '../data/order-labels';
 import { OrderDetail, OrderImage, OrderRequest, PaymentMethod } from '../data/order.models';
+import { BdDatePipe } from '../../../shared/ui/bd-date.pipe';
 
 const MAX_IMAGES_PER_ITEM = 10;
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -42,7 +45,7 @@ let nextKey = 1;
 /** Create (/orders/new) and edit (/orders/:id/edit) form. */
 @Component({
   selector: 'app-order-form-page',
-  imports: [ReactiveFormsModule, RouterLink, TakaPipe],
+  imports: [BdDatePipe, ReactiveFormsModule, RouterLink, TakaPipe],
   templateUrl: './order-form-page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -55,6 +58,7 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
   private readonly toast = inject(ToastService);
   private readonly auth = inject(AuthService);
   private readonly fb = inject(NonNullableFormBuilder);
+  private readonly customers = inject(CustomerApi);
 
   protected readonly paymentMethods = PAYMENT_METHODS;
   protected readonly paymentLabels = PAYMENT_LABELS;
@@ -98,6 +102,77 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
   );
   protected readonly discountTooLarge = computed(() => (Number(this.formValue().discount) || 0) > this.subtotal());
   protected readonly isUploading = computed(() => Object.values(this.uploading()).some((n) => n > 0));
+
+  /** undefined = no complete number yet, null = new customer, otherwise their history. */
+  protected readonly returning = signal<Customer | null | undefined>(undefined);
+  protected readonly lookingUp = signal(false);
+  /** Fields that were empty and got filled from the customer's last order. */
+  protected readonly autoFilled = signal<string[]>([]);
+
+  protected readonly differsFromSaved = computed(() => {
+    const c = this.returning();
+    const v = this.formValue().customer;
+    return !!c && !!v && (v.name !== c.name || (v.email ?? '') !== (c.email ?? '') || v.address !== c.address);
+  });
+
+  constructor() {
+    // Recognise returning customers as soon as a complete phone number is typed, in any format.
+    this.form.controls.customer.controls.phone.valueChanges
+      .pipe(
+        debounceTime(400),
+        map((phone) => phoneKey(phone)),
+        distinctUntilChanged(),
+        tap((key) => {
+          this.autoFilled.set([]);
+          if (key.length < COMPLETE_PHONE_DIGITS) {
+            this.returning.set(undefined);
+          }
+        }),
+        switchMap((key) => {
+          if (key.length < COMPLETE_PHONE_DIGITS) {
+            return of(undefined);
+          }
+          this.lookingUp.set(true);
+          return this.customers.lookup(key).pipe(catchError(() => of(undefined))); // a failed lookup never blocks the form
+        }),
+        takeUntilDestroyed(),
+      )
+      .subscribe((customer) => {
+        this.lookingUp.set(false);
+        this.returning.set(customer);
+        if (customer && !this.isEdit()) {
+          this.fillEmptyFields(customer);
+        }
+      });
+  }
+
+  protected useSavedDetails(): void {
+    const c = this.returning();
+    if (c) {
+      this.form.controls.customer.patchValue({ name: c.name, email: c.email ?? '', address: c.address });
+      this.form.markAsDirty();
+      this.autoFilled.set([]);
+    }
+  }
+
+  /** Fills only fields the user has not typed into, so nothing they entered is overwritten. */
+  private fillEmptyFields(c: Customer): void {
+    const controls = this.form.controls.customer.controls;
+    const filled: string[] = [];
+    if (!controls.name.value.trim()) {
+      controls.name.setValue(c.name);
+      filled.push('name');
+    }
+    if (!controls.email.value.trim() && c.email) {
+      controls.email.setValue(c.email);
+      filled.push('email');
+    }
+    if (!controls.address.value.trim()) {
+      controls.address.setValue(c.address);
+      filled.push('address');
+    }
+    this.autoFilled.set(filled);
+  }
 
   get items(): FormArray<ItemForm> {
     return this.form.controls.items;

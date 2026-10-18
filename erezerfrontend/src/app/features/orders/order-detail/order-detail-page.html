@@ -11,13 +11,19 @@
           <app-status-badge [status]="o.status" />
         </div>
         <p class="page-subtitle">
-          Created {{ o.createdAt | date: 'd MMM y, HH:mm' }}
+          Created {{ o.createdAt | bdDate: 'd MMM y, h:mm a' }}
           @if (o.createdBy) {
             by {{ o.createdBy.name }}
           }
         </p>
       </div>
       <div class="flex flex-wrap gap-2">
+        @if (courierActionVisible()) {
+          <button type="button" class="btn-primary" (click)="showSendDialog.set(true)" [disabled]="!courierSendable()"
+                  [title]="courierSendable() ? 'Book this parcel with Steadfast' : 'Accept the order before sending it to the courier'">
+            <i class="fas fa-shipping-fast"></i> Send to Steadfast
+          </button>
+        }
         <div class="flex">
           <button type="button" class="btn-secondary rounded-r-none" (click)="printInvoice()" [disabled]="pdfBusy()">
             <i class="fas" [class.fa-print]="!pdfBusy()" [class.fa-circle-notch]="pdfBusy()" [class.fa-spin]="pdfBusy()"></i>
@@ -178,7 +184,7 @@
             @for (note of o.notes; track note.id) {
               <li class="rounded-lg border border-line bg-app/60 p-3 text-sm">
                 <p class="whitespace-pre-line text-slate-200">{{ note.body }}</p>
-                <p class="mt-1 text-xs text-slate-500">{{ note.author?.name ?? 'Unknown' }} · {{ note.createdAt | date: 'd MMM y, HH:mm' }}</p>
+                <p class="mt-1 text-xs text-slate-500">{{ note.author?.name ?? 'Unknown' }} · {{ note.createdAt | bdDate: 'd MMM y, h:mm a' }}</p>
               </li>
             } @empty {
               <li class="text-sm text-slate-500">No internal notes yet.</li>
@@ -195,6 +201,10 @@
 
       <!-- Right column -->
       <div class="space-y-6">
+        @if (shipment(); as sh) {
+          <app-shipment-card [shipment]="sh" [canRefresh]="auth.hasAnyPermission(['COURIER_SEND', 'ORDER_STATUS_UPDATE'])"
+                             [refreshing]="refreshingShipment()" (refresh)="refreshShipment()" />
+        }
         <section class="card p-5">
           <h2 class="mb-4 font-semibold text-white">Order Timeline</h2>
           <ol>
@@ -221,7 +231,7 @@
                 <div>
                   <p class="text-sm font-semibold" [class]="step.state === 'upcoming' ? 'text-slate-500' : 'text-white'">{{ step.label }}</p>
                   @if (step.at) {
-                    <p class="text-xs text-slate-400">{{ step.at | date: 'd MMM y, HH:mm' }}</p>
+                    <p class="text-xs text-slate-400">{{ step.at | bdDate: 'd MMM y, h:mm a' }}</p>
                   }
                 </div>
               </li>
@@ -240,7 +250,7 @@
                       Order placed
                     }
                   </p>
-                  <p class="text-slate-500">{{ entry.changedBy?.name ?? 'System' }} · {{ entry.changedAt | date: 'd MMM y, HH:mm' }}</p>
+                  <p class="text-slate-500">{{ entry.changedBy?.name ?? 'System' }} · {{ entry.changedAt | bdDate: 'd MMM y, h:mm a' }}</p>
                   @if (entry.note) {
                     <p class="mt-1 italic text-slate-400">“{{ entry.note }}”</p>
                   }
@@ -294,6 +304,10 @@
       </div>
     </div>
   </div>
+
+  @if (showSendDialog()) {
+    <app-send-to-courier-dialog [orderId]="o.id" (closed)="onSendClosed($event)" />
+  }
 
   <!-- Image viewer -->
   @if (lightbox(); as box) {

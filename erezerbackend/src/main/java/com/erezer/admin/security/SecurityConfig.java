@@ -25,8 +25,8 @@ import org.springframework.security.oauth2.jwt.JwtIssuerValidator;
 import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
-import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -46,6 +46,7 @@ public class SecurityConfig {
 
     @Bean
     SecurityFilterChain apiSecurity(HttpSecurity http, SecurityProperties properties,
+            SessionValidatingJwtConverter jwtConverter,
             @Qualifier("handlerExceptionResolver") HandlerExceptionResolver exceptionResolver) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
@@ -60,11 +61,14 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/refresh", "/api/auth/logout")
                         .permitAll()
                         .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
+                        // Courier callbacks authenticate with their own Bearer token (checked in the controller).
+                        .requestMatchers(HttpMethod.POST, "/api/webhooks/steadfast").permitAll()
                         .requestMatchers("/api/docs/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(rs -> rs
-                        .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
+                        .bearerTokenResolver(bearerTokenResolver())
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtConverter))
                         // Route security errors through GlobalExceptionHandler so they are problem+json too.
                         .authenticationEntryPoint((req, res, ex) -> exceptionResolver.resolveException(req, res, null, ex))
                         .accessDeniedHandler((req, res, ex) -> exceptionResolver.resolveException(req, res, null, ex)))
@@ -72,6 +76,15 @@ public class SecurityConfig {
                         .authenticationEntryPoint((req, res, ex) -> exceptionResolver.resolveException(req, res, null, ex))
                         .accessDeniedHandler((req, res, ex) -> exceptionResolver.resolveException(req, res, null, ex)));
         return http.build();
+    }
+
+    /**
+     * Webhook callbacks carry their provider's own Bearer token (checked by the webhook controller), which must not
+     * be mistaken for a staff JWT.
+     */
+    private static BearerTokenResolver bearerTokenResolver() {
+        DefaultBearerTokenResolver standard = new DefaultBearerTokenResolver();
+        return request -> request.getRequestURI().startsWith("/api/webhooks/") ? null : standard.resolve(request);
     }
 
     @Bean
@@ -107,15 +120,6 @@ public class SecurityConfig {
                 new JwtTimestampValidator(), new JwtIssuerValidator(properties.jwt().issuer()));
         decoder.setJwtValidator(validator);
         return decoder;
-    }
-
-    private static JwtAuthenticationConverter jwtAuthenticationConverter() {
-        JwtGrantedAuthoritiesConverter authorities = new JwtGrantedAuthoritiesConverter();
-        authorities.setAuthoritiesClaimName(JwtTokenService.CLAIM_AUTHORITIES);
-        authorities.setAuthorityPrefix("");
-        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
-        converter.setJwtGrantedAuthoritiesConverter(authorities);
-        return converter;
     }
 
     private static CorsConfigurationSource corsConfigurationSource(SecurityProperties properties) {

@@ -12,3 +12,5 @@ app:
     access-key: test
     secret-key: test-secret
     initialize-bucket: false
+  courier:
+    encryption-key: dGVzdC1vbmx5LWNvdXJpZXIta2V5LTMyLWJ5dGVzISE=

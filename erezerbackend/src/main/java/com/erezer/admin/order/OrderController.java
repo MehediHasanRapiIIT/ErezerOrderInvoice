@@ -86,6 +86,24 @@ class OrderController {
         return queryService.search(filter, pageable);
     }
 
+    /** Ids of all orders matching the list filters (max 500), for "select all matching" in bulk actions. */
+    @GetMapping("/ids")
+    @PreAuthorize("hasAuthority('ORDER_VIEW')")
+    OrderQueryService.MatchingIds ids(
+            @RequestParam(required = false) String tab,
+            @RequestParam(required = false) List<OrderStatus> status,
+            @RequestParam(required = false) PaymentMethod paymentMethod,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) String q,
+            @RequestParam(defaultValue = "createdAt,desc") String sort) {
+        OrderFilter filter = filter(tab, status, paymentMethod, from, to, q);
+        if (filter.statuses().isEmpty()) {
+            return new OrderQueryService.MatchingIds(List.of(), 0);
+        }
+        return queryService.ids(filter, parseSort(sort), 500);
+    }
+
     /** Same filters as {@link #list}, as an .xlsx download of every matching order. */
     @GetMapping("/export.xlsx")
     @PreAuthorize("hasAuthority('ORDER_VIEW')")

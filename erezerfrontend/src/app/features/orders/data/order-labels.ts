@@ -1,4 +1,5 @@
-import { OrderStatus, OrderTab, PaymentMethod } from './order.models';
+import { PAYMENT_LABELS as BASE_PAYMENT_LABELS, PaymentMethod } from '../../../shared/payment-methods';
+import { OrderStatus, OrderTab } from './order.models';
 
 export const STATUS_FLOW: readonly OrderStatus[] = [
   'PLACED',
@@ -40,15 +41,10 @@ export const STATUS_STYLES: Record<OrderStatus, string> = {
   RETURNED: 'text-rose-300 border-rose-500/40 bg-rose-500/10',
 };
 
-export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
-  CASH: 'Cash on delivery',
-  BKASH: 'bKash',
-  NAGAD: 'Nagad',
-  BANK_TRANSFER: 'Bank transfer',
-  CARD: 'Card',
-};
+export { PAYMENT_METHODS } from '../../../shared/payment-methods';
 
-export const PAYMENT_METHODS = Object.keys(PAYMENT_LABELS) as PaymentMethod[];
+/** Orders say "Cash on delivery" (as on the invoice); expenses just say "Cash". */
+export const PAYMENT_LABELS: Record<PaymentMethod, string> = { ...BASE_PAYMENT_LABELS, CASH: 'Cash on delivery' };
 
 export const SIZE_SUGGESTIONS = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'];
 

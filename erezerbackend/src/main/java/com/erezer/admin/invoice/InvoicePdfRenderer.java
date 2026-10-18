@@ -45,42 +45,52 @@ import org.springframework.stereotype.Component;
 @Component
 class InvoicePdfRenderer {
 
-    private static final Color INK = new Color(17, 24, 39);
-    private static final Color MUTED = new Color(100, 116, 139);
-    private static final Color LINE = new Color(226, 232, 240);
-    private static final Color STRIPE = new Color(248, 250, 252);
-    private static final Color HEADER_TEXT = new Color(203, 213, 225);
+    private static final Color INK = new Color(12, 10, 9);
+    private static final Color MUTED = new Color(120, 113, 108);
+    private static final Color SOFT = new Color(87, 83, 78);
+    private static final Color LINE = new Color(231, 229, 228);
+    private static final Color STRIPE = new Color(250, 249, 248);
+    private static final Color BAND_KEY = new Color(168, 162, 158);
+    private static final Color BAND_RULE = new Color(42, 39, 36);
     private static final Color DISCOUNT = new Color(185, 28, 28);
 
+    static final String BRAND_TITLE = "Erezer - Erase the Ordinary";
+    static final String TAGLINE = "Erase the Ordinary";
+
     private static final float MARGIN = 36;
-    private static final float HEADER_HEIGHT = 112;
+    /** Page 1 header: accent strip, wordmark + tagline, INVOICE title and the dark date band. */
+    private static final float HEADER_HEIGHT = 128;
+    private static final float ACCENT = 6;
     private static final float FOOTER_SPACE = 48;
     private static final float SLOT_GAP = 18;
     private static final float IMAGE_GAP = 14;
     private static final int IMAGES_PER_SLOT = 2;
     private static final int SLOTS_PER_PAGE = 2;
-    private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("d MMM yyyy, HH:mm", Locale.ENGLISH);
+    private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("d MMM yyyy, h:mm a", Locale.ENGLISH);
 
     private final InvoiceFonts fonts;
     private final CompanyProperties company;
     private final byte[] logo;
+    private final byte[] wordmark;
 
     InvoicePdfRenderer(InvoiceFonts fonts, CompanyProperties company) {
         this.fonts = fonts;
         this.company = company;
         this.logo = readClasspath("branding/logo.png");
+        this.wordmark = readClasspath("branding/logo-wordmark.png");
     }
 
     byte[] render(InvoiceData invoice) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        Document document = new Document(PageSize.A4, MARGIN, MARGIN, HEADER_HEIGHT + 24, FOOTER_SPACE);
+        Document document = new Document(PageSize.A4, MARGIN, MARGIN, HEADER_HEIGHT + 22, FOOTER_SPACE);
         PdfWriter writer = PdfWriter.getInstance(document, out);
         writer.setPageEvent(new PageDecorations(invoice));
-        document.addTitle("Invoice " + invoice.orderNumber());
+        document.addTitle(BRAND_TITLE + " · Invoice " + invoice.orderNumber());
+        document.addSubject("Invoice " + invoice.orderNumber());
         document.addAuthor(company.name());
         document.open();
         // Pages after the first have no header band.
-        document.setMargins(MARGIN, MARGIN, MARGIN + 6, FOOTER_SPACE);
+        document.setMargins(MARGIN, MARGIN, MARGIN + ACCENT, FOOTER_SPACE);
 
         document.add(billingBlock(invoice));
         document.add(itemsTable(invoice));
@@ -106,40 +116,38 @@ class InvoicePdfRenderer {
     // ---- Page 1 ----------------------------------------------------------------------------------
 
     private PdfPTable billingBlock(InvoiceData invoice) {
-        PdfPTable table = new PdfPTable(new float[] {55, 45});
+        PdfPTable table = new PdfPTable(new float[] {50, 50});
         table.setWidthPercentage(100);
-        table.setSpacingAfter(18);
+        table.setSpacingAfter(20);
 
-        PdfPCell billTo = borderless();
-        billTo.addElement(label("BILL TO"));
-        billTo.addElement(new Paragraph(fonts.phrase(invoice.customerName(), 12, true, INK)));
-        billTo.addElement(new Paragraph(fonts.phrase(invoice.customerPhone(), 9.5f, false, INK)));
+        PdfPCell billedTo = party("BILLED TO");
+        billedTo.addElement(new Paragraph(fonts.phrase(invoice.customerName(), 12, true, INK)));
+        billedTo.addElement(new Paragraph(fonts.phrase(invoice.customerPhone(), 9.5f, false, SOFT)));
         if (invoice.customerEmail() != null) {
-            billTo.addElement(new Paragraph(fonts.phrase(invoice.customerEmail(), 9.5f, false, INK)));
+            billedTo.addElement(new Paragraph(fonts.phrase(invoice.customerEmail(), 9.5f, false, SOFT)));
         }
-        billTo.addElement(new Paragraph(fonts.phrase(invoice.customerAddress(), 9.5f, false, MUTED)));
-        table.addCell(billTo);
+        table.addCell(billedTo);
 
-        PdfPTable meta = new PdfPTable(new float[] {45, 55});
-        meta.setWidthPercentage(100);
-        metaRow(meta, "Order ID", invoice.orderNumber());
-        metaRow(meta, "Date", DATE.format(invoice.orderedAt()));
-        metaRow(meta, "Payment", invoice.paymentMethod());
-        PdfPCell metaCell = borderless();
-        metaCell.addElement(meta);
-        table.addCell(metaCell);
+        PdfPCell shipTo = party("SHIP TO");
+        shipTo.addElement(new Paragraph(fonts.phrase(invoice.customerAddress(), 9.5f, false, SOFT)));
+        table.addCell(shipTo);
         return table;
     }
 
-    private void metaRow(PdfPTable meta, String name, String value) {
-        PdfPCell key = borderless(fonts.phrase(name, 9, false, MUTED));
-        key.setHorizontalAlignment(Element.ALIGN_RIGHT);
-        key.setPaddingBottom(4);
-        PdfPCell val = borderless(fonts.phrase(value, 9.5f, true, INK));
-        val.setHorizontalAlignment(Element.ALIGN_RIGHT);
-        val.setPaddingBottom(4);
-        meta.addCell(key);
-        meta.addCell(val);
+    /** A column with a small caps label underlined by a hairline, as on the shop's invoice. */
+    private PdfPCell party(String title) {
+        PdfPCell cell = borderless();
+        cell.setPaddingRight(18);
+        PdfPTable heading = new PdfPTable(1);
+        heading.setWidthPercentage(100);
+        PdfPCell label = borderless(spaced(title, 8, false, MUTED, 1.5f));
+        label.setBorder(Rectangle.BOTTOM);
+        label.setBorderColor(LINE);
+        label.setPaddingBottom(5);
+        heading.addCell(label);
+        heading.setSpacingAfter(6);
+        cell.addElement(heading);
+        return cell;
     }
 
     private PdfPTable itemsTable(InvoiceData invoice) {
@@ -308,12 +316,14 @@ class InvoicePdfRenderer {
         private final InvoiceData invoice;
         /** One instance per document, so the PDF embeds the logo once however many pages use it. */
         private final Image logoImage;
+        private final Image wordmarkImage;
         private PdfTemplate totalPages;
 
         PageDecorations(InvoiceData invoice) {
             this.invoice = invoice;
             try {
                 this.logoImage = Image.getInstance(logo);
+                this.wordmarkImage = Image.getInstance(wordmark);
             } catch (IOException ex) {
                 throw new UncheckedIOException(ex);
             }
@@ -338,6 +348,7 @@ class InvoicePdfRenderer {
             PdfContentByte canvas = writer.getDirectContent();
             Rectangle page = document.getPageSize();
             drawWatermark(writer, page);
+            drawAccent(canvas, page);
             float y = 26;
             canvas.setColorStroke(LINE);
             canvas.setLineWidth(0.6f);
@@ -345,7 +356,7 @@ class InvoicePdfRenderer {
             canvas.lineTo(page.getWidth() - MARGIN, y + 12);
             canvas.stroke();
 
-            String contact = String.join("  ·  ", nonBlank(company.name(), company.phone(), company.email()));
+            String contact = String.join("  ·  ", nonBlank(company.name(), company.address(), company.phone(), company.email()));
             ColumnText.showTextAligned(canvas, Element.ALIGN_LEFT, fonts.phrase(contact, 8, false, MUTED), MARGIN, y, 0);
 
             String label = "Page " + writer.getPageNumber() + " of ";
@@ -364,40 +375,57 @@ class InvoicePdfRenderer {
 
         private void drawHeader(PdfContentByte canvas, Rectangle page) {
             float top = page.getHeight();
-            float width = page.getWidth();
-            canvas.saveState();
-            canvas.setColorFill(Color.BLACK);
-            canvas.rectangle(0, top - HEADER_HEIGHT, width, HEADER_HEIGHT);
-            canvas.fill();
+            float left = MARGIN;
+            float right = page.getWidth() - MARGIN;
 
-            // Logo on a white tile, as in the admin panel.
-            float tile = 62;
-            float tileX = MARGIN;
-            float tileY = top - HEADER_HEIGHT / 2 - tile / 2;
-            canvas.setColorFill(Color.WHITE);
-            canvas.roundRectangle(tileX, tileY, tile, tile, 6);
+            // Wordmark (865 x 96 px) with the tagline under it.
+            float markHeight = 20;
+            float markWidth = markHeight * wordmarkImage.getWidth() / wordmarkImage.getHeight();
+            canvas.addImage(wordmarkImage, markWidth, 0, 0, markHeight, left, top - 30 - markHeight);
+            ColumnText.showTextAligned(canvas, Element.ALIGN_LEFT, italic(TAGLINE, 9.5f, SOFT), left, top - 64, 0);
+
+            ColumnText.showTextAligned(canvas, Element.ALIGN_RIGHT, spaced("INVOICE", 24, true, INK, 4),
+                    right, top - 48, 0);
+            ColumnText.showTextAligned(canvas, Element.ALIGN_RIGHT, fonts.phrase(invoice.orderNumber(), 10, false, SOFT),
+                    right, top - 63, 0);
+
+            // Dark band: accepted date · order date · payment.
+            float bandTop = top - 80;
+            float bandHeight = 44;
+            canvas.saveState();
+            canvas.setColorFill(INK);
+            canvas.rectangle(left, bandTop - bandHeight, right - left, bandHeight);
+            canvas.fill();
+            float[] widths = {0.37f, 0.37f, 0.26f};
+            String[][] cells = {
+                    {"ACCEPTED DATE", invoice.acceptedAt() == null ? "Not accepted yet" : DATE.format(invoice.acceptedAt())},
+                    {"ORDER DATE", DATE.format(invoice.orderedAt())},
+                    {"PAYMENT", invoice.paymentMethod().toUpperCase(Locale.ENGLISH)}};
+            float x = left;
+            canvas.setColorStroke(BAND_RULE);
+            canvas.setLineWidth(0.8f);
+            for (int i = 0; i < cells.length; i++) {
+                float w = (right - left) * widths[i];
+                if (i > 0) {
+                    canvas.moveTo(x, bandTop);
+                    canvas.lineTo(x, bandTop - bandHeight);
+                    canvas.stroke();
+                }
+                ColumnText.showTextAligned(canvas, Element.ALIGN_LEFT, spaced(cells[i][0], 7, false, BAND_KEY, 1.2f),
+                        x + 14, bandTop - 16, 0);
+                ColumnText.showTextAligned(canvas, Element.ALIGN_LEFT, fonts.phrase(cells[i][1], 10.5f, true, Color.WHITE),
+                        x + 14, bandTop - 32, 0);
+                x += w;
+            }
+            canvas.restoreState();
+        }
+
+        private void drawAccent(PdfContentByte canvas, Rectangle page) {
+            canvas.saveState();
+            canvas.setColorFill(INK);
+            canvas.rectangle(0, page.getHeight() - ACCENT, page.getWidth(), ACCENT);
             canvas.fill();
             canvas.restoreState();
-            float size = tile - 10;
-            canvas.addImage(logoImage, size, 0, 0, size, tileX + 5, tileY + 5);
-
-            float textX = tileX + tile + 16;
-            ColumnText.showTextAligned(canvas, Element.ALIGN_LEFT, fonts.phrase(company.name(), 20, true, Color.WHITE),
-                    textX, top - 46, 0);
-            if (company.address() != null) {
-                ColumnText.showTextAligned(canvas, Element.ALIGN_LEFT,
-                        fonts.phrase(company.address(), 9, false, HEADER_TEXT), textX, top - 62, 0);
-            }
-            String contact = String.join("  |  ", nonBlank(
-                    company.email() == null ? null : "Email: " + company.email(),
-                    company.phone() == null ? null : "Phone: " + company.phone()));
-            ColumnText.showTextAligned(canvas, Element.ALIGN_LEFT, fonts.phrase(contact, 9, false, HEADER_TEXT),
-                    textX, top - 75, 0);
-
-            ColumnText.showTextAligned(canvas, Element.ALIGN_RIGHT, fonts.phrase("INVOICE", 26, true, Color.WHITE),
-                    width - MARGIN, top - 52, 0);
-            ColumnText.showTextAligned(canvas, Element.ALIGN_RIGHT,
-                    fonts.phrase("# " + invoice.orderNumber(), 10, false, HEADER_TEXT), width - MARGIN, top - 70, 0);
         }
 
         private void drawWatermark(PdfWriter writer, Rectangle page) {
@@ -414,10 +442,22 @@ class InvoicePdfRenderer {
 
     // ---- Helpers ---------------------------------------------------------------------------------
 
-    private Paragraph label(String text) {
-        Paragraph p = new Paragraph(fonts.phrase(text, 8, true, MUTED));
-        p.setSpacingAfter(2);
-        return p;
+    /** Letter-spaced text, e.g. "I N V O I C E". */
+    private Phrase spaced(String text, float size, boolean bold, Color color, float spacing) {
+        Phrase phrase = fonts.phrase(text, size, bold, color);
+        for (Object chunk : phrase.getChunks()) {
+            ((org.openpdf.text.Chunk) chunk).setCharacterSpacing(spacing);
+        }
+        return phrase;
+    }
+
+    /** Slanted text (the embedded Noto Sans has no italic face, so the glyphs are skewed). */
+    private Phrase italic(String text, float size, Color color) {
+        Phrase phrase = fonts.phrase(text, size, false, color);
+        for (Object chunk : phrase.getChunks()) {
+            ((org.openpdf.text.Chunk) chunk).setSkew(0, 12).setCharacterSpacing(0.6f);
+        }
+        return phrase;
     }
 
     private static PdfPCell borderless() {

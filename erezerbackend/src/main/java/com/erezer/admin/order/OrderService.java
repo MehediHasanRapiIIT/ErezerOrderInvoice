@@ -6,6 +6,7 @@ import com.erezer.admin.file.StoredFile;
 import com.erezer.admin.order.dto.OrderDtos.OrderItemRequest;
 import com.erezer.admin.order.dto.OrderDtos.OrderRequest;
 import com.erezer.admin.order.dto.OrderDtos.StatusChangeRequest;
+import java.math.BigDecimal;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.util.List;
@@ -79,6 +80,33 @@ public class OrderService {
             order.setReturnDeliveryCharge(request.returnDeliveryCharge());
         }
         order.changeStatus(target, blankToNull(request.note()), userId, clock.instant());
+    }
+
+    /** Courier booked the parcel: the order moves to Shipped with the courier's tracking code. */
+    @Transactional
+    public void markShippedByCourier(long orderId, String courier, String trackingCode, String note, Long userId) {
+        Order order = load(orderId);
+        order.assignShipment(courier, trackingCode);
+        if (order.getStatus().canMoveTo(OrderStatus.SHIPPED)) {
+            order.changeStatus(OrderStatus.SHIPPED, note, userId, clock.instant());
+        }
+    }
+
+    /**
+     * Applies an outcome reported by the courier (delivered / returned). Never moves an order backwards: if the
+     * transition is not allowed from the current status, only the courier charge is recorded.
+     *
+     * @return whether the status changed
+     */
+    @Transactional
+    public boolean applyCourierOutcome(long orderId, OrderStatus target, BigDecimal courierCharge, String note) {
+        Order order = load(orderId);
+        order.recordCourierCharge(courierCharge);
+        if (target == null || !order.getStatus().canMoveTo(target)) {
+            return false;
+        }
+        order.changeStatus(target, note, null, clock.instant());
+        return true;
     }
 
     @Transactional

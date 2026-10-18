@@ -10,6 +10,10 @@ export type Permission =
   | 'EXPENSE_CREATE'
   | 'EXPENSE_EDIT'
   | 'EXPENSE_DELETE'
+  | 'CUSTOMER_VIEW'
+  | 'CUSTOMER_EXPORT'
+  | 'COURIER_SEND'
+  | 'COURIER_SETTINGS'
   | 'STAFF_MANAGE';
 
 export type Role = 'ADMIN' | 'MODERATOR';

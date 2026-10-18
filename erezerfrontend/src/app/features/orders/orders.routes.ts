@@ -17,6 +17,12 @@ export const ORDER_ROUTES: Routes = [
     loadComponent: () => import('./order-form/order-form-page').then((m) => m.OrderFormPage),
   },
   {
+    path: 'send-to-courier',
+    title: 'Send to Steadfast',
+    canActivate: [requirePermission('COURIER_SEND')],
+    loadComponent: () => import('../courier/bulk-send-page').then((m) => m.BulkSendPage),
+  },
+  {
     path: ':id',
     title: 'Order',
     canActivate: [requirePermission('ORDER_VIEW')],

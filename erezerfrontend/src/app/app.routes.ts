@@ -5,8 +5,6 @@ import { AuthService } from './core/auth/auth.service';
 import { NAV_ITEMS } from './layout/nav-items';
 import { Shell } from './layout/shell/shell';
 
-const comingSoon = () => import('./shared/coming-soon/coming-soon-page').then((m) => m.ComingSoonPage);
-
 /** Sends the user to the first section their permissions allow. */
 function landingPage(): string {
   const auth = inject(AuthService);
@@ -30,38 +28,31 @@ export const routes: Routes = [
         path: 'dashboard',
         title: 'Dashboard',
         canActivate: [requirePermission('DASHBOARD_VIEW')],
-        loadComponent: comingSoon,
-        data: {
-          title: 'Dashboard',
-          icon: 'fa-chart-pie',
-          description: 'Revenue, delivery and return totals will appear here.',
-        },
+        loadComponent: () => import('./features/dashboard/dashboard-page').then((m) => m.DashboardPage),
       },
       {
         path: 'orders',
         loadChildren: () => import('./features/orders/orders.routes').then((m) => m.ORDER_ROUTES),
       },
       {
+        path: 'customers',
+        title: 'Customers',
+        canActivate: [requirePermission('CUSTOMER_VIEW')],
+        loadComponent: () => import('./features/customers/customer-list-page').then((m) => m.CustomerListPage),
+      },
+      {
         path: 'expenses',
-        title: 'Expenses',
-        canActivate: [requirePermission('EXPENSE_VIEW')],
-        loadComponent: comingSoon,
-        data: {
-          title: 'Expenses',
-          icon: 'fa-wallet',
-          description: 'A searchable, filterable list of expenses with an Add Expense form.',
-        },
+        loadChildren: () => import('./features/expenses/expenses.routes').then((m) => m.EXPENSE_ROUTES),
+      },
+      {
+        path: 'settings/courier',
+        title: 'Courier settings',
+        canActivate: [requirePermission('COURIER_SETTINGS')],
+        loadComponent: () => import('./features/courier/courier-settings-page').then((m) => m.CourierSettingsPage),
       },
       {
         path: 'staff',
-        title: 'Staff Management',
-        canActivate: [requirePermission('STAFF_MANAGE')],
-        loadComponent: comingSoon,
-        data: {
-          title: 'Staff Management',
-          icon: 'fa-users-cog',
-          description: 'Add moderators and choose exactly what each one is allowed to do.',
-        },
+        loadChildren: () => import('./features/staff/staff.routes').then((m) => m.STAFF_ROUTES),
       },
       {
         path: 'account/password',

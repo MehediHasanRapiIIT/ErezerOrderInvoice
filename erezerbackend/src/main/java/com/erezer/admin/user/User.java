@@ -12,7 +12,6 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Table;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
@@ -21,6 +20,10 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
 
+/**
+ * Staff account. Sign-in bookkeeping (failed attempts, lockout, last login) is written with bulk updates in
+ * {@link UserRepository}, so signing in never bumps the version and never makes an admin's open edit form stale.
+ */
 @Entity
 @Table(name = "users")
 public class User extends AuditableEntity {
@@ -52,6 +55,10 @@ public class User extends AuditableEntity {
 
     @Column(name = "last_login_at")
     private Instant lastLoginAt;
+
+    /** Access tokens issued before this moment are rejected (see SessionValidatingJwtConverter). */
+    @Column(name = "sessions_valid_after")
+    private Instant sessionsValidAfter;
 
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "user_permissions", joinColumns = @JoinColumn(name = "user_id"))
@@ -94,20 +101,6 @@ public class User extends AuditableEntity {
         return lockedUntil != null && lockedUntil.isAfter(now);
     }
 
-    public void recordFailedLogin(Instant now, int maxAttempts, Duration lockout) {
-        failedLoginAttempts++;
-        if (failedLoginAttempts >= maxAttempts) {
-            lockedUntil = now.plus(lockout);
-            failedLoginAttempts = 0;
-        }
-    }
-
-    public void recordSuccessfulLogin(Instant now) {
-        failedLoginAttempts = 0;
-        lockedUntil = null;
-        lastLoginAt = now;
-    }
-
     public void changePasswordHash(String newHash) {
         this.passwordHash = newHash;
     }
@@ -119,6 +112,20 @@ public class User extends AuditableEntity {
 
     public void setActive(boolean active) {
         this.active = active;
+    }
+
+    public void changeRole(Role role) {
+        this.role = role;
+    }
+
+    /** Makes every access token issued so far invalid on its next use. */
+    public void invalidateSessions(Instant now) {
+        this.sessionsValidAfter = now;
+    }
+
+    public void unlock() {
+        this.lockedUntil = null;
+        this.failedLoginAttempts = 0;
     }
 
     public String getFullName() {
@@ -143,6 +150,10 @@ public class User extends AuditableEntity {
 
     public boolean isActive() {
         return active;
+    }
+
+    public int getFailedLoginAttempts() {
+        return failedLoginAttempts;
     }
 
     public Instant getLockedUntil() {

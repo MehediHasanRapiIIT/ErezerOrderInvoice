@@ -42,11 +42,14 @@ class InvoicePdfRendererTest {
 
         PdfTextExtractor text = new PdfTextExtractor(reader);
         String page1 = text.getTextFromPage(1);
-        assertThat(page1).contains("INVOICE", "EZ-583882", "BILL TO", "Mehedi Hasan", "Grand Total",
-                "Regular Fit T-Shirt", "Cash on delivery");
+        assertThat(page1).contains("INVOICE", "EZ-583882", "BILLED TO", "SHIP TO", "Mehedi Hasan", "Grand Total",
+                "Regular Fit T-Shirt");
         assertThat(page1).containsPattern("Page 1 of\s*3");
         assertThat(page1).contains("৳").contains("2,760.00");
         assertThat(page1).doesNotContain("Product Images");
+        assertThat(page1).contains("Erase the Ordinary", "ACCEPTED DATE", "10 Oct 2026, 9:15 AM", "ORDER DATE",
+                "9 Oct 2026, 11:01 PM", "CASH ON DELIVERY"); // Dhaka time, 12-hour clock
+        assertThat(reader.getInfo().get("Title")).isEqualTo("Erezer - Erase the Ordinary · Invoice EZ-583882");
 
         String page2 = text.getTextFromPage(2);
         assertThat(page2).contains("Product Images", "1. Regular Fit T-Shirt", "1. Regular Fit T-Shirt (continued)");
@@ -88,6 +91,7 @@ class InvoicePdfRendererTest {
         BigDecimal delivery = new BigDecimal("60.00");
         BigDecimal discount = lines.size() > 1 ? new BigDecimal("2700.00") : BigDecimal.ZERO;
         return new InvoiceData("EZ-583882", ZonedDateTime.of(2026, 10, 9, 23, 1, 0, 0, ZoneId.of("Asia/Dhaka")),
+                ZonedDateTime.of(2026, 10, 10, 9, 15, 0, 0, ZoneId.of("Asia/Dhaka")),
                 "Cash on delivery", "Mehedi Hasan", "01646065553", "m@example.com", "Mirpur-2, Dhaka", lines,
                 subtotal, discount, delivery, subtotal.subtract(discount).add(delivery), "Pathao", "PT123");
     }

@@ -1,0 +1,116 @@
+<div class="flex flex-wrap items-center justify-between gap-4">
+  <div>
+    <h1 class="page-title">Customers</h1>
+    <p class="page-subtitle">Everyone who has ordered, built from order details · one customer per phone number</p>
+  </div>
+  <button *appHasPermission="'CUSTOMER_EXPORT'" type="button" class="btn-secondary" (click)="exportExcel()" [disabled]="exporting()">
+    <i class="fas" [class.fa-file-excel]="!exporting()" [class.text-emerald-400]="!exporting()" [class.fa-circle-notch]="exporting()" [class.fa-spin]="exporting()"></i>
+    Export to Excel
+  </button>
+</div>
+
+<!-- Segments double as filters -->
+<div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+  @for (s of [
+    { value: '', label: 'All customers', count: result()?.summary?.customers, icon: 'fa-users', chip: 'bg-blue-500/15 text-blue-300' },
+    { value: 'repeat', label: 'Repeat customers', count: result()?.summary?.repeatCustomers, icon: 'fa-redo', chip: 'bg-emerald-500/15 text-emerald-300' },
+    { value: 'returns', label: 'With returns', count: result()?.summary?.customersWithReturns, icon: 'fa-undo', chip: 'bg-rose-500/15 text-rose-300' }
+  ]; track s.value) {
+    <button type="button" class="card flex cursor-pointer items-center justify-between p-5 text-left transition hover:border-slate-500"
+            [class.border-brand]="segment() === s.value" [attr.aria-pressed]="segment() === s.value" (click)="setSegment($any(s.value))">
+      <div>
+        <p class="text-sm text-slate-400">{{ s.label }}</p>
+        <p class="mt-1 text-3xl font-bold text-white">{{ s.count ?? '–' }}</p>
+      </div>
+      <span class="flex h-11 w-11 items-center justify-center rounded-full" [class]="s.chip"><i class="fas" [class]="s.icon"></i></span>
+    </button>
+  }
+</div>
+
+<section class="card mt-6 overflow-hidden">
+  <div class="flex flex-wrap items-center gap-2 border-b border-line p-4">
+    <div class="relative min-w-[240px] flex-1">
+      <i class="fas fa-search pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500"></i>
+      <input type="search" class="field pl-9" placeholder="Search name, phone (any format), email or address…" [value]="search()" (input)="onSearch($any($event.target).value)" aria-label="Search customers" />
+    </div>
+    <select class="field w-auto" (change)="setSort($any($event.target).value)" aria-label="Sort">
+      @for (s of sorts; track s.value) {
+        <option [value]="s.value" [selected]="s.value === sort()">Sort: {{ s.label }}</option>
+      }
+    </select>
+  </div>
+
+  @if (customers.error()) {
+    <div class="flex flex-col items-center gap-3 px-6 py-16 text-center">
+      <i class="fas fa-exclamation-triangle text-3xl text-red-400"></i>
+      <p class="text-slate-300">Could not load customers.</p>
+      <button type="button" class="btn-secondary" (click)="customers.reload()">Try again</button>
+    </div>
+  } @else {
+    <div class="overflow-x-auto">
+      <table class="w-full min-w-[920px] text-left text-sm">
+        <thead class="bg-app/60 text-xs uppercase tracking-wider text-slate-400">
+          <tr>
+            <th class="px-4 py-3 font-semibold">Customer</th>
+            <th class="px-4 py-3 font-semibold">Address</th>
+            <th class="px-4 py-3 font-semibold">Orders</th>
+            <th class="px-4 py-3 text-right font-semibold" title="Delivered orders, including delivery charge">Total paid</th>
+            <th class="px-4 py-3 font-semibold">Last order</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-line" [class.opacity-50]="customers.isLoading()">
+          @for (c of rows(); track c.phoneKey) {
+            @let rate = returnRate(c);
+            <tr class="transition hover:bg-white/[0.03]" [class.cursor-pointer]="auth.hasPermission('ORDER_VIEW')" (click)="openOrders(c)"
+                [attr.title]="auth.hasPermission('ORDER_VIEW') ? 'Show this customer’s orders' : null">
+              <td class="px-4 py-3">
+                <p class="font-semibold text-white">{{ c.name }}</p>
+                <p class="text-xs text-slate-400">
+                  <a [href]="'tel:' + c.phone" class="hover:text-white" (click)="$event.stopPropagation()">{{ c.phone }}</a>{{ c.email ? ' · ' + c.email : '' }}
+                </p>
+              </td>
+              <td class="max-w-xs px-4 py-3 text-slate-300"><p class="line-clamp-2">{{ c.address }}</p></td>
+              <td class="px-4 py-3">
+                <p class="font-semibold text-white">{{ c.orders }}</p>
+                <p class="text-xs text-slate-400">
+                  {{ c.delivered }} delivered
+                  @if (c.returned > 0) {
+                    · <span class="text-rose-300"><i class="fas fa-undo mr-0.5 text-[10px]" aria-hidden="true"></i>{{ c.returned }} returned</span>
+                  }
+                  @if (c.cancelled > 0) { · {{ c.cancelled }} cancelled }
+                </p>
+                @if (rate !== null && rate >= 0.5 && c.returned >= 1) {
+                  <p class="mt-0.5 text-xs font-medium text-rose-300"><i class="fas fa-exclamation-triangle mr-1" aria-hidden="true"></i>High return rate</p>
+                }
+              </td>
+              <td class="px-4 py-3 text-right font-semibold text-white">{{ c.totalPaid | taka }}</td>
+              <td class="px-4 py-3">
+                <p class="text-slate-200">{{ c.lastOrderAt | bdDate: 'd MMM y' }}</p>
+                <p class="text-xs text-slate-500">Customer since {{ c.firstOrderAt | bdDate: 'MMM y' }}</p>
+              </td>
+            </tr>
+          } @empty {
+            @if (customers.isLoading()) {
+              @for (row of [1, 2, 3, 4]; track row) {
+                <tr><td colspan="5" class="px-4 py-4"><div class="h-5 animate-pulse rounded bg-white/5"></div></td></tr>
+              }
+            } @else {
+              <tr>
+                <td colspan="5" class="px-6 py-16 text-center">
+                  <i class="fas fa-address-book mb-3 text-3xl text-slate-600"></i>
+                  <p class="font-medium text-slate-300">{{ search() || segment() ? 'No customers match' : 'No customers yet' }}</p>
+                  <p class="mt-1 text-sm text-slate-500">Customers appear here automatically when orders are created.</p>
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+    @if (result(); as r) {
+      <div class="border-t border-line px-4 py-3">
+        <app-pagination [page]="r.page" [size]="r.size" [totalElements]="r.totalElements" [totalPages]="r.totalPages" (pageChange)="goToPage($event)" />
+      </div>
+    }
+  }
+</section>

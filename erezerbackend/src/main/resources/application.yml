@@ -4,7 +4,7 @@ spring:
   profiles:
     default: dev
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5433/erezer}
+    url: ${DB_URL:jdbc:postgresql://localhost:5434/erezer}
     username: ${DB_USERNAME:erezer}
     password: ${DB_PASSWORD:erezer}
     hikari:
@@ -94,6 +94,11 @@ app:
       full-name: ${BOOTSTRAP_ADMIN_NAME:Administrator}
       email: ${BOOTSTRAP_ADMIN_EMAIL:}
       password: ${BOOTSTRAP_ADMIN_PASSWORD:}
+  courier:
+    # Base64 AES-256 key that encrypts courier API credentials at rest. Generate: openssl rand -base64 32
+    encryption-key: ${COURIER_ENCRYPTION_KEY:}
+    # Hosts that may be called over plain http (local testing only). Everything else must be https.
+    allow-insecure-hosts: ${COURIER_ALLOW_INSECURE_HOSTS:localhost,127.0.0.1}
   storage:
     endpoint: ${STORAGE_ENDPOINT:http://localhost:9010}
     public-endpoint: ${STORAGE_PUBLIC_ENDPOINT:${app.storage.endpoint}}

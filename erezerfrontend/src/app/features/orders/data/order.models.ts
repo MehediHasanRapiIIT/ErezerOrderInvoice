@@ -1,3 +1,5 @@
+import { PaymentMethod } from '../../../shared/payment-methods';
+
 export type OrderStatus =
   | 'PLACED'
   | 'ACCEPTED'
@@ -9,7 +11,7 @@ export type OrderStatus =
   | 'CANCELLED'
   | 'RETURNED';
 
-export type PaymentMethod = 'CASH' | 'BKASH' | 'NAGAD' | 'BANK_TRANSFER' | 'CARD';
+export type { PaymentMethod };
 
 export type OrderTab = 'active' | 'history';
 

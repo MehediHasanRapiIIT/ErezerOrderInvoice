@@ -152,7 +152,7 @@ public class OrderExportService {
             money.setDataFormat(workbook.createDataFormat().getFormat("#,##0.00"));
 
             dateTime = workbook.createCellStyle();
-            dateTime.setDataFormat(workbook.createDataFormat().getFormat("dd-mm-yyyy hh:mm"));
+            dateTime.setDataFormat(workbook.createDataFormat().getFormat("dd-mm-yyyy h:mm AM/PM"));
         }
     }
 }

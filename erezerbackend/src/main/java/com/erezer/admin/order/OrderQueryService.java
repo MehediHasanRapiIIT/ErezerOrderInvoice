@@ -50,6 +50,15 @@ public class OrderQueryService {
         return PageResponse.of(orders.findAll(specification(filter), pageable), OrderQueryService::toSummary);
     }
 
+    /** Ids of every order matching the filter (capped), for "select all matching" in bulk actions. */
+    public MatchingIds ids(OrderFilter filter, org.springframework.data.domain.Sort sort, int limit) {
+        var page = orders.findAll(specification(filter), org.springframework.data.domain.PageRequest.of(0, limit, sort));
+        return new MatchingIds(page.getContent().stream().map(Order::getId).toList(), page.getTotalElements());
+    }
+
+    public record MatchingIds(List<Long> ids, long total) {
+    }
+
     /** The filter as a JPA specification; shared by the list and the Excel export. */
     Specification<Order> specification(OrderFilter filter) {
         List<Specification<Order>> specs = Stream.of(

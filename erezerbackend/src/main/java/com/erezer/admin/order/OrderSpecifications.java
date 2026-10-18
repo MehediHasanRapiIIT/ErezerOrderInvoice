@@ -29,19 +29,25 @@ final class OrderSpecifications {
         return before == null ? null : (root, query, cb) -> cb.lessThan(root.get("createdAt"), before);
     }
 
-    /** Matches order number, customer name, phone, email or any line item's product code. */
+    /** Matches order number, customer name, phone (in any formatting), email or any line item's product code. */
     static Specification<Order> search(String term) {
         if (term == null || term.isBlank()) {
             return null;
         }
         String pattern = "%" + escapeLike(term.trim().toLowerCase(Locale.ROOT)) + "%";
+        String digits = term.replaceAll("[^0-9]", "");
+        String phoneDigits = digits.startsWith("880") ? digits.substring(2) : digits;
         return (root, query, cb) -> {
             Subquery<Long> codeMatch = query.subquery(Long.class);
             Root<OrderItem> item = codeMatch.from(OrderItem.class);
             codeMatch.select(item.get("id")).where(
                     cb.equal(item.get("order"), root),
                     cb.like(cb.lower(item.get("productCode")), pattern, '\\'));
+            var phoneKeyMatch = phoneDigits.length() >= 3
+                    ? cb.like(root.get("customerPhoneKey"), "%" + phoneDigits + "%")
+                    : cb.disjunction();
             return cb.or(
+                    phoneKeyMatch,
                     cb.like(cb.lower(root.get("orderNumber")), pattern, '\\'),
                     cb.like(cb.lower(root.get("customerName")), pattern, '\\'),
                     cb.like(cb.lower(root.get("customerPhone")), pattern, '\\'),

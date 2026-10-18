@@ -1,0 +1,106 @@
+<div class="mx-auto max-w-3xl">
+  <a routerLink="/expenses" class="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white">
+    <i class="fas fa-arrow-left text-xs"></i> Expenses
+  </a>
+  <h1 class="page-title">{{ isEdit() ? 'Edit Expense' : 'Add Expense' }}</h1>
+
+  @if (loading()) {
+    <div class="flex justify-center py-24 text-slate-400"><i class="fas fa-circle-notch fa-spin text-2xl"></i></div>
+  } @else {
+    @if (serverError(); as message) {
+      <div class="mt-4 rounded-lg border border-red-800 bg-red-950/60 px-4 py-3 text-sm text-red-200" role="alert">{{ message }}</div>
+    }
+
+    <form [formGroup]="form" (ngSubmit)="submit()" class="card mt-6 grid grid-cols-1 gap-5 p-6 sm:grid-cols-2" novalidate>
+      <label class="block">
+        <span class="field-label">Date *</span>
+        <input type="date" formControlName="expenseDate" class="field" [max]="today" [class.field-invalid]="form.controls.expenseDate.invalid && form.controls.expenseDate.touched" />
+      </label>
+
+      <label class="block">
+        <span class="field-label">Category *</span>
+        <select formControlName="categoryId" class="field" [class.field-invalid]="form.controls.categoryId.invalid && form.controls.categoryId.touched">
+          <option [ngValue]="null" disabled>Select a category</option>
+          @for (c of categoryOptions(); track c.id) {
+            <option [ngValue]="c.id">{{ c.name }}{{ c.active ? '' : ' (inactive)' }}</option>
+          }
+        </select>
+        @if (form.controls.categoryId.invalid && form.controls.categoryId.touched) {
+          <span class="field-error">Choose a category</span>
+        }
+      </label>
+
+      <label class="block sm:col-span-2">
+        <span class="field-label">Description *</span>
+        <input formControlName="description" class="field" placeholder="e.g. 50 m cotton fabric from Islampur" maxlength="200" [class.field-invalid]="form.controls.description.invalid && form.controls.description.touched" />
+      </label>
+
+      <label class="block">
+        <span class="field-label">Amount (৳) *</span>
+        <input type="number" min="0.01" step="0.01" formControlName="amount" class="field text-lg font-semibold" placeholder="0.00" [class.field-invalid]="form.controls.amount.invalid && form.controls.amount.touched" />
+        @if (form.controls.amount.invalid && form.controls.amount.touched) {
+          <span class="field-error">Enter an amount greater than zero</span>
+        }
+      </label>
+
+      <label class="block">
+        <span class="field-label">Paid with *</span>
+        <select formControlName="paymentMethod" class="field">
+          @for (p of paymentMethods; track p) {
+            <option [ngValue]="p">{{ paymentLabels[p] }}</option>
+          }
+        </select>
+      </label>
+
+      <label class="block sm:col-span-2">
+        <span class="field-label">Reference</span>
+        <input formControlName="reference" class="field font-mono" placeholder="Bill, voucher or transaction number" maxlength="80" />
+      </label>
+
+      <label class="block sm:col-span-2">
+        <span class="field-label">Notes</span>
+        <textarea formControlName="notes" rows="3" class="field" maxlength="1000"></textarea>
+      </label>
+
+      <div class="sm:col-span-2">
+        <span class="field-label">Receipt</span>
+        @if (receipt(); as r) {
+          <div class="flex items-center gap-4 rounded-lg border border-line bg-app p-3">
+            @if (isPdf(r)) {
+              <span class="flex h-20 w-20 items-center justify-center rounded bg-red-500/10 text-3xl text-red-300"><i class="fas fa-file-pdf"></i></span>
+            } @else {
+              <img [src]="r.url" alt="Receipt" class="h-20 w-20 rounded object-cover" />
+            }
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-sm text-white">{{ r.fileName ?? 'Receipt' }}</p>
+              <a [href]="r.url" target="_blank" rel="noopener" class="text-xs text-brand-light hover:underline">Open</a>
+            </div>
+            <button type="button" class="cursor-pointer rounded p-2 text-red-300 hover:bg-red-500/10" (click)="removeReceipt()" aria-label="Remove receipt">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+        } @else {
+          <label class="flex cursor-pointer items-center gap-3 rounded-lg border-2 border-dashed border-line px-4 py-5 text-slate-400 transition hover:border-brand hover:text-brand-light">
+            @if (uploading()) {
+              <i class="fas fa-circle-notch fa-spin text-xl"></i> Uploading…
+            } @else {
+              <i class="fas fa-receipt text-2xl"></i>
+              <span class="text-sm">Attach a photo or PDF of the bill <span class="block text-xs text-slate-500">JPEG, PNG, WebP or PDF · 10 MB</span></span>
+            }
+            <input type="file" class="sr-only" accept="image/jpeg,image/png,image/webp,application/pdf" (change)="onReceiptSelected($any($event.target))" [disabled]="uploading()" />
+          </label>
+        }
+      </div>
+
+      <div class="flex justify-end gap-3 border-t border-line pt-5 sm:col-span-2">
+        <a routerLink="/expenses" class="btn-secondary">Cancel</a>
+        <button type="submit" class="btn-primary" [disabled]="saving() || uploading()">
+          @if (saving()) {
+            <i class="fas fa-circle-notch fa-spin"></i>
+          }
+          {{ isEdit() ? 'Save changes' : 'Add expense' }}
+        </button>
+      </div>
+    </form>
+  }
+</div>

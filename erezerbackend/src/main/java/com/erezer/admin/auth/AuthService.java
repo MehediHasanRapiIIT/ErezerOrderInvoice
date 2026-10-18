@@ -58,15 +58,17 @@ class AuthService {
                     "Too many failed attempts. Try again in a few minutes.");
         }
         if (!passwordEncoder.matches(password, user.getPasswordHash())) {
-            user.recordFailedLogin(now, loginProperties.maxFailedAttempts(), loginProperties.lockoutDuration());
-            log.info("Failed login for user {}", user.getId());
+            int attempts = user.getFailedLoginAttempts() + 1;
+            boolean lock = attempts >= loginProperties.maxFailedAttempts();
+            users.recordLoginFailure(user.getId(), lock ? 0 : attempts, lock ? now.plus(loginProperties.lockoutDuration()) : null);
+            log.info("Failed login for user {}{}", user.getId(), lock ? " (account locked)" : "");
             throw invalidCredentials();
         }
         if (!user.isActive()) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "ACCOUNT_DISABLED",
                     "This account has been disabled. Contact an administrator.");
         }
-        user.recordSuccessfulLogin(now);
+        users.recordLoginSuccess(user.getId(), now);
         return newSession(user, client);
     }
 
@@ -98,6 +100,7 @@ class AuthService {
             throw ApiException.badRequest("SAME_PASSWORD", "New password must differ from the current one");
         }
         user.changePasswordHash(passwordEncoder.encode(newPassword));
+        user.invalidateSessions(clock.instant()); // other devices' access tokens stop working immediately
         refreshTokens.revokeAll(userId);
         return newSession(user, client);
     }

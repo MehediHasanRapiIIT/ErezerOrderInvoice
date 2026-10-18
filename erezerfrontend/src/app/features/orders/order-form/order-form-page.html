@@ -149,15 +149,55 @@
       <section class="card space-y-4 p-5" formGroupName="customer">
         <h2 class="font-semibold text-white"><i class="fas fa-user mr-2 text-slate-400"></i>Customer</h2>
         <label class="block">
-          <span class="field-label">Name *</span>
-          <input formControlName="name" class="field" autocomplete="off" [class.field-invalid]="form.controls.customer.controls.name.invalid && form.controls.customer.controls.name.touched" />
-        </label>
-        <label class="block">
           <span class="field-label">Phone *</span>
-          <input formControlName="phone" type="tel" class="field" placeholder="01XXXXXXXXX" [class.field-invalid]="form.controls.customer.controls.phone.invalid && form.controls.customer.controls.phone.touched" />
+          <div class="relative">
+            <input formControlName="phone" type="tel" class="field pr-9" placeholder="01XXXXXXXXX" [class.field-invalid]="form.controls.customer.controls.phone.invalid && form.controls.customer.controls.phone.touched" />
+            @if (lookingUp()) {
+              <i class="fas fa-circle-notch fa-spin absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" aria-hidden="true"></i>
+            }
+          </div>
           @if (form.controls.customer.controls.phone.invalid && form.controls.customer.controls.phone.touched) {
             <span class="field-error">Enter a valid phone number</span>
+          } @else if (!isEdit()) {
+            <span class="mt-1 block text-xs text-slate-500">Enter the phone first: returning customers are filled in for you.</span>
           }
+        </label>
+
+        @if (returning(); as c) {
+          <div class="rounded-lg border p-3 text-sm" role="status"
+               [class]="c.returned > 0 ? 'border-amber-600/60 bg-amber-950/40' : 'border-emerald-700/60 bg-emerald-950/30'">
+            <p class="font-semibold" [class]="c.returned > 0 ? 'text-amber-200' : 'text-emerald-200'">
+              <i class="fas mr-1" [class.fa-user-check]="c.returned === 0" [class.fa-exclamation-triangle]="c.returned > 0" aria-hidden="true"></i>
+              Returning customer: {{ c.name }}
+            </p>
+            <p class="mt-1 text-xs text-slate-300">
+              {{ c.orders }} order{{ c.orders === 1 ? '' : 's' }} · {{ c.delivered }} delivered
+              @if (c.returned > 0) { · {{ c.returned }} returned }
+              @if (c.cancelled > 0) { · {{ c.cancelled }} cancelled }
+              · last order {{ c.lastOrderAt | bdDate: 'd MMM y' }} · paid {{ c.totalPaid | taka }}
+            </p>
+            @if (c.returned > 0) {
+              <p class="mt-2 text-xs text-amber-200">
+                {{ c.returned }} of {{ c.delivered + c.returned }} parcel{{ c.delivered + c.returned === 1 ? '' : 's' }} came back.
+                Consider collecting the delivery charge in advance.
+              </p>
+            }
+            @if (autoFilled().length) {
+              <p class="mt-2 text-xs text-slate-400"><i class="fas fa-magic mr-1" aria-hidden="true"></i>Filled in {{ autoFilled().join(', ') }} from their last order.</p>
+            }
+            @if (differsFromSaved()) {
+              <button type="button" class="mt-2 cursor-pointer text-xs font-medium text-brand-light hover:underline" (click)="useSavedDetails()">
+                Use saved details (name, email, address)
+              </button>
+            }
+          </div>
+        } @else if (returning() === null) {
+          <p class="text-xs text-slate-400" role="status"><i class="fas fa-user-plus mr-1" aria-hidden="true"></i>New customer: no previous orders with this number.</p>
+        }
+
+        <label class="block">
+          <span class="field-label">Name *</span>
+          <input formControlName="name" class="field" autocomplete="off" [class.field-invalid]="form.controls.customer.controls.name.invalid && form.controls.customer.controls.name.touched" />
         </label>
         <label class="block">
           <span class="field-label">Email</span>

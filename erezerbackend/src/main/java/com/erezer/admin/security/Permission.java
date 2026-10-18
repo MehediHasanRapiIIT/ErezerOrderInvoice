@@ -24,6 +24,12 @@ public enum Permission {
     EXPENSE_EDIT("Expenses", "Edit expenses", false),
     EXPENSE_DELETE("Expenses", "Delete expenses", false),
 
+    CUSTOMER_VIEW("Customers", "View customers", false),
+    CUSTOMER_EXPORT("Customers", "Export customers", false),
+
+    COURIER_SEND("Courier", "Send orders to courier", false),
+    COURIER_SETTINGS("Courier", "Manage courier settings and API keys", true),
+
     STAFF_MANAGE("Staff", "Manage staff and permissions", true);
 
     private final String group;

@@ -41,6 +41,10 @@ public class Order extends AuditableEntity {
     @Column(name = "customer_phone", nullable = false, length = 30)
     private String customerPhone;
 
+    /** Normalised phone computed by the database (digits only, without the 880 country code); read-only. */
+    @Column(name = "customer_phone_key", insertable = false, updatable = false, length = 30)
+    private String customerPhoneKey;
+
     @Column(name = "customer_email", length = 160)
     private String customerEmail;
 
@@ -80,6 +84,10 @@ public class Order extends AuditableEntity {
 
     @Column(name = "deleted_at")
     private Instant deletedAt;
+
+    /** What the courier actually charged for this parcel (reported by the courier); null when unknown. */
+    @Column(name = "courier_charge", precision = 12, scale = 2)
+    private BigDecimal courierCharge;
 
     @CreatedBy
     @Column(name = "created_by", updatable = false)
@@ -156,6 +164,12 @@ public class Order extends AuditableEntity {
 
     void setReturnDeliveryCharge(BigDecimal amount) {
         this.returnDeliveryCharge = money(amount);
+    }
+
+    void recordCourierCharge(BigDecimal amount) {
+        if (amount != null) {
+            this.courierCharge = money(amount);
+        }
     }
 
     void markDeleted(Instant now) {
@@ -236,6 +250,10 @@ public class Order extends AuditableEntity {
 
     public Instant getReturnedAt() {
         return returnedAt;
+    }
+
+    public BigDecimal getCourierCharge() {
+        return courierCharge;
     }
 
     public Long getCreatedBy() {

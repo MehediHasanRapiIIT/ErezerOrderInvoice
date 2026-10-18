@@ -1,0 +1,116 @@
+<div class="mx-auto max-w-4xl">
+  <a routerLink="/staff" class="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white">
+    <i class="fas fa-arrow-left text-xs"></i> Staff
+  </a>
+  <h1 class="page-title">{{ isEdit() ? 'Edit staff member' : 'Add staff member' }}</h1>
+
+  @if (loading()) {
+    <div class="flex justify-center py-24 text-slate-400"><i class="fas fa-circle-notch fa-spin text-2xl"></i></div>
+  } @else {
+    @if (serverError(); as message) {
+      <div class="mt-4 rounded-lg border border-red-800 bg-red-950/60 px-4 py-3 text-sm text-red-200" role="alert">{{ message }}</div>
+    }
+
+    <form [formGroup]="form" (ngSubmit)="submit()" class="mt-6 space-y-6" novalidate>
+      <!-- Account -->
+      <section class="card grid grid-cols-1 gap-5 p-6 sm:grid-cols-2">
+        <h2 class="font-semibold text-white sm:col-span-2">Account</h2>
+        <label class="block">
+          <span class="field-label">Full name *</span>
+          <input formControlName="fullName" class="field" autocomplete="off" [class.field-invalid]="form.controls.fullName.invalid && form.controls.fullName.touched" />
+        </label>
+        <label class="block">
+          <span class="field-label">Phone</span>
+          <input formControlName="phone" type="tel" class="field" placeholder="01XXXXXXXXX" [class.field-invalid]="form.controls.phone.invalid && form.controls.phone.touched" />
+        </label>
+        <label class="block" [class.sm:col-span-2]="isEdit()">
+          <span class="field-label">Email (used to sign in) *</span>
+          <input formControlName="email" type="email" class="field" autocomplete="off" [class.field-invalid]="form.controls.email.invalid && form.controls.email.touched" />
+          @if (isEdit()) {
+            <span class="mt-1 block text-xs text-slate-500">The sign-in email can't be changed.</span>
+          }
+        </label>
+        @if (!isEdit()) {
+          <label class="block">
+            <span class="field-label">Initial password *</span>
+            <div class="flex gap-2">
+              <input formControlName="password" [type]="showPassword() ? 'text' : 'password'" class="field font-mono" autocomplete="new-password" [class.field-invalid]="form.controls.password.invalid && form.controls.password.touched" />
+              <button type="button" class="btn-secondary shrink-0 px-3" (click)="regeneratePassword()" title="Generate another" aria-label="Generate another password"><i class="fas fa-dice"></i></button>
+              <button type="button" class="btn-secondary shrink-0 px-3" (click)="copyPassword()" title="Copy" aria-label="Copy password"><i class="fas fa-copy"></i></button>
+            </div>
+            <span class="mt-1 block text-xs text-slate-500">Share it privately. They can change it from their account menu.</span>
+          </label>
+        }
+      </section>
+
+      <!-- Role -->
+      <section class="card p-6">
+        <h2 class="mb-4 font-semibold text-white">Role</h2>
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          @for (option of [
+            { value: 'MODERATOR', title: 'Moderator', text: 'Can only do what you tick below.', icon: 'fa-user' },
+            { value: 'ADMIN', title: 'Admin', text: 'Can do everything, including managing staff.', icon: 'fa-user-shield' }
+          ]; track option.value) {
+            <label class="flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition"
+                   [class]="role() === option.value ? 'border-brand bg-brand/10' : 'border-line hover:bg-white/5'"
+                   [class.cursor-not-allowed]="isSelf()" [class.opacity-60]="isSelf() && role() !== option.value">
+              <input type="radio" formControlName="role" [value]="option.value" class="mt-1 accent-blue-600" />
+              <span>
+                <span class="block font-semibold text-white"><i class="fas mr-1.5 text-slate-400" [class]="option.icon"></i>{{ option.title }}</span>
+                <span class="block text-sm text-slate-400">{{ option.text }}</span>
+              </span>
+            </label>
+          }
+        </div>
+        @if (isSelf()) {
+          <p class="mt-3 text-xs text-slate-500">You can't change your own role.</p>
+        }
+      </section>
+
+      <!-- Permissions -->
+      <section class="card p-6">
+        <h2 class="font-semibold text-white">Permissions</h2>
+        @if (role() === 'ADMIN') {
+          <p class="mt-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-3 text-sm text-blue-200">
+            <i class="fas fa-info-circle mr-1"></i> Admins automatically have every permission, including staff management.
+          </p>
+        } @else {
+          <p class="mt-1 text-sm text-slate-400">Changes apply on the moderator's next action; they don't need to sign in again.</p>
+          <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            @for (group of groups(); track group.name) {
+              <fieldset class="rounded-lg border border-line p-4">
+                <legend class="px-1">
+                  <label class="flex cursor-pointer items-center gap-2 text-sm font-semibold text-white">
+                    <input type="checkbox" class="accent-blue-600" [checked]="groupState(group) === 'all'" [indeterminate]="groupState(group) === 'some'" (change)="toggleGroup(group)" />
+                    {{ group.name }}
+                  </label>
+                </legend>
+                <div class="mt-2 space-y-2">
+                  @for (p of group.permissions; track p.name) {
+                    <label class="flex cursor-pointer items-center gap-2 text-sm text-slate-300">
+                      <input type="checkbox" class="accent-blue-600" [checked]="isChecked(p.name)" (change)="toggle(p.name)" />
+                      {{ p.label }}
+                    </label>
+                  }
+                </div>
+              </fieldset>
+            } @empty {
+              <p class="text-sm text-slate-500">Loading permissions…</p>
+            }
+          </div>
+          @if (selected().size === 0) {
+            <p class="mt-3 text-sm text-amber-300"><i class="fas fa-exclamation-circle mr-1"></i>With no permissions, this moderator can sign in but sees nothing.</p>
+          }
+        }
+      </section>
+
+      <div class="flex justify-end gap-3">
+        <a routerLink="/staff" class="btn-secondary">Cancel</a>
+        <button type="submit" class="btn-primary" [disabled]="saving()">
+          @if (saving()) { <i class="fas fa-circle-notch fa-spin"></i> }
+          {{ isEdit() ? 'Save changes' : 'Add staff member' }}
+        </button>
+      </div>
+    </form>
+  }
+</div>

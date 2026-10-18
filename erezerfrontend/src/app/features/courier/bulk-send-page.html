@@ -1,0 +1,138 @@
+<a routerLink="/orders" class="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white">
+  <i class="fas fa-arrow-left text-xs"></i> Orders
+</a>
+<h1 class="page-title"><i class="fas fa-shipping-fast mr-2 text-brand-light"></i>Send to Steadfast</h1>
+
+@if (loading()) {
+  <div class="flex justify-center py-24 text-slate-400"><i class="fas fa-circle-notch fa-spin text-2xl"></i></div>
+} @else if (batch(); as b) {
+  <!-- Progress and results -->
+  <section class="card mt-6 p-5">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <p class="font-semibold text-white">
+        @if (b.status === 'RUNNING') {
+          <i class="fas fa-circle-notch fa-spin mr-1 text-brand-light"></i>Sending… {{ b.processed }} of {{ b.total }}
+        } @else {
+          <i class="fas fa-check-circle mr-1 text-emerald-400"></i>Finished: {{ b.succeeded }} sent{{ b.failed ? ', ' + b.failed + ' failed' : '' }}
+        }
+      </p>
+      <p class="text-sm text-slate-400">You can leave this page; sending continues in the background.</p>
+    </div>
+    <div class="mt-3 h-2 overflow-hidden rounded-full bg-white/5" role="progressbar" [attr.aria-valuenow]="progress()" aria-valuemin="0" aria-valuemax="100">
+      <div class="h-full rounded-full bg-brand transition-all" [style.width.%]="progress()"></div>
+    </div>
+  </section>
+
+  <section class="card mt-6 overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full min-w-[720px] text-left text-sm">
+        <thead class="bg-app/60 text-xs uppercase tracking-wider text-slate-400">
+          <tr><th class="px-4 py-3">Order</th><th class="px-4 py-3">Customer</th><th class="px-4 py-3 text-right">COD</th><th class="px-4 py-3">Result</th></tr>
+        </thead>
+        <tbody class="divide-y divide-line">
+          @for (i of b.items; track i.orderId) {
+            <tr>
+              <td class="px-4 py-3 font-mono text-xs"><a [routerLink]="['/orders', i.orderId]" class="text-slate-200 hover:text-white">{{ i.orderNumber }}</a></td>
+              <td class="px-4 py-3 text-slate-200">{{ i.customerName }}</td>
+              <td class="px-4 py-3 text-right text-white">{{ i.codAmount | taka }}</td>
+              <td class="px-4 py-3">
+                @switch (i.status) {
+                  @case ('PENDING') { <span class="text-slate-400"><i class="fas fa-clock mr-1"></i>Waiting</span> }
+                  @case ('SUCCESS') {
+                    <span class="text-emerald-300"><i class="fas fa-check-circle mr-1"></i>{{ i.trackingCode ? 'Sent · ' + i.trackingCode : (i.message ?? 'Sent') }}</span>
+                  }
+                  @case ('FAILED') { <span class="text-red-300"><i class="fas fa-times-circle mr-1"></i>{{ i.message }}</span> }
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+  @if (b.status === 'COMPLETED') {
+    <div class="mt-4 flex justify-end gap-2">
+      @if (b.failed > 0) {
+        <button type="button" class="btn-secondary" (click)="retryFailed()"><i class="fas fa-redo"></i> Review failed orders</button>
+      }
+      <a routerLink="/orders" class="btn-primary">Back to orders</a>
+    </div>
+  }
+} @else {
+  <!-- Preview -->
+  <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+    <div class="card p-4"><p class="text-xs text-slate-400">Ready to send</p><p class="text-2xl font-bold text-white">{{ toSend().length }} <span class="text-sm font-normal text-slate-500">of {{ rows().length }}</span></p></div>
+    <div class="card p-4"><p class="text-xs text-slate-400">Cash Steadfast will collect</p><p class="text-2xl font-bold text-white">{{ totalCod() | taka }}</p></div>
+    <div class="card p-4"><p class="text-xs text-slate-400">Need attention</p><p class="text-2xl font-bold" [class]="blockedCount() ? 'text-amber-300' : 'text-white'">{{ blockedCount() }}</p></div>
+  </div>
+
+  <section class="card mt-6 overflow-hidden">
+    <div class="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3 text-sm">
+      <p class="text-slate-400">Check each parcel. Orders with problems are skipped; fix them on the order page.</p>
+      <div class="flex gap-3">
+        <button type="button" class="cursor-pointer text-brand-light hover:underline" (click)="toggleAll(true)">Select all ready</button>
+        <button type="button" class="cursor-pointer text-slate-400 hover:underline" (click)="toggleAll(false)">Select none</button>
+      </div>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full min-w-[980px] text-left text-sm">
+        <thead class="bg-app/60 text-xs uppercase tracking-wider text-slate-400">
+          <tr>
+            <th class="w-10 px-4 py-3"><span class="sr-only">Include</span></th>
+            <th class="px-4 py-3">Order</th>
+            <th class="px-4 py-3">Recipient</th>
+            <th class="px-4 py-3">Address</th>
+            <th class="px-4 py-3">Items</th>
+            <th class="px-4 py-3 text-right">COD (৳)</th>
+            <th class="px-4 py-3">Check</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-line">
+          @for (r of rows(); track r.parcel.orderId) {
+            @let p = r.parcel;
+            <tr [class.opacity-60]="!p.ready">
+              <td class="px-4 py-3">
+                <input type="checkbox" class="h-4 w-4 cursor-pointer accent-blue-600" [checked]="r.include" [disabled]="!p.ready"
+                       (change)="setInclude(r, $any($event.target).checked)" [attr.aria-label]="'Include ' + p.orderNumber" />
+              </td>
+              <td class="px-4 py-3">
+                <a [routerLink]="['/orders', p.orderId]" class="font-mono text-xs text-slate-200 hover:text-white">{{ p.orderNumber }}</a>
+                <p class="text-xs text-slate-500">{{ paymentLabels[p.paymentMethod] }} · {{ p.orderTotal | taka }}</p>
+              </td>
+              <td class="px-4 py-3">
+                <p class="font-semibold text-white">{{ p.recipientName }}</p>
+                <p class="font-mono text-xs text-slate-400">{{ p.recipientPhone }}</p>
+                @if (p.customerHistory && p.customerHistory.returned > 0) {
+                  <p class="text-xs text-amber-300"><i class="fas fa-exclamation-triangle mr-1"></i>{{ p.customerHistory.returned }} past return{{ p.customerHistory.returned === 1 ? '' : 's' }}</p>
+                }
+              </td>
+              <td class="max-w-xs px-4 py-3 text-xs text-slate-300"><p class="line-clamp-2">{{ p.recipientAddress }}</p></td>
+              <td class="max-w-[14rem] px-4 py-3 text-xs text-slate-400"><p class="line-clamp-2">{{ p.itemDescription }}</p></td>
+              <td class="px-4 py-3 text-right">
+                <input type="number" min="0" step="0.01" class="field w-28 text-right" [ngModel]="r.cod" (ngModelChange)="setCod(r, $event)"
+                       [disabled]="!p.ready" [class.field-invalid]="!validCod(r.cod)" [attr.aria-label]="'COD for ' + p.orderNumber" />
+              </td>
+              <td class="px-4 py-3 text-xs">
+                @if (p.blockedReason) {
+                  <span class="text-slate-400"><i class="fas fa-ban mr-1"></i>{{ p.blockedReason }}{{ p.existingTrackingCode ? ' (' + p.existingTrackingCode + ')' : '' }}</span>
+                } @else if (p.problems.length) {
+                  @for (problem of p.problems; track problem) { <p class="text-red-300"><i class="fas fa-exclamation-circle mr-1"></i>{{ problem }}</p> }
+                } @else {
+                  <span class="text-emerald-300"><i class="fas fa-check-circle mr-1"></i>Ready</span>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="sticky bottom-0 mt-4 flex items-center justify-end gap-3 border-t border-line bg-app/95 py-3 backdrop-blur">
+    <a routerLink="/orders" class="btn-secondary">Cancel</a>
+    <button type="button" class="btn-primary" [disabled]="!toSend().length || starting()" (click)="send()">
+      @if (starting()) { <i class="fas fa-circle-notch fa-spin"></i> } @else { <i class="fas fa-paper-plane"></i> }
+      Send {{ toSend().length }} parcel{{ toSend().length === 1 ? '' : 's' }}
+    </button>
+  </div>
+}

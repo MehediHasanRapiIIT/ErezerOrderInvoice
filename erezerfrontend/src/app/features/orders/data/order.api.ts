@@ -39,6 +39,11 @@ export class OrderApi {
     });
   }
 
+  /** Ids of every order matching the filters (max 500), for "select all matching". */
+  ids(query: OrderQuery): Observable<{ ids: number[]; total: number }> {
+    return this.http.get<{ ids: number[]; total: number }>(`${this.baseUrl}/ids`, { params: filterParams(query) });
+  }
+
   stats(): Observable<OrderStats> {
     return this.http.get<OrderStats>(`${this.baseUrl}/stats`);
   }

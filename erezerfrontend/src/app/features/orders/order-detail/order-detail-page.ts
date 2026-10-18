@@ -1,4 +1,3 @@
-import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -14,6 +13,10 @@ import { OrderApi } from '../data/order.api';
 import { PAYMENT_LABELS, STATUS_FLOW, STATUS_LABELS } from '../data/order-labels';
 import { OrderDetail, OrderImage, OrderStatus } from '../data/order.models';
 import { StatusBadge } from '../status-badge';
+import { CourierApi, SENDABLE_STATUSES, SendResult } from '../../courier/courier.api';
+import { SendToCourierDialog } from '../../courier/send-to-courier-dialog';
+import { ShipmentCard } from '../../courier/shipment-card';
+import { BdDatePipe } from '../../../shared/ui/bd-date.pipe';
 
 export interface TimelineStep {
   status: OrderStatus;
@@ -24,7 +27,7 @@ export interface TimelineStep {
 
 @Component({
   selector: 'app-order-detail-page',
-  imports: [DatePipe, ReactiveFormsModule, RouterLink, HasPermissionDirective, StatusBadge, TakaPipe],
+  imports: [BdDatePipe, ReactiveFormsModule, RouterLink, HasPermissionDirective, StatusBadge, TakaPipe, SendToCourierDialog, ShipmentCard],
   templateUrl: './order-detail-page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -59,6 +62,23 @@ export class OrderDetailPage {
   });
 
   protected readonly lightbox = signal<{ images: OrderImage[]; index: number } | null>(null);
+
+  // ---- Courier (Steadfast) ----
+  private readonly courierApi = inject(CourierApi);
+  protected readonly courierAvailability = rxResource({ stream: () => this.courierApi.availability() });
+  protected readonly shipmentResource = rxResource({
+    params: () => Number(this.id()),
+    stream: ({ params }) => this.courierApi.shipment(params),
+  });
+  protected readonly shipment = computed(() => (this.shipmentResource.hasValue() ? this.shipmentResource.value() : null));
+  protected readonly showSendDialog = signal(false);
+  protected readonly refreshingShipment = signal(false);
+  /** Whether the "Send to Steadfast" button appears at all (integration on, permission, no booking yet). */
+  protected readonly courierActionVisible = computed(() =>
+    !!this.order() && !this.shipment() && this.shipmentResource.hasValue() && this.auth.hasPermission('COURIER_SEND')
+    && this.courierAvailability.hasValue() && this.courierAvailability.value().enabled
+    && (SENDABLE_STATUSES.includes(this.order()!.status) || this.order()!.status === 'PLACED'));
+  protected readonly courierSendable = computed(() => !!this.order() && SENDABLE_STATUSES.includes(this.order()!.status));
   protected readonly savingStatus = signal(false);
   protected readonly savingNote = signal(false);
   protected readonly pdfBusy = signal(false);
@@ -148,6 +168,29 @@ export class OrderDetailPage {
       error: (err: unknown) => {
         this.toast.error(errorMessage(err));
         this.savingNote.set(false);
+      },
+    });
+  }
+
+  protected onSendClosed(result: SendResult | null): void {
+    this.showSendDialog.set(false);
+    if (result) {
+      this.shipmentResource.reload();
+      this.resource.reload();
+    }
+  }
+
+  protected refreshShipment(): void {
+    this.refreshingShipment.set(true);
+    this.courierApi.refresh(Number(this.id())).subscribe({
+      next: (shipment) => {
+        this.shipmentResource.set(shipment);
+        this.resource.reload();
+        this.refreshingShipment.set(false);
+      },
+      error: (err: unknown) => {
+        this.toast.error(errorMessage(err));
+        this.refreshingShipment.set(false);
       },
     });
   }

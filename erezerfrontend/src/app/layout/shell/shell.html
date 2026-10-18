@@ -10,12 +10,10 @@
     [class.-translate-x-full]="!sidebarOpen()"
     aria-label="Main navigation"
   >
-    <div class="flex h-16 items-center gap-3 border-b border-line px-5">
-      <img src="logo.ico" alt="" class="h-9 w-9 rounded bg-white p-1" />
-      <div>
-        <p class="text-lg font-bold tracking-tight text-white">EREZER</p>
-        <p class="text-xs text-slate-400">Admin Panel</p>
-      </div>
+    <div class="flex h-16 flex-col justify-center border-b border-line px-5">
+      <!-- The shop's wordmark in white: the image is used only as a shape (mask), so it can take any colour. -->
+      <span class="block bg-white" role="img" aria-label="Erezer" style="height:14px;aspect-ratio:865/96;-webkit-mask:url(logo-wordmark.png) left center/contain no-repeat;mask:url(logo-wordmark.png) left center/contain no-repeat"></span>
+      <p class="mt-1.5 text-xs text-slate-400">Admin</p>
     </div>
 
     <nav class="flex-1 space-y-1 overflow-y-auto p-3">

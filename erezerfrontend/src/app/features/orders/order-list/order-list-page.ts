@@ -1,4 +1,3 @@
-import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, signal } from '@angular/core';
 import { rxResource, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Params, Router, RouterLink } from '@angular/router';
@@ -10,52 +9,23 @@ import { ToastService } from '../../../core/notify/toast.service';
 import { HasPermissionDirective } from '../../../shared/has-permission.directive';
 import { ConfirmService } from '../../../shared/ui/confirm-dialog';
 import { Pagination } from '../../../shared/ui/pagination';
+import { DATE_RANGES, dateBounds, DateRange } from '../../../shared/date-range';
 import { TakaPipe } from '../../../shared/ui/taka.pipe';
 import { OrderApi } from '../data/order.api';
 import { isEditableStatus, PAYMENT_LABELS, PAYMENT_METHODS, STATUS_LABELS, TAB_STATUSES } from '../data/order-labels';
 import { OrderQuery, OrderStatus, OrderSummary, OrderTab, PaymentMethod } from '../data/order.models';
 import { StatusBadge } from '../status-badge';
-
-type DateRange = 'all' | 'today' | '7d' | '30d' | 'month';
+import { CourierApi } from '../../courier/courier.api';
+import { BdDatePipe } from '../../../shared/ui/bd-date.pipe';
 
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 350;
 
-const DATE_RANGES: { value: DateRange; label: string }[] = [
-  { value: 'all', label: 'All time' },
-  { value: 'today', label: 'Today' },
-  { value: '7d', label: 'Last 7 days' },
-  { value: '30d', label: 'Last 30 days' },
-  { value: 'month', label: 'This month' },
-];
-
-/** Local calendar date as YYYY-MM-DD (the backend interprets dates in Asia/Dhaka). */
-function isoDate(date: Date): string {
-  const offset = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - offset).toISOString().slice(0, 10);
-}
-
-function dateBounds(range: DateRange): { from?: string; to?: string } {
-  const today = new Date();
-  const daysAgo = (n: number) => new Date(today.getFullYear(), today.getMonth(), today.getDate() - n);
-  switch (range) {
-    case 'today':
-      return { from: isoDate(today), to: isoDate(today) };
-    case '7d':
-      return { from: isoDate(daysAgo(6)), to: isoDate(today) };
-    case '30d':
-      return { from: isoDate(daysAgo(29)), to: isoDate(today) };
-    case 'month':
-      return { from: isoDate(new Date(today.getFullYear(), today.getMonth(), 1)), to: isoDate(today) };
-    default:
-      return {};
-  }
-}
-
 /** Order list. All filter state lives in the URL, so reload, back/forward and shared links keep it. */
 @Component({
   selector: 'app-order-list-page',
-  imports: [DatePipe, RouterLink, HasPermissionDirective, Pagination, StatusBadge, TakaPipe],
+  imports: [BdDatePipe, RouterLink, HasPermissionDirective, Pagination, StatusBadge, TakaPipe],
+  host: { class: 'block pb-20' },
   templateUrl: './order-list-page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -118,6 +88,67 @@ export class OrderListPage {
 
   /** Rows to render; empty while loading or on error (value() throws in the error state). */
   protected readonly rows = computed(() => (this.orders.hasValue() ? this.orders.value().content : []));
+
+  // ---- Selection for bulk courier sending ----
+  private readonly courierApi = inject(CourierApi);
+  private readonly courierAvailability = rxResource({ stream: () => this.courierApi.availability() });
+  protected readonly canBulkSend = computed(() => this.auth.hasPermission('COURIER_SEND')
+    && this.courierAvailability.hasValue() && this.courierAvailability.value().enabled);
+  protected readonly selected = signal<ReadonlySet<number>>(new Set());
+  protected readonly selectingAll = signal(false);
+  protected readonly allPageSelected = computed(() =>
+    this.rows().length > 0 && this.rows().every((o) => this.selected().has(o.id)));
+  protected readonly somePageSelected = computed(() =>
+    !this.allPageSelected() && this.rows().some((o) => this.selected().has(o.id)));
+  protected readonly matchingTotal = computed(() => (this.orders.hasValue() ? this.orders.value().totalElements : 0));
+
+  protected isSelected(id: number): boolean {
+    return this.selected().has(id);
+  }
+
+  protected toggleRow(id: number, event: Event): void {
+    event.stopPropagation();
+    const next = new Set(this.selected());
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    this.selected.set(next);
+  }
+
+  protected togglePage(): void {
+    const next = new Set(this.selected());
+    const select = !this.allPageSelected();
+    this.rows().forEach((o) => (select ? next.add(o.id) : next.delete(o.id)));
+    this.selected.set(next);
+  }
+
+  /** Selects every order matching the current filters (the server caps this at 500). */
+  protected selectAllMatching(): void {
+    this.selectingAll.set(true);
+    this.api.ids(this.query()).subscribe({
+      next: ({ ids, total }) => {
+        this.selected.set(new Set(ids));
+        this.selectingAll.set(false);
+        if (total > ids.length) {
+          this.toast.info(`Selected the first ${ids.length} of ${total} orders (the courier accepts 500 per batch)`);
+        }
+      },
+      error: (err: unknown) => {
+        this.selectingAll.set(false);
+        this.toast.error(errorMessage(err));
+      },
+    });
+  }
+
+  protected clearSelection(): void {
+    this.selected.set(new Set());
+  }
+
+  protected sendSelectedToCourier(): void {
+    void this.router.navigate(['/orders/send-to-courier'], { queryParams: { ids: [...this.selected()].join(',') } });
+  }
 
   private searchTimer: ReturnType<typeof setTimeout> | undefined;
 

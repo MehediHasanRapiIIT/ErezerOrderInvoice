@@ -1,0 +1,131 @@
+<div class="flex flex-wrap items-center justify-between gap-4">
+  <div>
+    <h1 class="page-title">Staff Management</h1>
+    <p class="page-subtitle">Add moderators and choose exactly what each one can do</p>
+  </div>
+  <a routerLink="/staff/new" class="btn-primary"><i class="fas fa-user-plus"></i> Add staff</a>
+</div>
+
+<section class="card mt-6 overflow-hidden">
+  <div class="flex flex-wrap items-center gap-2 border-b border-line p-4">
+    <div class="relative min-w-[220px] flex-1">
+      <i class="fas fa-search pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500"></i>
+      <input type="search" class="field pl-9" placeholder="Search name, email or phone…" [value]="search()" (input)="onSearch($any($event.target).value)" aria-label="Search staff" />
+    </div>
+    <select class="field w-auto" (change)="setFilter('role', $any($event.target).value)" aria-label="Role">
+      <option value="" [selected]="role() === ''">Role: All</option>
+      <option value="ADMIN" [selected]="role() === 'ADMIN'">Admins</option>
+      <option value="MODERATOR" [selected]="role() === 'MODERATOR'">Moderators</option>
+    </select>
+    <select class="field w-auto" (change)="setFilter('status', $any($event.target).value)" aria-label="Status">
+      <option value="" [selected]="status() === ''">Status: All</option>
+      <option value="active" [selected]="status() === 'active'">Active</option>
+      <option value="inactive" [selected]="status() === 'inactive'">Inactive</option>
+    </select>
+  </div>
+
+  @if (staff.error()) {
+    <div class="flex flex-col items-center gap-3 px-6 py-16 text-center">
+      <i class="fas fa-exclamation-triangle text-3xl text-red-400"></i>
+      <p class="text-slate-300">Could not load staff.</p>
+      <button type="button" class="btn-secondary" (click)="staff.reload()">Try again</button>
+    </div>
+  } @else {
+    <div class="overflow-x-auto">
+      <table class="w-full min-w-[900px] text-left text-sm">
+        <thead class="bg-app/60 text-xs uppercase tracking-wider text-slate-400">
+          <tr>
+            <th class="px-4 py-3 font-semibold">Staff member</th>
+            <th class="px-4 py-3 font-semibold">Role</th>
+            <th class="px-4 py-3 font-semibold">Can do</th>
+            <th class="px-4 py-3 font-semibold">Status</th>
+            <th class="px-4 py-3 font-semibold">Last sign-in</th>
+            <th class="px-4 py-3"><span class="sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-line" [class.opacity-50]="staff.isLoading()">
+          @for (m of rows(); track m.id) {
+            <tr class="cursor-pointer transition hover:bg-white/[0.03]" [class.opacity-60]="!m.active" (click)="edit(m)">
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-3">
+                  <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white" [class]="m.role === 'ADMIN' ? 'bg-brand' : 'bg-slate-600'">
+                    {{ m.fullName.charAt(0).toUpperCase() }}
+                  </span>
+                  <div class="min-w-0">
+                    <p class="font-semibold text-white">{{ m.fullName }} @if (m.id === myId()) { <span class="text-xs font-normal text-slate-400">(you)</span> }</p>
+                    <p class="truncate text-xs text-slate-400">{{ m.email }}{{ m.phone ? ' · ' + m.phone : '' }}</p>
+                  </div>
+                </div>
+              </td>
+              <td class="px-4 py-3">
+                <span class="rounded-full border px-2.5 py-0.5 text-xs font-semibold" [class]="m.role === 'ADMIN' ? 'border-blue-500/40 bg-blue-500/10 text-blue-300' : 'border-line bg-white/5 text-slate-300'">
+                  {{ m.role === 'ADMIN' ? 'Admin' : 'Moderator' }}
+                </span>
+              </td>
+              <td class="max-w-sm px-4 py-3 text-xs text-slate-300">
+                @if (m.role === 'ADMIN') {
+                  <span class="text-slate-400">Everything, including staff management</span>
+                } @else {
+                  @for (g of permissionSummary(m); track g.group) {
+                    <p><span class="text-slate-500">{{ g.group }}:</span> {{ g.items }}</p>
+                  } @empty {
+                    <span class="text-amber-300"><i class="fas fa-exclamation-circle mr-1"></i>No permissions yet</span>
+                  }
+                }
+              </td>
+              <td class="px-4 py-3">
+                @if (!m.active) {
+                  <span class="inline-flex items-center gap-1.5 text-xs text-slate-400"><i class="fas fa-ban"></i> Inactive</span>
+                } @else if (m.locked) {
+                  <span class="inline-flex items-center gap-1.5 text-xs text-amber-300"><i class="fas fa-lock"></i> Locked</span>
+                } @else {
+                  <span class="inline-flex items-center gap-1.5 text-xs text-emerald-300"><i class="fas fa-check-circle"></i> Active</span>
+                }
+              </td>
+              <td class="px-4 py-3 text-xs text-slate-400">
+                {{ m.lastLoginAt ? (m.lastLoginAt | bdDate: 'd MMM y, h:mm a') : 'Never' }}
+              </td>
+              <td class="relative px-4 py-3 text-right">
+                <button type="button" class="cursor-pointer rounded p-2 text-slate-400 hover:bg-white/5 hover:text-white" (click)="toggleMenu(m.id, $event)" aria-haspopup="menu" [attr.aria-expanded]="openMenuId() === m.id" [attr.aria-label]="'Actions for ' + m.fullName">
+                  <i class="fas fa-ellipsis-v"></i>
+                </button>
+                @if (openMenuId() === m.id) {
+                  <div class="fixed inset-0 z-10" (click)="$event.stopPropagation(); openMenuId.set(null)"></div>
+                  <div role="menu" class="absolute right-4 top-11 z-20 w-48 rounded-md border border-line bg-panel py-1 text-left shadow-xl" (click)="$event.stopPropagation()">
+                    <a role="menuitem" [routerLink]="['/staff', m.id, 'edit']" class="block px-4 py-2 text-slate-300 hover:bg-white/5"><i class="fas fa-pen mr-2 w-4"></i>Edit</a>
+                    <button type="button" role="menuitem" class="block w-full cursor-pointer px-4 py-2 text-left text-slate-300 hover:bg-white/5" (click)="startReset(m)"><i class="fas fa-key mr-2 w-4"></i>Reset password</button>
+                    @if (m.locked) {
+                      <button type="button" role="menuitem" class="block w-full cursor-pointer px-4 py-2 text-left text-slate-300 hover:bg-white/5" (click)="unlock(m)"><i class="fas fa-unlock mr-2 w-4"></i>Unlock</button>
+                    }
+                    @if (m.id !== myId()) {
+                      <button type="button" role="menuitem" class="block w-full cursor-pointer px-4 py-2 text-left hover:bg-white/5" [class]="m.active ? 'text-red-300' : 'text-emerald-300'" (click)="toggleActive(m)">
+                        <i class="fas mr-2 w-4" [class.fa-user-slash]="m.active" [class.fa-user-check]="!m.active"></i>{{ m.active ? 'Deactivate' : 'Reactivate' }}
+                      </button>
+                    }
+                  </div>
+                }
+              </td>
+            </tr>
+          } @empty {
+            @if (staff.isLoading()) {
+              @for (row of [1, 2, 3]; track row) {
+                <tr><td colspan="6" class="px-4 py-4"><div class="h-5 animate-pulse rounded bg-white/5"></div></td></tr>
+              }
+            } @else {
+              <tr><td colspan="6" class="px-6 py-16 text-center text-slate-400">No staff match these filters.</td></tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+    @if (result(); as r) {
+      <div class="border-t border-line px-4 py-3">
+        <app-pagination [page]="r.page" [size]="r.size" [totalElements]="r.totalElements" [totalPages]="r.totalPages" (pageChange)="goToPage($event)" />
+      </div>
+    }
+  }
+</section>
+
+@if (resetting(); as member) {
+  <app-reset-password-dialog [member]="member" (closed)="onResetClosed()" />
+}

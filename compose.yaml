@@ -57,6 +57,8 @@ services:
     build: ./erezerbackend
     image: erezer-invoice/backend:${APP_VERSION:-local}
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy
@@ -72,6 +74,8 @@ services:
       BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-Administrator}
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      COURIER_ENCRYPTION_KEY: ${COURIER_ENCRYPTION_KEY:?set COURIER_ENCRYPTION_KEY in .env}
+      COURIER_ALLOW_INSECURE_HOSTS: ${COURIER_ALLOW_INSECURE_HOSTS:-localhost,127.0.0.1}
       COMPANY_NAME: ${COMPANY_NAME:-EREZER}
       COMPANY_ADDRESS: ${COMPANY_ADDRESS:-}
       COMPANY_PHONE: ${COMPANY_PHONE:-}
