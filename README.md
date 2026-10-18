@@ -190,10 +190,17 @@ The backend talks to MinIO through the AWS S3 SDK, so any S3-compatible store wo
 > - build MinIO from source;
 > - switch to another S3-compatible store (Garage, SeaweedFS).
 
-## Production checklist
+## Production
 
-- Generate new values for `JWT_SECRET` (`openssl rand -base64 48`), `POSTGRES_PASSWORD`, `MINIO_ROOT_PASSWORD` and `STORAGE_SECRET_KEY`.
-- Put HTTPS in front of port `HTTP_PORT` (Caddy, Traefik or a cloud load balancer) and keep `REFRESH_COOKIE_SECURE=true`.
-- Set `STORAGE_PUBLIC_ENDPOINT` to a URL browsers can reach.
-- Deploy with `docker compose -f compose.yaml up -d --build`. This skips the dev port overrides, so Postgres and MinIO are not exposed.
-- Back up the `postgres-data` and `minio-data` volumes.
+Live at **https://erezer.site**, on the same Hostinger VPS as the Erezer shop. Push to `main` and GitHub Actions tests, builds and deploys, rolling back on failure. The shop's Caddy serves the panel with automatic https.
+
+**[DEPLOYMENT.md](DEPLOYMENT.md)** has the full setup (DNS, VPS, GitHub secrets), plus day-to-day operation, backups and troubleshooting.
+
+| File | Role |
+|---|---|
+| `compose.prod.yaml` | Production overlay: no host ports, joins the shared `erezer-edge` network, memory caps, nightly backups |
+| `compose.deploy.yaml` | Runs the Docker Hub images CI built, instead of building on the VPS |
+| `deploy/deploy.sh` | Runs on the VPS: pull, start, health gate, rollback, Caddy site update |
+| `deploy/caddy/erezer-invoice.caddy.template` | The `erezer.site` site block for the shop's Caddy |
+| `.github/workflows/cd.yml` | Push to `main` → test → build → deploy → smoke test |
+| `.env.prod.example` | Template for the VPS's private `.env` |

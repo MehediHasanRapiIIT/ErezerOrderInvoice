@@ -1,9 +1,13 @@
 name: CI
 
+# Runs on pull requests, and is called by cd.yml before every deploy from main.
 on:
-  push:
-    branches: [main]
   pull_request:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   backend:
@@ -36,3 +40,24 @@ jobs:
       - run: npm ci
       - run: npm test -- --watch=false
       - run: npm run build
+
+  compose:
+    name: Compose files parse
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate the production compose stack
+        env:
+          POSTGRES_PASSWORD: ci
+          MINIO_ROOT_USER: ci
+          MINIO_ROOT_PASSWORD: ci-secret
+          STORAGE_ACCESS_KEY: ci
+          STORAGE_SECRET_KEY: ci-secret
+          JWT_SECRET: ci
+          COURIER_ENCRYPTION_KEY: ci
+          PANEL_HOST: erezer.example
+          IMAGE_REPO_OWNER: ci
+        run: |
+          docker network create erezer-edge
+          docker compose -f compose.yaml -f compose.prod.yaml -f compose.deploy.yaml config --quiet
+          bash -n deploy/deploy.sh

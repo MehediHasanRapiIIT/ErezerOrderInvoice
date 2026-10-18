@@ -1,0 +1,23 @@
+# EREZER admin panel - site block for the shop's Caddy (shared on this VPS).
+#
+# deploy/deploy.sh renders this file (replacing __PANEL_HOST__) into the shop's
+# sites folder (/opt/erezer/sites/erezer-invoice.caddy by default) and reloads
+# Caddy. Edit the template in the repo, not the rendered copy on the VPS.
+#
+# TLS: Caddy requests and renews the Let's Encrypt certificate by itself. DNS
+# for both names must point at this VPS before the first deploy.
+
+__PANEL_HOST__ {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains"
+		-Server
+	}
+	# The panel's nginx serves the app, /api (Spring Boot) and /erezer/ (image links).
+	# Caddy adds X-Forwarded-For / X-Forwarded-Proto, which nginx trusts.
+	reverse_proxy erezer-invoice-web:80
+}
+
+www.__PANEL_HOST__ {
+	redir https://__PANEL_HOST__{uri} permanent
+}

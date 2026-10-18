@@ -1,0 +1,83 @@
+# ============================================================================
+# EREZER admin panel - PRODUCTION overlay (the VPS)
+#
+#   docker compose -f compose.yaml -f compose.prod.yaml -f compose.deploy.yaml up -d
+#
+# The VPS already runs the Erezer shop, whose Caddy owns ports 80/443. So this
+# stack publishes nothing to the host: its web container joins the shared
+# `erezer-edge` network, and the shop's Caddy routes erezer.site to it and
+# handles TLS (see deploy/caddy/erezer-invoice.caddy.template).
+#
+# What it changes from compose.yaml:
+#   * no host ports at all (Postgres, MinIO and the API stay internal)
+#   * the web container is reachable from Caddy as `erezer-invoice-web`
+#   * presigned image links point at https://PANEL_HOST (nginx serves /erezer/)
+#   * memory caps, so this stack can never starve the shop on the same VPS
+#   * a nightly pg_dump with retention
+# ============================================================================
+
+services:
+
+  postgres:
+    mem_limit: ${POSTGRES_MEM_LIMIT:-512m}
+
+  minio:
+    image: ${MINIO_IMAGE:-quay.io/minio/minio:latest}
+    mem_limit: ${MINIO_MEM_LIMIT:-384m}
+
+  minio-init:
+    image: ${MINIO_IMAGE:-quay.io/minio/minio:latest}
+
+  backend:
+    mem_limit: ${BACKEND_MEM_LIMIT:-900m}
+    environment:
+      # Browsers load product images from the panel's own address (see erezerfrontend/docker/nginx.conf).
+      STORAGE_PUBLIC_ENDPOINT: https://${PANEL_HOST:?set PANEL_HOST in .env}
+      # Production calls Steadfast over https only.
+      COURIER_ALLOW_INSECURE_HOSTS: ""
+      REFRESH_COOKIE_SECURE: "true"
+
+  frontend:
+    ports: !reset []
+    mem_limit: ${FRONTEND_MEM_LIMIT:-128m}
+    networks:
+      default: {}
+      edge:
+        aliases: [erezer-invoice-web]
+
+  # -- Nightly database backup (on this host; see DEPLOYMENT.md for off-site copies) --
+  pg-backup:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    mem_limit: 128m
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-erezer}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:-erezer}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      TZ: Asia/Dhaka
+    volumes:
+      - backup-data:/backups
+    entrypoint: ["/bin/sh", "-c"]
+    # One dump on boot, then every 24 hours; dumps older than the retention are deleted.
+    command:
+      - |
+        while true; do
+          f="/backups/erezer-$$(date +%Y%m%d-%H%M%S).sql.gz"
+          if pg_dump --no-owner | gzip > "$$f.tmp"; then mv "$$f.tmp" "$$f"; echo "backup written: $$f"; else rm -f "$$f.tmp"; echo "backup FAILED"; fi
+          find /backups -name 'erezer-*.sql.gz' -mtime +$$BACKUP_RETENTION_DAYS -delete
+          sleep 86400
+        done
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+networks:
+  # Shared with the shop's Caddy. Created by deploy/deploy.sh if it does not exist yet.
+  edge:
+    name: erezer-edge
+    external: true
+
+volumes:
+  backup-data:

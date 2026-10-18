@@ -1,0 +1,23 @@
+# ============================================================================
+# EREZER admin panel - REGISTRY overlay (what CI/CD runs on the VPS)
+#
+#   docker compose -f compose.yaml -f compose.prod.yaml -f compose.deploy.yaml up -d
+#
+# The VPS has no source code, JDK or Node: it runs exactly the images CI built
+# and tested. `!reset null` drops the inherited build section, and the image
+# names point at Docker Hub. Both values are exported by deploy/deploy.sh:
+#   IMAGE_REPO_OWNER  your Docker Hub account
+#   IMAGE_TAG         the git commit CI pushed (so every deploy is reproducible)
+# ============================================================================
+
+services:
+
+  backend:
+    build: !reset null
+    image: ${IMAGE_REPO_OWNER:?set IMAGE_REPO_OWNER}/erezer-invoice-backend:${IMAGE_TAG:-latest}
+    pull_policy: always
+
+  frontend:
+    build: !reset null
+    image: ${IMAGE_REPO_OWNER:?set IMAGE_REPO_OWNER}/erezer-invoice-frontend:${IMAGE_TAG:-latest}
+    pull_policy: always

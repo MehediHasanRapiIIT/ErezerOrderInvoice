@@ -1,0 +1,159 @@
+# Push to main → tests → build both images to Docker Hub → deploy to the VPS (auto-rollback on failure).
+# Setup, secrets and day-to-day operation: DEPLOYMENT.md.
+name: CD
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Existing tag to redeploy (leave blank to build from this commit)'
+        required: false
+        type: string
+
+concurrency:
+  group: cd-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+
+  prepare:
+    name: Resolve image tag
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      build_needed: ${{ steps.tag.outputs.build_needed }}
+    steps:
+      - id: tag
+        env:
+          REQUESTED_TAG: ${{ inputs.image_tag }}
+        run: |
+          if [[ -n "$REQUESTED_TAG" ]]; then
+            [[ "$REQUESTED_TAG" =~ ^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$ ]] \
+              || { echo "::error::invalid image tag: $REQUESTED_TAG"; exit 1; }
+            echo "tag=$REQUESTED_TAG" >> "$GITHUB_OUTPUT"
+            echo "build_needed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+            echo "build_needed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  test:
+    name: CI
+    needs: prepare
+    if: needs.prepare.outputs.build_needed == 'true'
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    name: Build ${{ matrix.image }}
+    needs: [prepare, test]
+    if: needs.prepare.outputs.build_needed == 'true' && needs.test.result == 'success'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: erezer-invoice-backend
+            context: ./erezerbackend
+          - image: erezer-invoice-frontend
+            context: ./erezerfrontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.image }}:${{ needs.prepare.outputs.tag }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.image }}:latest
+          platforms: linux/amd64
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.image }}:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.image }}:buildcache,mode=max
+          provenance: false
+
+  deploy:
+    name: Deploy to VPS
+    needs: [prepare, test, build]
+    if: >-
+      always()
+      && needs.prepare.result == 'success'
+      && needs.test.result != 'failure' && needs.test.result != 'cancelled'
+      && needs.build.result != 'failure' && needs.build.result != 'cancelled'
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      VM_HOST: ${{ secrets.VM_HOST }}
+      VM_USER: ${{ secrets.VM_USER }}
+      VM_SSH_PORT: ${{ secrets.VM_SSH_PORT || '22' }}
+      APP_DIR: ${{ vars.APP_DIR || '/opt/erezer-invoice' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.VM_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VM_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keygen -y -f ~/.ssh/deploy_key >/dev/null 2>&1 \
+            || { echo "::error::VM_SSH_KEY is not a valid OpenSSH private key (copy the whole file, BEGIN/END lines included)"; exit 1; }
+          if [[ -n "$KNOWN_HOSTS" ]]; then
+            printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            echo "::warning::VM_KNOWN_HOSTS is not set; falling back to ssh-keyscan"
+            ssh-keyscan -p "$VM_SSH_PORT" -H "$VM_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Copy compose files and deploy scripts to the VPS
+        run: |
+          for attempt in 1 2 3; do
+            if tar czf - compose.yaml compose.prod.yaml compose.deploy.yaml deploy docker \
+               | ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=20 -o ServerAliveInterval=15 \
+                     -p "$VM_SSH_PORT" "$VM_USER@$VM_HOST" \
+                     "mkdir -p '$APP_DIR' && tar xzf - -C '$APP_DIR' && chmod +x '$APP_DIR/deploy/deploy.sh'"
+            then exit 0; fi
+            echo "::warning::transfer attempt $attempt failed"; sleep $((attempt * 15))
+          done
+          echo "::error::could not reach the VPS over SSH"; exit 1
+
+      - name: Roll out
+        env:
+          IMAGE_TAG: ${{ needs.prepare.outputs.tag }}
+          IMAGE_REPO_OWNER: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=20 \
+              -p "$VM_SSH_PORT" "$VM_USER@$VM_HOST" \
+            "APP_DIR='$APP_DIR' IMAGE_TAG='$IMAGE_TAG' IMAGE_REPO_OWNER='$IMAGE_REPO_OWNER' bash '$APP_DIR/deploy/deploy.sh'"
+
+      - name: Smoke-test the public site
+        env:
+          PANEL_HOST: ${{ vars.PANEL_HOST }}
+        if: env.PANEL_HOST != ''
+        run: |
+          for url in "https://$PANEL_HOST/" "https://$PANEL_HOST/healthz"; do
+            code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 --retry 10 --retry-delay 10 --retry-all-errors "$url" || echo 000)"
+            echo "$url -> $code"
+            [[ "$code" == "200" ]] || { echo "::error::$url returned $code"; exit 1; }
+          done
+          # The API answers through the same address (401 = reachable and protected).
+          code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 "https://$PANEL_HOST/api/orders")"
+          echo "https://$PANEL_HOST/api/orders -> $code"
+          [[ "$code" == "401" ]] || { echo "::error::API returned $code, expected 401"; exit 1; }
+
+      - name: Clean up the deploy key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
