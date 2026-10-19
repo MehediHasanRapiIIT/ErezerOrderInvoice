@@ -112,7 +112,7 @@ public class OrderQueryService {
                         i.getSize(), i.getUnitPrice(), i.getQuantity(), i.getLineTotal(),
                         i.getImages().stream()
                                 .map(img -> new Image(img.getFile().getId(), files.url(img.getFile())))
-                                .toList(), i.getVariantId()))
+                                .toList(), i.getVariantId(), i.getStockItemId()))
                 .toList();
 
         return new OrderDetail(order.getId(), order.getOrderNumber(), order.getStatus(), order.getPaymentMethod(),

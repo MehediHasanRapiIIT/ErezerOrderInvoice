@@ -59,13 +59,7 @@ public class InvoiceService {
                     item.getDescription(), item.getColor(), item.getSize(), item.getUnitPrice(), item.getQuantity(),
                     item.getLineTotal(), images));
         }
-        // When the order was first accepted; null while it is still only placed.
-        java.time.ZonedDateTime acceptedAt = order.getStatusHistory().stream()
-                .filter(change -> change.getToStatus() == com.erezer.admin.order.OrderStatus.ACCEPTED)
-                .map(change -> change.getChangedAt().atZone(appProperties.zoneId()))
-                .min(java.util.Comparator.naturalOrder())
-                .orElse(null);
-        return new InvoiceData(order.getOrderNumber(), order.getCreatedAt().atZone(appProperties.zoneId()), acceptedAt,
+        return new InvoiceData(order.getOrderNumber(), order.getCreatedAt().atZone(appProperties.zoneId()),
                 order.getPaymentMethod().label(), order.getCustomerName(), order.getCustomerPhone(),
                 order.getCustomerEmail(), order.getCustomerAddress(), lines, order.getSubtotal(), order.getDiscount(),
                 order.getDeliveryCharge(), order.getTotal(), order.getAdvanceAmount(), order.getCourier(),

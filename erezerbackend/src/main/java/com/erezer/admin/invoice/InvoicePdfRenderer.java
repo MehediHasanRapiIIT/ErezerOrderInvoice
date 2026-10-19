@@ -464,16 +464,15 @@ class InvoicePdfRenderer {
             ColumnText.showTextAligned(canvas, Element.ALIGN_RIGHT, fonts.phrase(invoice.orderNumber(), 10, false, SOFT),
                     right, top - 63, 0);
 
-            // Dark band: accepted date · order date · payment.
+            // Dark band: order date · payment (or the exchanged order).
             float bandTop = top - 80;
             float bandHeight = 44;
             canvas.saveState();
             canvas.setColorFill(INK);
             canvas.rectangle(left, bandTop - bandHeight, right - left, bandHeight);
             canvas.fill();
-            float[] widths = {0.37f, 0.37f, 0.26f};
+            float[] widths = {0.55f, 0.45f};
             String[][] cells = {
-                    {"ACCEPTED DATE", invoice.acceptedAt() == null ? "Not accepted yet" : DATE.format(invoice.acceptedAt())},
                     {"ORDER DATE", DATE.format(invoice.orderedAt())},
                     invoice.exchange() == null
                             ? new String[] {"PAYMENT", invoice.paymentMethod().toUpperCase(Locale.ENGLISH)}

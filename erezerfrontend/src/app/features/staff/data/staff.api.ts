@@ -4,7 +4,7 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../../environments/environment';
 import { Role } from '../../../core/auth/auth.models';
 import { Page } from '../../../core/http/page';
-import { CreateStaffRequest, PermissionInfo, StaffMember, UpdateStaffRequest } from './staff.models';
+import { CreateStaffRequest, PasswordRequest, PermissionInfo, StaffMember, UpdateStaffRequest } from './staff.models';
 
 @Injectable({ providedIn: 'root' })
 export class StaffApi {
@@ -41,6 +41,15 @@ export class StaffApi {
 
   unlock(id: number): Observable<StaffMember> {
     return this.http.post<StaffMember>(`${this.baseUrl}/${id}/unlock`, null);
+  }
+
+  /** "Forgot password" requests waiting for an admin. */
+  passwordRequests(): Observable<PasswordRequest[]> {
+    return this.http.get<PasswordRequest[]>(`${this.baseUrl}/password-requests`);
+  }
+
+  dismissPasswordRequest(id: number): Observable<void> {
+    return this.http.post<void>(`${this.baseUrl}/password-requests/${id}/dismiss`, null);
   }
 
   permissionCatalog(): Observable<PermissionInfo[]> {

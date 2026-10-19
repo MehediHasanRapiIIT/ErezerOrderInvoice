@@ -9,7 +9,10 @@ import org.hibernate.annotations.SQLRestriction;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.LastModifiedBy;
 
-/** A stock line the admin names freely ("Black", "Navy Blue - M", …) with how many pieces are in stock. */
+/**
+ * A stock line the admin names freely ("Black", "Navy Blue"…). Its pieces are counted per size in {@code stock_items};
+ * {@code quantity} is the total across sizes, kept up to date by {@link StockService} with SQL.
+ */
 @Entity
 @Table(name = "stock_variants")
 @SQLRestriction("deleted_at is null")
@@ -18,7 +21,7 @@ public class StockVariant extends AuditableEntity {
     @Column(name = "name", nullable = false, length = 80)
     private String name;
 
-    @Column(name = "quantity", nullable = false)
+    @Column(name = "quantity", nullable = false, updatable = false)
     private int quantity;
 
     @CreatedBy
@@ -43,12 +46,6 @@ public class StockVariant extends AuditableEntity {
 
     void rename(String name) {
         this.name = name;
-    }
-
-    /** Applies a change and returns the new quantity; the caller has checked it does not go below zero. */
-    int change(int delta) {
-        quantity += delta;
-        return quantity;
     }
 
     void markDeleted(Instant now) {

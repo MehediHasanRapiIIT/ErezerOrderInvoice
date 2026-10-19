@@ -381,7 +381,9 @@
                 }
                 <div class="flex justify-between gap-3 border-t border-line pt-2"><dt class="text-slate-400">Refund to customer</dt>
                   <dd class="font-semibold text-amber-300">{{ r.refundAmount | taka }}</dd></div>
-                <div class="flex justify-between gap-3"><dt class="text-slate-400">Back in stock</dt><dd class="text-white">{{ r.restock ? 'Yes' : 'No (not resellable)' }}</dd></div>
+                @if (r.restock) {
+                  <div class="flex justify-between gap-3"><dt class="text-slate-400">Back in stock</dt><dd class="text-white">Yes</dd></div>
+                }
               </dl>
               @if (r.items.length) {
                 <p class="mb-2 mt-4 text-xs font-semibold uppercase tracking-wider text-slate-400">Products returned</p>

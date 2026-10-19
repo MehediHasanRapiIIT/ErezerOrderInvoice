@@ -9,7 +9,7 @@ import { ToastService } from '../../../core/notify/toast.service';
 import { ConfirmService } from '../../../shared/ui/confirm-dialog';
 import { Pagination } from '../../../shared/ui/pagination';
 import { StaffApi } from '../data/staff.api';
-import { PermissionInfo, StaffMember } from '../data/staff.models';
+import { PasswordRequest, PermissionInfo, StaffMember } from '../data/staff.models';
 import { ResetPasswordDialog } from './reset-password-dialog';
 import { BdDatePipe } from '../../../shared/ui/bd-date.pipe';
 
@@ -50,6 +50,8 @@ export class StaffListPage {
     stream: ({ params }) => this.api.list(params),
   });
   protected readonly catalog = rxResource({ stream: () => this.api.permissionCatalog() });
+  protected readonly passwordRequests = rxResource({ stream: () => this.api.passwordRequests() });
+  protected readonly openRequests = computed(() => (this.passwordRequests.hasValue() ? this.passwordRequests.value() : []));
 
   protected readonly result = computed(() => (this.staff.hasValue() ? this.staff.value() : undefined));
   protected readonly rows = computed(() => this.result()?.content ?? []);
@@ -128,6 +130,19 @@ export class StaffListPage {
   protected onResetClosed(): void {
     this.resetting.set(null);
     this.staff.reload();
+    this.passwordRequests.reload();
+  }
+
+  /** Opens the usual "Reset password" dialog for the person who asked. */
+  protected resetFor(request: PasswordRequest): void {
+    this.api.get(request.userId).subscribe({
+      next: (member) => this.resetting.set(member),
+      error: (err: unknown) => this.toast.error(errorMessage(err)),
+    });
+  }
+
+  protected dismiss(request: PasswordRequest): void {
+    this.run(this.api.dismissPasswordRequest(request.id), `Request from ${request.fullName} dismissed`);
   }
 
   private run(request: Observable<unknown>, message: string): void {
@@ -135,6 +150,7 @@ export class StaffListPage {
       next: () => {
         this.toast.success(message);
         this.staff.reload();
+        this.passwordRequests.reload();
       },
       error: (err: unknown) => this.toast.error(errorMessage(err)),
     });

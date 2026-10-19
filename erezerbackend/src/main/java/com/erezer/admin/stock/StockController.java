@@ -5,6 +5,11 @@ import com.erezer.admin.security.CurrentUser;
 import com.erezer.admin.stock.dto.StockDtos.BulkCreateRequest;
 import com.erezer.admin.stock.dto.StockDtos.BulkUpdateRequest;
 import com.erezer.admin.stock.dto.StockDtos.CreateVariantRequest;
+import com.erezer.admin.stock.dto.StockDtos.ItemView;
+import com.erezer.admin.stock.dto.StockDtos.MergeRequest;
+import com.erezer.admin.stock.dto.StockDtos.SizeOrderRequest;
+import com.erezer.admin.stock.dto.StockDtos.SizeRequest;
+import com.erezer.admin.stock.dto.StockDtos.SizeView;
 import com.erezer.admin.stock.dto.StockDtos.MovementView;
 import com.erezer.admin.stock.dto.StockDtos.StockSummary;
 import com.erezer.admin.stock.dto.StockDtos.UpdateVariantRequest;
@@ -13,7 +18,6 @@ import com.erezer.admin.stock.dto.StockDtos.VariantView;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -48,13 +52,8 @@ class StockController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "name,asc") String sort) {
         String[] parts = sort.split(",");
-        String property = switch (parts[0]) {
-            case "quantity" -> "quantity";
-            case "updatedAt" -> "updatedAt";
-            default -> "name";
-        };
-        Sort order = parts.length > 1 && parts[1].equalsIgnoreCase("desc") ? Sort.by(property).descending() : Sort.by(property);
-        return stock.list(q, low, PageRequest.of(Math.max(page, 0), Math.clamp(size, 1, MAX_PAGE_SIZE), order.and(Sort.by("id"))));
+        boolean descending = parts.length > 1 && parts[1].equalsIgnoreCase("desc");
+        return stock.list(q, low, parts[0], descending, Math.max(page, 0), Math.clamp(size, 1, MAX_PAGE_SIZE));
     }
 
     /** For the order form's variant field: names containing the text. */
@@ -62,6 +61,13 @@ class StockController {
     @PreAuthorize("hasAnyAuthority('ORDER_CREATE', 'ORDER_EDIT', 'EXCHANGE_CREATE', 'STOCK_VIEW')")
     List<VariantSuggestion> suggest(@RequestParam(defaultValue = "") String q) {
         return stock.suggest(q, 10);
+    }
+
+    /** For the order form's size field: the sizes a variant comes in, with how many are left. */
+    @GetMapping("/variants/{id}/sizes")
+    @PreAuthorize("hasAnyAuthority('ORDER_CREATE', 'ORDER_EDIT', 'EXCHANGE_CREATE', 'STOCK_VIEW')")
+    List<ItemView> sizesOf(@PathVariable long id) {
+        return stock.sizesOf(id);
     }
 
     @GetMapping("/summary")
@@ -92,6 +98,46 @@ class StockController {
     @PreAuthorize("hasAuthority('STOCK_MANAGE')")
     List<VariantView> updateAll(@Valid @RequestBody BulkUpdateRequest request) {
         return stock.updateAll(request.items(), request.note(), CurrentUser.id());
+    }
+
+    /** Moves a variant into a size of another variant ("Navy Blue - M" → Navy Blue, M). */
+    @PostMapping("/variants/{id}/merge")
+    @PreAuthorize("hasAuthority('STOCK_MANAGE')")
+    VariantView merge(@PathVariable long id, @Valid @RequestBody MergeRequest request) {
+        return stock.merge(id, request, CurrentUser.id());
+    }
+
+    // ---- Sizes: everyone working with stock reads the list; only admins change it ----
+
+    @GetMapping("/sizes")
+    @PreAuthorize("hasAnyAuthority('STOCK_VIEW', 'STOCK_MANAGE', 'SIZE_MANAGE')")
+    List<SizeView> sizes() {
+        return stock.sizes();
+    }
+
+    @PostMapping("/sizes")
+    @PreAuthorize("hasAuthority('SIZE_MANAGE')")
+    ResponseEntity<List<SizeView>> createSize(@Valid @RequestBody SizeRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(stock.createSize(request));
+    }
+
+    /** Rename and/or switch on or off. */
+    @PutMapping("/sizes/{id}")
+    @PreAuthorize("hasAuthority('SIZE_MANAGE')")
+    List<SizeView> updateSize(@PathVariable long id, @Valid @RequestBody SizeRequest request) {
+        return stock.updateSize(id, request);
+    }
+
+    @PutMapping("/sizes/order")
+    @PreAuthorize("hasAuthority('SIZE_MANAGE')")
+    List<SizeView> reorderSizes(@Valid @RequestBody SizeOrderRequest request) {
+        return stock.reorderSizes(request.ids());
+    }
+
+    @DeleteMapping("/sizes/{id}")
+    @PreAuthorize("hasAuthority('SIZE_MANAGE')")
+    List<SizeView> deleteSize(@PathVariable long id) {
+        return stock.deleteSize(id);
     }
 
     @DeleteMapping("/variants/{id}")

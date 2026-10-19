@@ -1,15 +1,18 @@
 <div class="flex flex-wrap items-start justify-between gap-4">
   <div>
     <h1 class="page-title">Stock</h1>
-    <p class="page-subtitle">Variants and how many are in stock. Orders take stock automatically and give it back when cancelled or returned.</p>
+    <p class="page-subtitle">Variants and how many of each size are in stock. Orders take stock automatically and give it back when cancelled or deleted. Returns don't change stock.</p>
   </div>
-  <div *appHasPermission="'STOCK_MANAGE'" class="flex flex-wrap gap-2">
-    <button type="button" class="btn-secondary" (click)="openBulkUpdate()" [disabled]="selected().size === 0"
-            [title]="selected().size ? 'Update the selected variants' : 'Tick variants in the list first'">
-      <i class="fas fa-layer-group"></i> Bulk Update{{ selected().size ? ' (' + selected().size + ')' : '' }}
-    </button>
-    <button type="button" class="btn-secondary" (click)="openBulkAdd()"><i class="fas fa-table"></i> Add Bulk Variant</button>
-    <button type="button" class="btn-primary" (click)="openAdd()"><i class="fas fa-plus"></i> Add Variant</button>
+  <div class="flex flex-wrap gap-2">
+    <button *appHasPermission="'SIZE_MANAGE'" type="button" class="btn-secondary" (click)="openSizes()"><i class="fas fa-ruler"></i> Sizes</button>
+    @if (auth.hasPermission('STOCK_MANAGE')) {
+      <button type="button" class="btn-secondary" (click)="openBulkUpdate()" [disabled]="selected().size === 0"
+              [title]="selected().size ? 'Update the selected variants' : 'Tick variants in the list first'">
+        <i class="fas fa-layer-group"></i> Bulk Update{{ selected().size ? ' (' + selected().size + ')' : '' }}
+      </button>
+      <button type="button" class="btn-secondary" (click)="openBulkAdd()"><i class="fas fa-table"></i> Add Bulk Variant</button>
+      <button type="button" class="btn-primary" (click)="openAdd()"><i class="fas fa-plus"></i> Add Variant</button>
+    }
   </div>
 </div>
 
@@ -19,13 +22,13 @@
   <div class="card p-5"><p class="text-sm text-slate-400">Variants</p><p class="mt-1 text-2xl font-bold text-white">{{ s?.variants ?? '—' }}</p></div>
   <div class="card p-5"><p class="text-sm text-slate-400">Pieces in stock</p><p class="mt-1 text-2xl font-bold text-white">{{ s?.units ?? '—' }}</p></div>
   <button type="button" class="card cursor-pointer p-5 text-left transition hover:border-amber-500/60" (click)="setLow(!lowOnly())"
-          [class.border-amber-500]="lowOnly()" title="Show only variants that are running low">
-    <p class="text-sm text-slate-400"><i class="fas fa-exclamation-triangle mr-1 text-amber-400"></i>Low stock (≤ {{ s?.lowStockThreshold ?? 5 }})</p>
+          [class.border-amber-500]="lowOnly()" title="Show only variants with a size running low">
+    <p class="text-sm text-slate-400"><i class="fas fa-exclamation-triangle mr-1 text-amber-400"></i>Sizes low (≤ {{ s?.lowStockThreshold ?? 5 }})</p>
     <p class="mt-1 text-2xl font-bold" [class]="(s?.lowStock ?? 0) > 0 ? 'text-amber-300' : 'text-white'">{{ s?.lowStock ?? '—' }}</p>
   </button>
 </div>
 
-<!-- List -->
+<!-- Grid -->
 <section class="card mt-6 overflow-hidden">
   <div class="flex flex-wrap items-center gap-3 border-b border-line p-4">
     <div class="relative min-w-60 flex-1">
@@ -40,7 +43,7 @@
     }
   </div>
   <div class="overflow-x-auto">
-    <table class="w-full min-w-[640px] text-left text-sm">
+    <table class="w-full text-left text-sm" [style.min-width.px]="420 + columns().length * 64">
       <thead class="bg-app/60 text-xs uppercase tracking-wider text-slate-400">
         <tr>
           @if (auth.hasPermission('STOCK_MANAGE')) {
@@ -48,7 +51,10 @@
                    (change)="toggleAll($any($event.target).checked)" aria-label="Select all on this page" /></th>
           }
           <th class="px-4 py-3"><button type="button" class="cursor-pointer uppercase" (click)="sortBy('name')">Variant <i class="fas" [class]="sortIcon('name')"></i></button></th>
-          <th class="px-4 py-3 text-right"><button type="button" class="cursor-pointer uppercase" (click)="sortBy('quantity')">In stock <i class="fas" [class]="sortIcon('quantity')"></i></button></th>
+          @for (c of columns(); track c.sizeId) {
+            <th class="px-2 py-3 text-center" [class.text-slate-500]="c.legacy" [title]="c.legacy ? 'Pieces counted before sizes existed — move them into sizes with Update' : ''">{{ c.name }}</th>
+          }
+          <th class="px-4 py-3 text-right"><button type="button" class="cursor-pointer uppercase" (click)="sortBy('quantity')">Total <i class="fas" [class]="sortIcon('quantity')"></i></button></th>
           <th class="px-4 py-3"><button type="button" class="cursor-pointer uppercase" (click)="sortBy('updatedAt')">Last change <i class="fas" [class]="sortIcon('updatedAt')"></i></button></th>
           <th class="px-4 py-3 text-right"><span class="sr-only">Actions</span></th>
         </tr>
@@ -61,23 +67,33 @@
                      (change)="toggle(v, $any($event.target).checked)" [attr.aria-label]="'Select ' + v.name" /></td>
             }
             <td class="px-4 py-3 font-semibold text-white">{{ v.name }}</td>
-            <td class="px-4 py-3 text-right">
-              <span class="inline-block min-w-12 rounded-md px-2 py-0.5 text-center font-semibold"
-                    [class]="v.quantity === 0 ? 'bg-red-500/15 text-red-300' : v.low ? 'bg-amber-500/15 text-amber-300' : 'bg-emerald-500/10 text-emerald-300'">
-                {{ v.quantity }}
-              </span>
-            </td>
+            @for (c of columns(); track c.sizeId) {
+              @let item = cell(v, c.sizeId);
+              <td class="px-2 py-3 text-center">
+                @if (item) {
+                  <span class="inline-block min-w-9 rounded-md px-1.5 py-0.5 font-semibold" [class]="qtyClass(item.quantity, item.low)"
+                        [title]="v.name + ' / ' + c.name + ': ' + item.quantity">{{ item.quantity }}</span>
+                } @else {
+                  <span class="text-slate-700" [title]="v.name + ' does not come in ' + c.name">—</span>
+                }
+              </td>
+            }
+            <td class="px-4 py-3 text-right font-bold text-white">{{ v.quantity }}</td>
             <td class="px-4 py-3 text-slate-400">{{ v.updatedAt | bdDate }}</td>
-            <td class="px-4 py-3 text-right whitespace-nowrap">
+            <td class="whitespace-nowrap px-4 py-3 text-right">
               <button type="button" class="cursor-pointer rounded px-2 py-1 text-xs text-slate-300 hover:bg-white/5" (click)="openHistory(v)"><i class="fas fa-history mr-1"></i>History</button>
               @if (auth.hasPermission('STOCK_MANAGE')) {
                 <button type="button" class="cursor-pointer rounded px-2 py-1 text-xs text-brand-light hover:bg-white/5" (click)="openEdit(v)"><i class="fas fa-pen mr-1"></i>Update</button>
+                @if (canMerge(v)) {
+                  <button type="button" class="cursor-pointer rounded px-2 py-1 text-xs text-slate-300 hover:bg-white/5" (click)="openMerge(v)"
+                          title="Move this variant into a size of another variant"><i class="fas fa-compress-alt mr-1"></i>Merge</button>
+                }
                 <button type="button" class="cursor-pointer rounded px-2 py-1 text-xs text-red-300 hover:bg-white/5" (click)="remove(v)" [attr.aria-label]="'Delete ' + v.name"><i class="fas fa-trash"></i></button>
               }
             </td>
           </tr>
         } @empty {
-          <tr><td colspan="5" class="px-4 py-14 text-center text-slate-400">
+          <tr><td [attr.colspan]="5 + columns().length" class="px-4 py-14 text-center text-slate-400">
             @if (list.isLoading()) { <i class="fas fa-circle-notch fa-spin"></i> }
             @else if (search() || lowOnly()) { No variants match. }
             @else { No variants yet. Add your first one with <b>Add Variant</b> or <b>Add Bulk Variant</b>. }
@@ -97,7 +113,7 @@
 <!-- Dialogs -->
 @if (dialog()) {
   <div class="fixed inset-0 z-[85] flex items-start justify-center overflow-y-auto bg-black/60 p-4 sm:items-center" (click)="close()">
-    <div class="card w-full shadow-2xl" [class]="dialog() === 'bulk-add' || dialog() === 'bulk-update' || dialog() === 'history' ? 'max-w-3xl' : 'max-w-md'"
+    <div class="card w-full shadow-2xl" [class]="dialog() === 'add' || dialog() === 'merge' ? 'max-w-lg' : dialog() === 'sizes' ? 'max-w-md' : 'max-w-4xl'"
          role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
       @switch (dialog()) {
         @case ('add') {
@@ -105,9 +121,22 @@
             <div class="border-b border-line px-6 py-4"><h2 class="text-lg font-semibold text-white">Add variant</h2></div>
             <div class="space-y-4 px-6 py-5">
               <label class="block"><span class="field-label">Variant name *</span>
-                <input class="field" name="name" [(ngModel)]="addName" maxlength="80" placeholder="e.g. Black, Navy Blue - M" autofocus /></label>
-              <label class="block"><span class="field-label">Quantity in stock *</span>
-                <input type="number" min="0" step="1" class="field" name="qty" [(ngModel)]="addQuantity" /></label>
+                <input class="field" name="name" [(ngModel)]="addName" maxlength="80" placeholder="e.g. Black, Navy Blue" autofocus /></label>
+              <div>
+                <span class="field-label">Pieces per size</span>
+                <div class="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                  @for (sz of activeSizes(); track sz.id) {
+                    <label class="block rounded-md border border-line p-2 text-center">
+                      <span class="block text-xs font-semibold text-slate-300">{{ sz.name }}</span>
+                      <input type="number" min="0" step="1" class="field mt-1 text-center" [name]="'q' + sz.id" [(ngModel)]="addQty[sz.id]" placeholder="—" />
+                    </label>
+                  }
+                </div>
+                <p class="mt-2 text-xs text-slate-500">Leave a size empty if this variant doesn't come in it; type 0 if it does but none are in stock.</p>
+                @if (!activeSizes().length) {
+                  <p class="mt-2 text-xs text-amber-300">No sizes are switched on. An admin adds them under <b>Sizes</b>.</p>
+                }
+              </div>
             </div>
             <div class="flex justify-end gap-2 border-t border-line px-6 py-4">
               <button type="button" class="btn-secondary" (click)="close()">Cancel</button>
@@ -119,17 +148,27 @@
         @case ('bulk-add') {
           <div class="border-b border-line px-6 py-4">
             <h2 class="text-lg font-semibold text-white">Add bulk variants</h2>
-            <p class="text-xs text-slate-400">Empty rows are skipped. Nothing is saved if a name is repeated or already in stock.</p>
+            <p class="text-xs text-slate-400">One row per variant, pieces per size. Empty rows are skipped; leave a size empty if the variant doesn't come in it.</p>
           </div>
-          <div class="max-h-[60vh] overflow-y-auto px-6 py-4">
+          <div class="max-h-[60vh] overflow-auto px-6 py-4">
             <table class="w-full text-sm">
-              <thead class="text-xs uppercase tracking-wider text-slate-400"><tr><th class="w-8 pb-2 text-left">#</th><th class="pb-2 text-left">Variant name</th><th class="w-36 pb-2 text-left">Quantity</th><th class="w-10"></th></tr></thead>
+              <thead class="text-xs uppercase tracking-wider text-slate-400">
+                <tr>
+                  <th class="w-8 pb-2 text-left">#</th>
+                  <th class="min-w-44 pb-2 text-left">Variant name</th>
+                  @for (sz of activeSizes(); track sz.id) { <th class="w-16 pb-2 text-center">{{ sz.name }}</th> }
+                  <th class="w-8"></th>
+                </tr>
+              </thead>
               <tbody>
                 @for (r of newRows(); track $index; let i = $index) {
                   <tr>
                     <td class="py-1 text-slate-500">{{ i + 1 }}</td>
-                    <td class="py-1 pr-2"><input class="field" [ngModel]="r.name" (ngModelChange)="setNewRow(i, { name: $event })" maxlength="80" [attr.aria-label]="'Name, row ' + (i + 1)" placeholder="e.g. White - L" /></td>
-                    <td class="py-1 pr-2"><input type="number" min="0" step="1" class="field" [ngModel]="r.quantity" (ngModelChange)="setNewRow(i, { quantity: $event })" [attr.aria-label]="'Quantity, row ' + (i + 1)" placeholder="0" /></td>
+                    <td class="py-1 pr-2"><input class="field" [ngModel]="r.name" (ngModelChange)="setNewName(i, $event)" maxlength="80" [attr.aria-label]="'Name, row ' + (i + 1)" placeholder="e.g. White" /></td>
+                    @for (sz of activeSizes(); track sz.id) {
+                      <td class="px-0.5 py-1"><input type="number" min="0" step="1" class="field px-1 text-center" [ngModel]="r.qty[sz.id]" (ngModelChange)="setNewQty(i, sz.id, $event)"
+                                                   [attr.aria-label]="sz.name + ', row ' + (i + 1)" placeholder="—" /></td>
+                    }
                     <td class="py-1"><button type="button" class="cursor-pointer px-2 text-slate-500 hover:text-red-300" (click)="removeRow(i)" aria-label="Remove row"><i class="fas fa-times"></i></button></td>
                   </tr>
                 }
@@ -150,20 +189,27 @@
           @let v = editing()!;
           <form (ngSubmit)="saveEdit()">
             <div class="border-b border-line px-6 py-4"><h2 class="text-lg font-semibold text-white">Update {{ v.name }}</h2>
-              <p class="text-xs text-slate-400">Now in stock: {{ v.quantity }}</p></div>
+              <p class="text-xs text-slate-400">Now in stock: {{ v.quantity }} · after saving: {{ editTotal() }}</p></div>
             <div class="space-y-4 px-6 py-5">
               <label class="block"><span class="field-label">Variant name *</span>
                 <input class="field" name="name" [(ngModel)]="editName" maxlength="80" /></label>
-              <label class="block"><span class="field-label">Quantity in stock *</span>
-                <div class="flex items-center gap-2">
-                  <button type="button" class="btn-secondary px-3" (click)="editQuantity = Math.max((+editQuantity! || 0) - 1, 0)" aria-label="One less"><i class="fas fa-minus"></i></button>
-                  <input type="number" min="0" step="1" class="field text-center" name="qty" [(ngModel)]="editQuantity" />
-                  <button type="button" class="btn-secondary px-3" (click)="editQuantity = (+editQuantity! || 0) + 1" aria-label="One more"><i class="fas fa-plus"></i></button>
+              <div>
+                <span class="field-label">Pieces per size</span>
+                <div class="grid grid-cols-3 gap-2 sm:grid-cols-5">
+                  @for (c of editSizes(); track c.sizeId) {
+                    <label class="block rounded-md border p-2 text-center" [class]="c.legacy ? 'border-amber-500/40 bg-amber-500/5' : 'border-line'">
+                      <span class="block text-xs font-semibold" [class]="c.legacy ? 'text-amber-300' : 'text-slate-300'">{{ c.name }}</span>
+                      <input type="number" min="0" step="1" class="field mt-1 text-center" [name]="'e' + c.sizeId" [(ngModel)]="editQty[c.sizeId]" placeholder="—" />
+                      <span class="mt-1 block text-[11px]" [class]="editChange(c.sizeId) > 0 ? 'text-emerald-300' : editChange(c.sizeId) < 0 ? 'text-amber-300' : 'text-slate-500'">
+                        @if (current(c.sizeId) === null) { new } @else { now {{ current(c.sizeId) }}{{ editChange(c.sizeId) ? ' (' + (editChange(c.sizeId) > 0 ? '+' : '') + editChange(c.sizeId) + ')' : '' }} }
+                      </span>
+                    </label>
+                  }
                 </div>
-                @if (editChange() !== 0) {
-                  <span class="mt-1 block text-xs" [class]="editChange() > 0 ? 'text-emerald-300' : 'text-amber-300'">{{ editChange() > 0 ? '+' : '' }}{{ editChange() }} pieces</span>
-                }
-              </label>
+                <p class="mt-2 text-xs text-slate-500">Empty a box to take that size off (it must be 0 first).
+                  @if (v.sizes.some(isLegacy)) { Move the <b>No size</b> pieces into real sizes: lower No size and raise the sizes by the same number. }
+                </p>
+              </div>
               <label class="block"><span class="field-label">Note (optional)</span>
                 <input class="field" name="note" [(ngModel)]="editNote" maxlength="200" placeholder="e.g. New fabric roll, damaged pieces" /></label>
             </div>
@@ -176,8 +222,8 @@
 
         @case ('bulk-update') {
           <div class="border-b border-line px-6 py-4">
-            <h2 class="text-lg font-semibold text-white">Bulk update {{ updateRows().length }} variant{{ updateRows().length === 1 ? '' : 's' }}</h2>
-            <p class="text-xs text-slate-400">For each: add new pieces, remove pieces, or set the exact count. Rows without an amount are left as they are.</p>
+            <h2 class="text-lg font-semibold text-white">Bulk update {{ selected().size }} variant{{ selected().size === 1 ? '' : 's' }}</h2>
+            <p class="text-xs text-slate-400">For each size: add new pieces, remove pieces, or set the exact count. Rows without an amount are left as they are.</p>
           </div>
           <div class="max-h-[60vh] overflow-y-auto px-6 py-4">
             <div class="mb-3 flex flex-wrap gap-2 text-xs">
@@ -187,24 +233,27 @@
               <button type="button" class="cursor-pointer text-brand-light hover:underline" (click)="setAllModes('SET')">Set to</button>
             </div>
             <table class="w-full text-sm">
-              <thead class="text-xs uppercase tracking-wider text-slate-400"><tr><th class="pb-2 text-left">Variant</th><th class="pb-2 text-right">Now</th><th class="w-32 pb-2 pl-3 text-left">Action</th><th class="w-28 pb-2 text-left">Amount</th><th class="pb-2 text-right">New</th></tr></thead>
+              <thead class="text-xs uppercase tracking-wider text-slate-400"><tr><th class="pb-2 text-left">Variant</th><th class="pb-2 text-left">Size</th><th class="pb-2 text-right">Now</th><th class="w-32 pb-2 pl-3 text-left">Action</th><th class="w-28 pb-2 text-left">Amount</th><th class="pb-2 text-right">New</th></tr></thead>
               <tbody>
-                @for (r of updateRows(); track r.variant.id; let i = $index) {
+                @for (r of updateRows(); track r.size.stockItemId; let i = $index) {
                   <tr>
                     <td class="py-1 font-semibold text-white">{{ r.variant.name }}</td>
-                    <td class="py-1 text-right text-slate-400">{{ r.variant.quantity }}</td>
+                    <td class="py-1" [class]="r.size.legacy ? 'text-amber-300' : 'text-slate-200'">{{ r.size.size }}</td>
+                    <td class="py-1 text-right text-slate-400">{{ r.size.quantity }}</td>
                     <td class="py-1 pl-3 pr-2">
-                      <select class="field" (change)="setUpdateRow(i, { mode: $any($event.target).value })" [attr.aria-label]="'Action for ' + r.variant.name">
+                      <select class="field" (change)="setUpdateRow(i, { mode: $any($event.target).value })" [attr.aria-label]="'Action for ' + r.variant.name + ' ' + r.size.size">
                         <option value="ADD" [selected]="r.mode === 'ADD'">Add</option>
                         <option value="REMOVE" [selected]="r.mode === 'REMOVE'">Remove</option>
                         <option value="SET" [selected]="r.mode === 'SET'">Set to</option>
                       </select>
                     </td>
-                    <td class="py-1 pr-2"><input type="number" min="0" step="1" class="field" [ngModel]="r.amount" (ngModelChange)="setUpdateRow(i, { amount: $event })" [attr.aria-label]="'Amount for ' + r.variant.name" /></td>
+                    <td class="py-1 pr-2"><input type="number" min="0" step="1" class="field" [ngModel]="r.amount" (ngModelChange)="setUpdateRow(i, { amount: $event })" [attr.aria-label]="'Amount for ' + r.variant.name + ' ' + r.size.size" /></td>
                     <td class="py-1 text-right font-semibold" [class]="r.amount === null || '' + r.amount === '' ? 'text-slate-600' : newQuantity(r) < 0 ? 'text-red-300' : 'text-white'">
                       {{ r.amount === null || '' + r.amount === '' ? '—' : newQuantity(r) }}
                     </td>
                   </tr>
+                } @empty {
+                  <tr><td colspan="6" class="py-6 text-center text-slate-500">The selected variants have no sizes yet. Use Update to add them.</td></tr>
                 }
               </tbody>
             </table>
@@ -213,8 +262,74 @@
           </div>
           <div class="flex justify-end gap-2 border-t border-line px-6 py-4">
             <button type="button" class="btn-secondary" (click)="close()">Cancel</button>
-            <button type="button" class="btn-primary" [disabled]="saving()" (click)="saveBulkUpdate()">Update all</button>
+            <button type="button" class="btn-primary" [disabled]="saving() || !updateRows().length" (click)="saveBulkUpdate()">Update all</button>
           </div>
+        }
+
+        @case ('merge') {
+          @let v = mergeSource()!;
+          <div class="border-b border-line px-6 py-4">
+            <h2 class="text-lg font-semibold text-white">Merge {{ v.name }}</h2>
+            <p class="text-xs text-slate-400">Moves its {{ v.quantity }} piece{{ v.quantity === 1 ? '' : 's' }}, and the orders holding it, into a size of another variant. {{ v.name }} is then removed.</p>
+          </div>
+          <div class="space-y-4 px-6 py-5">
+            <div><span class="field-label">Into variant *</span>
+              <app-variant-picker [(name)]="mergeTargetName" [(variantId)]="mergeTargetId" label="Variant to merge into" placeholder="e.g. Navy Blue" /></div>
+            <label class="block"><span class="field-label">Size *</span>
+              <select class="field" [(ngModel)]="mergeSizeId" aria-label="Size">
+                <option [ngValue]="null" disabled>Choose…</option>
+                @for (sz of activeSizes(); track sz.id) { <option [ngValue]="sz.id">{{ sz.name }}</option> }
+              </select></label>
+            @if (mergeTargetId !== null && mergeSizeId !== null) {
+              <p class="rounded-md bg-white/5 px-3 py-2 text-sm text-slate-300">
+                <b>{{ v.name }}</b> → <b>{{ mergeTargetName }}</b>, size <b>{{ sizeLabel(mergeSizeId) }}</b>
+              </p>
+            }
+            <p class="text-xs text-slate-500">If the variant doesn't exist yet, add it first (it can start with 0 pieces).</p>
+          </div>
+          <div class="flex justify-end gap-2 border-t border-line px-6 py-4">
+            <button type="button" class="btn-secondary" (click)="close()">Cancel</button>
+            <button type="button" class="btn-primary" [disabled]="saving() || mergeTargetId === null || mergeSizeId === null" (click)="saveMerge()">Merge</button>
+          </div>
+        }
+
+        @case ('sizes') {
+          <div class="flex items-center justify-between border-b border-line px-5 py-4">
+            <div><h2 class="text-lg font-semibold text-white">Sizes</h2>
+              <p class="text-xs text-slate-400">The order here is the order everywhere. Only admins change this list.</p></div>
+            <button type="button" class="cursor-pointer text-slate-400 hover:text-white" (click)="close()" aria-label="Close"><i class="fas fa-times"></i></button>
+          </div>
+          <form class="flex gap-2 border-b border-line px-5 py-4" (ngSubmit)="addSize()">
+            <input class="field" name="newSize" [(ngModel)]="newSizeName" maxlength="20" placeholder="New size, e.g. 3XL or 32" aria-label="New size" />
+            <button type="submit" class="btn-primary shrink-0" [disabled]="saving() || !newSizeName.trim()"><i class="fas fa-plus"></i> Add</button>
+          </form>
+          <ul class="max-h-[55vh] divide-y divide-line overflow-y-auto">
+            @for (sz of allSizes(); track sz.id; let i = $index; let last = $last) {
+              <li class="flex items-center gap-2 px-5 py-2.5">
+                <div class="flex flex-col">
+                  <button type="button" class="cursor-pointer px-1 text-xs text-slate-500 hover:text-white disabled:opacity-30" [disabled]="i === 0 || saving()" (click)="moveSize(i, -1)" [attr.aria-label]="'Move ' + sz.name + ' up'"><i class="fas fa-chevron-up"></i></button>
+                  <button type="button" class="cursor-pointer px-1 text-xs text-slate-500 hover:text-white disabled:opacity-30" [disabled]="last || saving()" (click)="moveSize(i, 1)" [attr.aria-label]="'Move ' + sz.name + ' down'"><i class="fas fa-chevron-down"></i></button>
+                </div>
+                @if (renamingSize() === sz.id) {
+                  <input #rename class="field" [value]="sz.name" maxlength="20" (keydown.enter)="renameSize(sz, rename.value)" (keydown.escape)="renamingSize.set(null)" aria-label="Size name" />
+                  <button type="button" class="btn-primary px-3" (click)="renameSize(sz, rename.value)" aria-label="Save"><i class="fas fa-check"></i></button>
+                } @else {
+                  <div class="min-w-0 flex-1">
+                    <p class="text-sm font-semibold" [class]="sz.active ? 'text-white' : 'text-slate-500 line-through'">{{ sz.name }}</p>
+                    <p class="text-xs text-slate-500">{{ sz.variants }} variant{{ sz.variants === 1 ? '' : 's' }} · {{ sz.units }} in stock{{ sz.active ? '' : ' · off' }}</p>
+                  </div>
+                  <button type="button" class="cursor-pointer rounded p-2 text-slate-400 hover:bg-white/5 hover:text-white" (click)="renamingSize.set(sz.id)" [attr.aria-label]="'Rename ' + sz.name"><i class="fas fa-pen text-xs"></i></button>
+                  <button type="button" class="cursor-pointer rounded px-2 py-1 text-xs text-slate-300 hover:bg-white/5" [disabled]="saving()" (click)="toggleSize(sz)">{{ sz.active ? 'Switch off' : 'Switch on' }}</button>
+                  @if (sz.variants === 0 && sz.units === 0) {
+                    <button type="button" class="cursor-pointer rounded p-2 text-red-300 hover:bg-red-500/10" [disabled]="saving()" (click)="removeSize(sz)" [attr.aria-label]="'Delete ' + sz.name"><i class="fas fa-trash text-xs"></i></button>
+                  }
+                }
+              </li>
+            } @empty {
+              <li class="px-5 py-8 text-center text-sm text-slate-500">No sizes yet.</li>
+            }
+          </ul>
+          <p class="border-t border-line px-5 py-3 text-xs text-slate-500">A size that variants use can't be deleted; switch it off to hide it from new variants.</p>
         }
 
         @case ('history') {
@@ -225,11 +340,12 @@
           </div>
           <div class="max-h-[65vh] overflow-y-auto">
             <table class="w-full text-sm">
-              <thead class="sticky top-0 bg-panel text-xs uppercase tracking-wider text-slate-400"><tr><th class="px-6 py-2 text-left">When</th><th class="py-2 text-left">What</th><th class="py-2 text-right">Change</th><th class="py-2 text-right">After</th><th class="px-6 py-2 text-left">By</th></tr></thead>
+              <thead class="sticky top-0 bg-panel text-xs uppercase tracking-wider text-slate-400"><tr><th class="px-6 py-2 text-left">When</th><th class="py-2 text-left">Size</th><th class="py-2 text-left">What</th><th class="py-2 text-right">Change</th><th class="py-2 text-right">After</th><th class="px-6 py-2 text-left">By</th></tr></thead>
               <tbody class="divide-y divide-line">
                 @for (m of history(); track m.id) {
                   <tr>
                     <td class="whitespace-nowrap px-6 py-2 text-slate-400">{{ m.createdAt | bdDate }}</td>
+                    <td class="py-2 font-semibold text-slate-200">{{ m.size ?? '—' }}</td>
                     <td class="py-2 text-slate-200">
                       {{ m.reasonLabel }}
                       @if (m.orderId) { · <a [routerLink]="['/orders', m.orderId]" class="font-mono text-brand-light hover:underline" (click)="close()">{{ m.orderNumber }}</a> }
@@ -240,7 +356,7 @@
                     <td class="px-6 py-2 text-slate-400">{{ m.by }}</td>
                   </tr>
                 } @empty {
-                  <tr><td colspan="5" class="px-6 py-8 text-center text-slate-500">No changes yet.</td></tr>
+                  <tr><td colspan="6" class="px-6 py-8 text-center text-slate-500">No changes yet.</td></tr>
                 }
               </tbody>
             </table>

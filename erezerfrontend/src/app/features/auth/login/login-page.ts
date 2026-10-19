@@ -1,12 +1,12 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/auth/auth.service';
 import { errorMessage } from '../../../core/http/api-error';
 
 @Component({
   selector: 'app-login-page',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, RouterLink],
   templateUrl: './login-page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -18,6 +18,8 @@ export class LoginPage {
   protected readonly submitting = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly showPassword = signal(false);
+  /** Came here after 30 minutes without activity. */
+  protected readonly signedOutIdle = this.route.snapshot.queryParamMap.has('idle');
 
   protected readonly form = inject(NonNullableFormBuilder).group({
     email: ['', [Validators.required, Validators.email]],

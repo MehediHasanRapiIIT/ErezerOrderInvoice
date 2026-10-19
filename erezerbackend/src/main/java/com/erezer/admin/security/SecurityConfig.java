@@ -58,7 +58,8 @@ public class SecurityConfig {
                 .headers(headers -> headers
                         .referrerPolicy(r -> r.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER)))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/refresh", "/api/auth/logout")
+                        .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/refresh", "/api/auth/logout",
+                                "/api/auth/forgot-password")
                         .permitAll()
                         .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
                         // Courier callbacks authenticate with their own Bearer token (checked in the controller).

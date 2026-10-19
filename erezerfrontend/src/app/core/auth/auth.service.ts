@@ -13,6 +13,11 @@ import {
 
 /** Refresh this long before the access token expires, so in-flight requests never carry a stale token. */
 const REFRESH_LEEWAY_MS = 60_000;
+/** Signed out after this long without using the panel (the server's refresh window is the same). */
+export const IDLE_TIMEOUT_MS = 30 * 60_000;
+/** Last activity, shared by every open tab. */
+const ACTIVITY_KEY = 'erezer.lastActivity';
+const ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'wheel', 'touchstart', 'scroll'] as const;
 
 /**
  * Owns the session. The access token lives only in memory; the refresh token is an HttpOnly cookie
@@ -28,13 +33,26 @@ export class AuthService {
   private readonly currentUser = signal<CurrentUser | null>(null);
   private refreshInFlight$: Observable<string> | null = null;
   private refreshTimer: ReturnType<typeof setTimeout> | undefined;
+  private idleTimer: ReturnType<typeof setInterval> | undefined;
+  private lastActivity = Date.now();
+  private lastSaved = 0;
 
   readonly user = this.currentUser.asReadonly();
   readonly isAuthenticated = computed(() => this.currentUser() !== null);
   readonly permissions = computed(() => new Set<Permission>(this.currentUser()?.permissions ?? []));
 
   constructor() {
-    inject(DestroyRef).onDestroy(() => clearTimeout(this.refreshTimer));
+    const onActivity = () => this.markActive();
+    for (const event of ACTIVITY_EVENTS) {
+      document.addEventListener(event, onActivity, { passive: true, capture: true });
+    }
+    inject(DestroyRef).onDestroy(() => {
+      clearTimeout(this.refreshTimer);
+      clearInterval(this.idleTimer);
+      for (const event of ACTIVITY_EVENTS) {
+        document.removeEventListener(event, onActivity, { capture: true });
+      }
+    });
   }
 
   token(): string | null {
@@ -85,12 +103,14 @@ export class AuthService {
     }
   }
 
-  logout(): void {
+  /** @param idle signed out for inactivity: the login page says so */
+  logout(idle = false): void {
     this.http.post<void>(`${this.baseUrl}/logout`, null, { withCredentials: true }).subscribe({
       error: () => undefined, // the local session is cleared regardless
     });
+    const returnUrl = idle && !this.router.url.startsWith('/login') ? this.router.url : undefined;
     this.clearSession();
-    void this.router.navigate(['/login']);
+    void this.router.navigate(['/login'], { queryParams: idle ? { idle: 1, ...(returnUrl ? { returnUrl } : {}) } : undefined });
   }
 
   changePassword(request: ChangePasswordRequest): Observable<void> {
@@ -110,21 +130,66 @@ export class AuthService {
   }
 
   private applySession(response: TokenResponse): void {
+    const wasSignedIn = this.currentUser() !== null;
     this.accessToken.set(response.accessToken);
     this.currentUser.set(response.user);
+    if (!wasSignedIn) {
+      this.markActive(true);
+      this.watchIdle();
+    }
     this.scheduleRefresh(new Date(response.expiresAt).getTime());
   }
 
   private clearSession(): void {
     clearTimeout(this.refreshTimer);
+    clearInterval(this.idleTimer);
     this.accessToken.set(null);
     this.currentUser.set(null);
+  }
+
+  /** Records activity (at most every 15 s in storage, so other tabs see it too). */
+  private markActive(force = false): void {
+    const now = Date.now();
+    this.lastActivity = now;
+    if (force || now - this.lastSaved > 15_000) {
+      this.lastSaved = now;
+      try {
+        localStorage.setItem(ACTIVITY_KEY, String(now));
+      } catch {
+        // storage unavailable: this tab's own activity still counts
+      }
+    }
+  }
+
+  /** Milliseconds since anyone used the panel in any tab. */
+  private idleFor(): number {
+    let latest = this.lastActivity;
+    try {
+      latest = Math.max(latest, Number(localStorage.getItem(ACTIVITY_KEY)) || 0);
+    } catch {
+      // ignore
+    }
+    return Date.now() - latest;
+  }
+
+  private watchIdle(): void {
+    clearInterval(this.idleTimer);
+    this.idleTimer = setInterval(() => {
+      if (this.currentUser() && this.idleFor() >= IDLE_TIMEOUT_MS) {
+        this.logout(true);
+      }
+    }, 30_000);
   }
 
   private scheduleRefresh(expiresAtMs: number): void {
     clearTimeout(this.refreshTimer);
     const delay = Math.max(expiresAtMs - Date.now() - REFRESH_LEEWAY_MS, 5_000);
     this.refreshTimer = setTimeout(() => {
+      // An idle tab doesn't keep the session alive.
+      if (this.idleFor() >= IDLE_TIMEOUT_MS) {
+        this.logout(true);
+        return;
+      }
       this.refresh().subscribe({ error: () => this.expireSession() });
     }, delay);
   }

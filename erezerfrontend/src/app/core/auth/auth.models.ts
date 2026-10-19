@@ -21,6 +21,7 @@ export type Permission =
   | 'SALES_VIEW'
   | 'STOCK_VIEW'
   | 'STOCK_MANAGE'
+  | 'SIZE_MANAGE'
   | 'CUSTOMER_VIEW'
   | 'CUSTOMER_EXPORT'
   | 'COURIER_SEND'

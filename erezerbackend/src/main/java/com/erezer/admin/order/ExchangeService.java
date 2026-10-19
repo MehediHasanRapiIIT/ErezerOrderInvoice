@@ -95,7 +95,7 @@ public class ExchangeService {
                             i.getColor(), i.getSize(), i.getUnitPrice(), unitCredit(order, i), i.getQuantity(), already,
                             Math.max(i.getQuantity() - already, 0),
                             i.getImages().stream().map(img -> new Image(img.getFile().getId(), files.url(img.getFile()))).toList(),
-                            i.getVariantId());
+                            i.getVariantId(), i.getStockItemId());
                 })
                 .toList();
         return new ExchangeOptions(order.getId(), order.getOrderNumber(),
@@ -145,7 +145,7 @@ public class ExchangeService {
             summary = summary.substring(0, 499) + "…";
         }
 
-        String number = orderService.resolveOrderNumber(null, 0L);
+        String number = orderService.resolveOrderNumber(request.orderNumber(), 0L);
         Order exchange = Order.exchange(number, original, credit, request.refundChosen(), request.deliveryPaidBy(),
                 request.reason(), summary, request.deliveryCharge(), now, userId);
 
@@ -153,10 +153,10 @@ public class ExchangeService {
                 .flatMap(l -> l.replacement().imageIds() == null ? Stream.<Long>empty() : l.replacement().imageIds().stream())
                 .toList();
         Map<Long, StoredFile> images = imageIds.isEmpty() ? Map.of() : files.requireImages(imageIds);
-        var variants = stock.requireVariants(request.items().stream().map(l -> l.replacement().variantId()).toList());
         // Each replacement ships in the same quantity as the units taken back.
         exchange.replaceItems(request.items().stream()
-                .map(l -> OrderService.toItem(withQuantity(l), images, variants))
+                .map(l -> OrderService.toItem(withQuantity(l), images,
+                        stock.pick(l.replacement().variantId(), l.replacement().stockItemId())))
                 .toList());
         long exchangeId = orders.save(exchange).getId();
 
@@ -241,7 +241,8 @@ public class ExchangeService {
     private static com.erezer.admin.order.dto.OrderDtos.OrderItemRequest withQuantity(ExchangeLineRequest line) {
         var r = line.replacement();
         return new com.erezer.admin.order.dto.OrderDtos.OrderItemRequest(r.productName(), r.productCode(),
-                r.description(), r.color(), r.size(), r.unitPrice(), line.quantity(), r.imageIds(), r.variantId());
+                r.description(), r.color(), r.size(), r.unitPrice(), line.quantity(), r.imageIds(), r.variantId(),
+                r.stockItemId());
     }
 
     private static String describe(OrderItem item, int quantity) {

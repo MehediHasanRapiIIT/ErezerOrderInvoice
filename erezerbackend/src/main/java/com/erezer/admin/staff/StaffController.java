@@ -4,11 +4,13 @@ import com.erezer.admin.common.web.PageResponse;
 import com.erezer.admin.security.CurrentUser;
 import com.erezer.admin.security.Role;
 import com.erezer.admin.staff.StaffDtos.CreateStaffRequest;
+import com.erezer.admin.staff.StaffDtos.PasswordRequestView;
 import com.erezer.admin.staff.StaffDtos.ResetPasswordRequest;
 import com.erezer.admin.staff.StaffDtos.StaffResponse;
 import com.erezer.admin.staff.StaffDtos.UpdateStaffRequest;
 import jakarta.validation.Valid;
 import java.net.URI;
+import java.util.List;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
@@ -29,9 +31,11 @@ import org.springframework.web.bind.annotation.RestController;
 class StaffController {
 
     private final StaffService staffService;
+    private final PasswordResetRequests passwordRequests;
 
-    StaffController(StaffService staffService) {
+    StaffController(StaffService staffService, PasswordResetRequests passwordRequests) {
         this.staffService = staffService;
+        this.passwordRequests = passwordRequests;
     }
 
     @GetMapping
@@ -73,7 +77,19 @@ class StaffController {
 
     @PostMapping("/{id}/reset-password")
     StaffResponse resetPassword(@PathVariable long id, @Valid @RequestBody ResetPasswordRequest request) {
-        return staffService.resetPassword(id, request.newPassword());
+        return staffService.resetPassword(id, request.newPassword(), CurrentUser.id());
+    }
+
+    /** "Forgot password" requests from the sign-in page, waiting for an admin to set a new password. */
+    @GetMapping("/password-requests")
+    List<PasswordRequestView> passwordRequests() {
+        return passwordRequests.open();
+    }
+
+    @PostMapping("/password-requests/{requestId}/dismiss")
+    ResponseEntity<Void> dismissPasswordRequest(@PathVariable long requestId) {
+        passwordRequests.dismiss(requestId, CurrentUser.id());
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{id}/unlock")

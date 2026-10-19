@@ -5,6 +5,7 @@ import { errorMessage } from '../../../core/http/api-error';
 import { ToastService } from '../../../core/notify/toast.service';
 import { BdDatePipe } from '../../../shared/ui/bd-date.pipe';
 import { VariantPicker } from '../../stock/variant-picker';
+import { SizeField } from '../../stock/size-field';
 import { SoldProductsApi } from '../../sold-products/sold-products.api';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { catchError, of } from 'rxjs';
@@ -32,6 +33,8 @@ interface Line {
   color: string;
   /** Stock variant of the replacement (starts as the original's). */
   variantId: number | null;
+  /** The replacement's size (stock item); starts as the original's. */
+  stockItemId: number | null;
   size: string;
   description: string;
   unitPrice: number | null;
@@ -45,7 +48,7 @@ interface Line {
  */
 @Component({
   selector: 'app-exchange-page',
-  imports: [FormsModule, RouterLink, TakaPipe, BdDatePipe, VariantPicker],
+  imports: [FormsModule, RouterLink, TakaPipe, BdDatePipe, VariantPicker, SizeField],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './exchange-page.html',
 })
@@ -73,6 +76,8 @@ export class ExchangePage implements OnInit {
   protected readonly deliveryCharge = signal<number | null>(0);
   protected readonly refund = signal(true);
   protected note = '';
+  /** Optional, like Add Order; generated when empty. */
+  protected orderNumber = '';
   protected readonly saving = signal(false);
 
   protected readonly selected = computed(() => this.lines().filter((l) => l.selected));
@@ -102,8 +107,10 @@ export class ExchangePage implements OnInit {
       if (l.unitPrice === null || Number(l.unitPrice) < 0 || `${l.unitPrice}` === '') result.push(`${l.item.productName}: enter the new price`);
       if (!(l.quantity >= 1 && l.quantity <= l.item.remaining)) result.push(`${l.item.productName}: quantity must be 1–${l.item.remaining}`);
       if (l.color.trim() && l.variantId === null) result.push(`${l.item.productName}: choose the variant from the list`);
+      if (l.variantId !== null && l.stockItemId === null) result.push(`${l.item.productName}: choose the size`);
     }
     if (this.deliveryCharge() === null || Number(this.deliveryCharge()) < 0) result.push('Enter the exchange delivery charge (0 if none)');
+    if (!/^[A-Za-z0-9-]{0,30}$/.test(this.orderNumber.trim())) result.push('Order ID: letters, digits and dashes only (max 30)');
     return result;
   });
 
@@ -154,6 +161,7 @@ export class ExchangePage implements OnInit {
             productCode: item.productCode ?? '',
             color: item.color ?? '',
             variantId: item.variantId ?? null,
+            stockItemId: item.stockItemId ?? null,
             size: item.size ?? '',
             description: item.description ?? '',
             unitPrice: item.unitPrice,
@@ -232,6 +240,7 @@ export class ExchangePage implements OnInit {
             quantity: l.quantity,
             imageIds: l.images.map((i) => i.fileId),
             variantId: l.variantId,
+            stockItemId: l.variantId === null ? null : l.stockItemId,
           },
         })),
         reason: this.reason(),
@@ -240,6 +249,7 @@ export class ExchangePage implements OnInit {
         refund: this.refund(),
         overrideTimeLimit: false,
         note: this.note.trim() || null,
+        orderNumber: this.orderNumber.trim().toUpperCase() || null,
       })
       .subscribe({
         next: ({ id }) => {

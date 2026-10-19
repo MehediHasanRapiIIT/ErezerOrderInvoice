@@ -10,7 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
 
-/** One change of a variant's quantity: what, why, by whom and the quantity after it. */
+/** One change of a variant + size's quantity: what, why, by whom and that size's quantity after it. */
 @Entity
 @Table(name = "stock_movements")
 public class StockMovement {
@@ -21,6 +21,9 @@ public class StockMovement {
 
     @Column(name = "variant_id", nullable = false, updatable = false)
     private Long variantId;
+
+    @Column(name = "stock_item_id", nullable = false, updatable = false)
+    private Long stockItemId;
 
     @Column(name = "change", nullable = false, updatable = false)
     private int change;
@@ -48,9 +51,10 @@ public class StockMovement {
         // for JPA
     }
 
-    StockMovement(long variantId, int change, int quantityAfter, StockReason reason, Long orderId, String note,
+    StockMovement(long variantId, long stockItemId, int change, int quantityAfter, StockReason reason, Long orderId, String note,
             Long createdBy, Instant createdAt) {
         this.variantId = variantId;
+        this.stockItemId = stockItemId;
         this.change = change;
         this.quantityAfter = quantityAfter;
         this.reason = reason;
@@ -66,6 +70,10 @@ public class StockMovement {
 
     public Long getVariantId() {
         return variantId;
+    }
+
+    public Long getStockItemId() {
+        return stockItemId;
     }
 
     public int getChange() {

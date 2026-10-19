@@ -52,6 +52,10 @@ public class OrderItem {
     @Column(name = "variant_id")
     private Long variantId;
 
+    /** The variant + size whose stock this item holds; null = not tracked in stock. */
+    @Column(name = "stock_item_id")
+    private Long stockItemId;
+
     @Column(name = "unit_price", nullable = false, precision = 12, scale = 2)
     private BigDecimal unitPrice;
 
@@ -84,13 +88,22 @@ public class OrderItem {
         }
     }
 
-    void useVariant(long variantId, String variantName) {
-        this.variantId = variantId;
-        this.color = variantName;
+    /** Takes the picked variant's name as the colour and, unless it is "No size", its size. */
+    void useStock(com.erezer.admin.stock.StockService.StockPick pick) {
+        this.variantId = pick.variantId();
+        this.stockItemId = pick.stockItemId();
+        this.color = pick.variantName();
+        if (pick.size() != null) {
+            this.size = pick.size();
+        }
     }
 
     public Long getVariantId() {
         return variantId;
+    }
+
+    public Long getStockItemId() {
+        return stockItemId;
     }
 
     void attachTo(Order order, int position) {

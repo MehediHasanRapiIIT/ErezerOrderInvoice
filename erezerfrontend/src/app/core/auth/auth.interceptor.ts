@@ -4,7 +4,7 @@ import { catchError, switchMap, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { AuthService } from './auth.service';
 
-const AUTH_ENDPOINTS = ['/auth/login', '/auth/refresh', '/auth/logout'];
+const AUTH_ENDPOINTS = ['/auth/login', '/auth/refresh', '/auth/logout', '/auth/forgot-password'];
 
 /**
  * Adds the bearer token to API calls. On a 401 it refreshes the session once and retries;

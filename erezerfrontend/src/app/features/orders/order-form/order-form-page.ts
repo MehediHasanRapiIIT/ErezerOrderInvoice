@@ -17,11 +17,12 @@ import { COMPLETE_PHONE_DIGITS, phoneKey } from '../../../shared/phone';
 import { HasUnsavedChanges } from '../../../shared/unsaved-changes.guard';
 import { Customer, CustomerApi } from '../../customers/customer.api';
 import { VariantPicker } from '../../stock/variant-picker';
+import { SizeField } from '../../stock/size-field';
 import { SoldProductsApi } from '../../sold-products/sold-products.api';
 import { TakaPipe } from '../../../shared/ui/taka.pipe';
 import { OrderApi } from '../data/order.api';
 import { PAYMENT_LABELS, PAYMENT_METHODS, SIZE_SUGGESTIONS } from '../data/order-labels';
-import { OrderDetail, OrderImage, OrderRequest, PaymentMethod } from '../data/order.models';
+import { ExchangeInfo, OrderDetail, OrderImage, OrderRequest, PaymentMethod } from '../data/order.models';
 import { BdDatePipe } from '../../../shared/ui/bd-date.pipe';
 
 const MAX_IMAGES_PER_ITEM = 10;
@@ -38,6 +39,8 @@ type ItemForm = FormGroup<{
   color: FormControl<string>;
   /** The stock variant picked for `color`; null while the typed text is not a picked variant. */
   variantId: FormControl<number | null>;
+  /** The variant's size whose stock this item takes; null = not chosen (or no variant). */
+  stockItemId: FormControl<number | null>;
   size: FormControl<string>;
   unitPrice: FormControl<number | null>;
   quantity: FormControl<number>;
@@ -49,7 +52,7 @@ let nextKey = 1;
 /** Create (/orders/new) and edit (/orders/:id/edit) form. */
 @Component({
   selector: 'app-order-form-page',
-  imports: [BdDatePipe, ReactiveFormsModule, RouterLink, TakaPipe, VariantPicker],
+  imports: [BdDatePipe, ReactiveFormsModule, RouterLink, TakaPipe, VariantPicker, SizeField],
   templateUrl: './order-form-page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -105,10 +108,18 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
   protected readonly subtotal = computed(() =>
     (this.formValue().items ?? []).reduce((sum, i) => sum + (Number(i?.unitPrice) || 0) * (Number(i?.quantity) || 0), 0),
   );
-  protected readonly total = computed(
-    () => this.subtotal() - (Number(this.formValue().discount) || 0) + (Number(this.formValue().deliveryCharge) || 0),
-  );
-  protected readonly discountTooLarge = computed(() => (Number(this.formValue().discount) || 0) > this.subtotal());
+  /** Set when editing an exchange order: its money works differently (see `total`). */
+  protected readonly exchange = signal<ExchangeInfo | null>(null);
+  /** An exchange collects the positive price difference (+ delivery when the customer pays it); no discount. */
+  protected readonly total = computed(() => {
+    const delivery = Number(this.formValue().deliveryCharge) || 0;
+    const ex = this.exchange();
+    if (ex) {
+      return Math.max(this.subtotal() - ex.credit, 0) + (ex.deliveryPaidBy === 'CUSTOMER' ? delivery : 0);
+    }
+    return this.subtotal() - (Number(this.formValue().discount) || 0) + delivery;
+  });
+  protected readonly discountTooLarge = computed(() => !this.exchange() && (Number(this.formValue().discount) || 0) > this.subtotal());
   protected readonly advance = computed(() => Math.max(Number(this.formValue().advance) || 0, 0));
   /** Due is always total − advance; typing a due fills in the advance instead. */
   protected readonly due = computed(() => Math.round((this.total() - this.advance()) * 100) / 100);
@@ -267,6 +278,11 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
       this.toast.error(`${unpicked.controls.productName.value || 'A product'}: choose the variant from the list`);
       return;
     }
+    const noSize = this.items.controls.find((i) => i.controls.variantId.value !== null && i.controls.stockItemId.value === null);
+    if (noSize) {
+      this.toast.error(`${noSize.controls.productName.value || 'A product'}: choose the size`);
+      return;
+    }
     if (this.form.invalid || this.discountTooLarge() || this.advanceTooLarge() || this.items.length === 0) {
       this.form.markAllAsTouched();
       this.toast.error(this.items.length === 0 ? 'Add at least one product' : 'Please fix the highlighted fields');
@@ -335,6 +351,7 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
 
   private patch(order: OrderDetail): void {
     this.version = order.version;
+    this.exchange.set(order.exchange ?? null);
     this.items.clear();
     order.items.forEach((item) =>
       this.items.push(
@@ -344,6 +361,7 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
           description: item.description ?? '',
           color: item.color ?? '',
           variantId: item.variantId ?? null,
+          stockItemId: item.stockItemId ?? null,
           size: item.size ?? '',
           unitPrice: item.unitPrice,
           quantity: item.quantity,
@@ -370,6 +388,7 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
       description: [value?.description ?? '', Validators.maxLength(1000)],
       color: [value?.color ?? '', Validators.maxLength(80)],
       variantId: this.fb.control<number | null>(value?.variantId ?? null),
+      stockItemId: this.fb.control<number | null>(value?.stockItemId ?? null),
       size: [value?.size ?? '', Validators.maxLength(30)],
       unitPrice: this.fb.control<number | null>(value?.unitPrice ?? null, [Validators.required, Validators.min(0)]),
       quantity: [value?.quantity ?? 1, [Validators.required, Validators.min(1), Validators.max(10000)]],
@@ -430,7 +449,7 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
         address: v.customer.address.trim(),
       },
       deliveryCharge: Number(v.deliveryCharge) || 0,
-      discount: Number(v.discount) || 0,
+      discount: this.exchange() ? 0 : Number(v.discount) || 0,
       advance: Number(v.advance) || 0,
       items: v.items.map((i) => ({
         productName: i.productName.trim(),
@@ -442,6 +461,7 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
         quantity: Number(i.quantity) || 1,
         imageIds: i.images.map((img) => img.fileId),
         variantId: i.variantId,
+        stockItemId: i.variantId === null ? null : i.stockItemId,
       })),
       version: this.version,
     };

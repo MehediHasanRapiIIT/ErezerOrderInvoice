@@ -67,6 +67,8 @@ export interface OrderItem {
   images: OrderImage[];
   /** Stock variant; its name is shown in `color`. */
   variantId?: number | null;
+  /** The variant's size whose stock the item holds. */
+  stockItemId?: number | null;
 }
 
 export interface StatusChange {
@@ -180,7 +182,6 @@ export interface ReturnRequest {
   reason: ReturnReason;
   paidBy: DeliveryPaidBy;
   returnCharge: number;
-  restock: boolean;
   note: string | null;
 }
 
@@ -240,6 +241,7 @@ export interface ExchangeableItem {
   remaining: number;
   images: OrderImage[];
   variantId?: number | null;
+  stockItemId?: number | null;
 }
 
 export interface ExchangeOptions {
@@ -264,6 +266,8 @@ export interface ExchangeRequest {
   refund: boolean;
   overrideTimeLimit: boolean;
   note: string | null;
+  /** Optional; generated when null. */
+  orderNumber: string | null;
 }
 
 export interface OrderItemRequest {
@@ -277,6 +281,8 @@ export interface OrderItemRequest {
   imageIds: number[];
   /** Stock variant picked from the list (its name goes in `color`). */
   variantId?: number | null;
+  /** The variant's size (its name goes in `size`). */
+  stockItemId?: number | null;
 }
 
 export interface OrderRequest {

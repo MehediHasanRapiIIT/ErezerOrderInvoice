@@ -39,6 +39,11 @@ public final class StaffDtos {
     public record ResetPasswordRequest(@NotBlank @Size(max = 72) String newPassword) {
     }
 
+    /** A "forgot password" request waiting for an admin. */
+    public record PasswordRequestView(long id, long userId, String fullName, String email, String role,
+            java.time.Instant requestedAt) {
+    }
+
     public record StaffResponse(
             long id,
             String fullName,

@@ -38,3 +38,13 @@ export interface UpdateStaffRequest {
   permissions: Permission[];
   version: number;
 }
+
+/** A "forgot password" request from the sign-in page, waiting for an admin. */
+export interface PasswordRequest {
+  id: number;
+  userId: number;
+  fullName: string;
+  email: string;
+  role: string;
+  requestedAt: string;
+}

@@ -60,7 +60,7 @@ class ExchangeIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.subtotal").value(1000.0))
                 .andExpect(jsonPath("$.deliveryCharge").value(120.0))
                 .andExpect(jsonPath("$.total").value(120.0))                    // difference 0 + delivery 120
-                .andExpect(jsonPath("$.editable").value(false))
+                .andExpect(jsonPath("$.editable").value(true))
                 .andExpect(jsonPath("$.exchange.ofOrderId").value(original))
                 .andExpect(jsonPath("$.exchange.credit").value(1000.0))
                 .andExpect(jsonPath("$.exchange.priceDifference").value(0.0))
@@ -74,13 +74,42 @@ class ExchangeIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.notes[0].body").value(startsWith("Exchange EZ-")))
                 .andExpect(jsonPath("$.editable").value(true));            // flag only; edits are refused below
 
-        // Neither the exchange nor the exchanged order can be edited any more.
+        // The exchange is edited like any order and its money is worked out again: a pricier replacement is collected.
+        String edit = orderJson(0, item("Regular Fit T-Shirt", "TS-1", "L", 1300, 1), 0).replace("\"deliveryCharge\":60", "\"deliveryCharge\":120");
         mvc.perform(put("/api/orders/" + ex).header("Authorization", admin).contentType(MediaType.APPLICATION_JSON)
-                        .content(orderJson(0, item("X", "X-1", "M", 1, 1), 0).replace("}\n", ",\"version\":0}\n")))
-                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("ORDER_LOCKED"));
+                        .content(edit.replace("\"discount\":0", "\"discount\":50").replace("}\n", ",\"version\":" + version(ex) + "}\n")))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("EXCHANGE_DISCOUNT"));
+        mvc.perform(put("/api/orders/" + ex).header("Authorization", admin).contentType(MediaType.APPLICATION_JSON)
+                        .content(edit.replace("}\n", ",\"version\":" + version(ex) + "}\n")))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/orders/" + ex).header("Authorization", admin))
+                .andExpect(jsonPath("$.orderType").value("EXCHANGE"))
+                .andExpect(jsonPath("$.exchange.priceDifference").value(300.0))
+                .andExpect(jsonPath("$.total").value(420.0));                   // difference 300 + delivery 120
+
+        // The exchanged order itself keeps its items.
         mvc.perform(put("/api/orders/" + original).header("Authorization", admin).contentType(MediaType.APPLICATION_JSON)
                         .content(orderJson(0, item("X", "X-1", "M", 1, 1), 0).replace("}\n", ",\"version\":" + version(original) + "}\n")))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.detail").value(startsWith("This order has exchanges")));
+    }
+
+    @Test
+    void anExchangeCanUseItsOwnOrderId() throws Exception {
+        long original = deliveredOrder(0, item("T-Shirt", "TS-1", "M", 1000, 1));
+        long itemId = itemIds(original).getFirst();
+        String number = "EX-" + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+        long ex = id(exchange(original, admin, """
+                {"reason":"WRONG_SIZE","deliveryPaidBy":"CUSTOMER","deliveryCharge":60,"refund":false,"orderNumber":"%s",
+                 "items":[{"originalItemId":%d,"quantity":1,"replacement":%s}]}
+                """.formatted(number.toLowerCase(), itemId, replacement("T-Shirt", "TS-1", "L", 1000)))
+                .andExpect(status().isCreated()).andReturn());
+        mvc.perform(get("/api/orders/" + ex).header("Authorization", admin)).andExpect(jsonPath("$.orderNumber").value(number));
+        // An Order ID already in use is refused.
+        exchange(original, admin, """
+                {"reason":"WRONG_SIZE","deliveryPaidBy":"CUSTOMER","deliveryCharge":60,"refund":false,"orderNumber":"%s",
+                 "items":[{"originalItemId":%d,"quantity":1,"replacement":%s}]}
+                """.formatted(number, itemId, replacement("T-Shirt", "TS-1", "L", 1000)))
+                .andExpect(status().isConflict());
     }
 
     @Test

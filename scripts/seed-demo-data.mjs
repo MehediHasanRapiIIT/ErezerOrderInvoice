@@ -105,8 +105,12 @@ async function uploadImage(kind, rgb) {
 }
 
 // ---- helpers ----------------------------------------------------------------------------------------------------
-/** Demo stock: plenty of most colours, Maroon running low, Grey out of stock. */
-const DEMO_VARIANTS = [['Black', 40], ['White', 35], ['Navy', 20], ['Maroon', 6], ['Olive', 15], ['Khaki', 12], ['Grey', 0]];
+/** Demo stock per size (S, M, L, XL, XXL): plenty of most colours, Maroon running low, Grey out of stock. */
+const DEMO_VARIANTS = [
+  ['Black', [6, 10, 12, 8, 4]], ['White', [5, 9, 10, 7, 4]], ['Navy', [3, 5, 6, 4, 2]], ['Maroon', [1, 2, 1, 1, 1]],
+  ['Olive', [2, 4, 5, 3, 1]], ['Khaki', [2, 3, 3, 2, 2]], ['Grey', [0, 0, 0, 0, 0]],
+];
+const DEMO_SIZES = ['S', 'M', 'L', 'XL', 'XXL'];
 
 const FLOW = ['ACCEPTED', 'PROCESSING', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED'];
 const COURIERS = ['Pathao', 'RedX', 'eCourier'];
@@ -187,12 +191,20 @@ async function seed() {
   };
 
   console.log('Adding stock variants…');
+  const sizeIds = Object.fromEntries((await api('GET', '/stock/sizes')).map((s) => [s.name, s.id]));
+  const missing = DEMO_SIZES.filter((n) => !sizeIds[n]);
+  if (missing.length) throw new Error(`Add these sizes first (Stock → Sizes): ${missing.join(', ')}`);
   const stock = {};
-  for (const v of await api('POST', '/stock/variants/bulk', { items: DEMO_VARIANTS.map(([name, quantity]) => ({ name, quantity })) })) {
-    stock[v.name] = v.id;
+  const items = DEMO_VARIANTS.map(([name, counts]) => ({ name, sizes: DEMO_SIZES.map((n, i) => ({ sizeId: sizeIds[n], quantity: counts[i] })) }));
+  for (const v of await api('POST', '/stock/variants/bulk', { items })) {
+    stock[v.name] = { id: v.id, sizes: Object.fromEntries(v.sizes.map((s) => [s.size, s.stockItemId])) };
   }
-  // Every demo item picks its colour's stock variant, so orders move stock like real ones.
-  const withVariant = (item) => (item.color && stock[item.color] ? { ...item, variantId: stock[item.color] } : item);
+  // Every demo item in a stocked colour and size picks that variant + size, so orders move stock like real ones.
+  const withVariant = (item) => {
+    const v = item.color && stock[item.color];
+    const stockItemId = v && item.size ? v.sizes[item.size] : undefined;
+    return stockItemId ? { ...item, variantId: v.id, stockItemId } : item;
+  };
   withVariantFn = withVariant;
 
   const c = (name, phone, address) => ({ name, phone, address });
@@ -334,7 +346,7 @@ async function seed() {
   for (const m of made) console.log(`  ${m.number}  ${m.label}`);
   console.log(`\n  + 3 exchange orders (delivered Erezer-paid, delivered cheaper with refund, accepted waiting to ship)`);
   console.log(`  + ${expenses.length} expenses over the last month`);
-  console.log(`  + ${DEMO_VARIANTS.length} stock variants (${DEMO_VARIANTS.map(([n, q]) => `${n} ${q}`).join(', ')} before orders)`);
+  console.log(`  + ${DEMO_VARIANTS.length} stock variants in sizes ${DEMO_SIZES.join('/')} (${DEMO_VARIANTS.map(([n, q]) => `${n} ${q.join('/')}`).join(', ')} before orders)`);
   console.log(`\nOpen ${BASE} and log in as ${EMAIL}. Remove it again with: node scripts/seed-demo-data.mjs --remove`);
   console.log('\nCAUTION: if real Steadfast keys are saved in this local panel, "Send to Steadfast" on a demo order books a REAL parcel.');
 }

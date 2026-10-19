@@ -132,10 +132,7 @@
           </select>
         </label>
       </div>
-      <label class="flex cursor-pointer items-start gap-2 text-sm text-slate-300">
-        <input type="checkbox" class="mt-0.5 h-4 w-4 accent-blue-600" [checked]="restock()" (change)="restock.set($any($event.target).checked)" />
-        <span>Put the pieces back in stock <span class="block text-xs text-slate-500">Untick for defective or damaged products that can't be sold again.</span></span>
-      </label>
+      <p class="text-xs text-slate-500"><i class="fas fa-info-circle mr-1"></i>Returns don't change stock. If the pieces can be sold again, add them on the Stock page.</p>
       <label class="block">
         <span class="field-label">Note (optional)</span>
         <textarea rows="2" class="field" [(ngModel)]="note" placeholder="e.g. refund sent by bKash"></textarea>

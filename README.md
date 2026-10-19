@@ -59,10 +59,15 @@ cd erezerfrontend && npm test -- --watch=false
 
 ### Authentication
 
-- `POST /api/auth/login` returns a 15-minute JWT access token in the body. A 7-day refresh token goes into an `HttpOnly; SameSite=Strict` cookie scoped to `/api/auth`.
+- `POST /api/auth/login` returns a 15-minute JWT access token in the body. A refresh token goes into an `HttpOnly; SameSite=Strict` cookie scoped to `/api/auth`.
+- **30-minute idle timeout:** the panel signs out after 30 minutes without mouse, keyboard or touch activity in any open tab, and the login page says why. The server enforces it too: a refresh token lasts 30 minutes from its last use (`JWT_REFRESH_TTL`, default `30m`), so a closed browser can't resume later.
 - The SPA keeps the access token in memory only. On page load, and shortly before the token expires, it calls `/api/auth/refresh`. That call rotates the refresh token.
 - Reusing an already-rotated refresh token after a 20-second grace period (meant for parallel tabs) is treated as theft: every session of that user is revoked.
 - Five wrong passwords lock the account for 15 minutes. A password change signs out all other devices.
+- **Forgot password** (login page, no email needed): staff enter their email and the request waits for an admin.
+  - Admins see the requests at the top of **Staff Management**, with a count on its menu item. **Set new password** opens the usual reset dialog; the admin gives the new password to the person, who can change it after signing in. **Dismiss** closes a request without a change.
+  - The answer on the login page is the same whether or not the email has an account, so nobody can probe which emails exist. Asking again doesn't add a second request.
+  - Setting the password signs the account out on every device and lifts a lockout.
 - The first admin comes from `BOOTSTRAP_ADMIN_*` and is created only when no admin exists yet.
 
 ### Permissions
@@ -160,13 +165,15 @@ Rules:
 
 ### Stock
 
-**Stock menu:** variants with how many are in stock. A variant is any name the admin chooses, e.g. *Black* or *Navy Blue - M*.
-- **Adding:** **Add Variant** adds one; **Add Bulk Variant** opens a table of rows to save in one go. Nothing is saved if a name is repeated or already exists, ignoring case.
-- **Updating:** **Update** renames a variant or sets its count, with an optional note. **Bulk Update** works on ticked variants: *Add*, *Remove* or *Set to* for each, and nothing changes if any would drop below 0.
-- **History:** every change, with who made it and the linked order.
-- **Low stock:** a card and a filter for 5 or fewer pieces (`app.stock.low-threshold`).
+**Stock is counted per variant and size.** A variant is a colour or design the admin names (*Black*, *Navy Blue*); it comes in some of the admin's sizes, and each variant + size has its own count. The Stock menu is a grid: one row per variant, one column per size (— = it doesn't come in that size), and the total.
+- **Sizes (admins only):** **Sizes** on the Stock page holds the one size list for the shop (S, M, L, XL, XXL to start). Add, rename, reorder (the order is used everywhere) and switch sizes off. A size that variants use can't be deleted, only switched off. Permission *Manage the size list* is admin-only.
+- **Adding:** **Add Variant** takes a name and the pieces of each size (leave a size empty if the variant doesn't come in it). **Add Bulk Variant** is a table with a column per size. Nothing is saved if a name is repeated or already exists, ignoring case.
+- **Updating:** **Update** renames a variant and sets each size's count, adds sizes, and takes sizes off (only once they're at 0), with an optional note. **Bulk Update** lists every size of the ticked variants: *Add*, *Remove* or *Set to*; nothing changes if any would drop below 0.
+- **History:** every change, with the size, who made it and the linked order.
+- **Low stock:** a card and a filter for sizes with 5 or fewer pieces (`app.stock.low-threshold`).
+- **Before sizes existed:** each variant's count moved into a **No size** column, so nothing was lost and old orders still balance. Spread it with **Update** (lower *No size*, raise the sizes by the same number); an empty *No size* disappears. Variants named with the size in them (*Navy Blue - M*) can be moved with **Merge**: choose *Navy Blue* and size *M*, and its pieces and the orders holding them move across; the old variant is removed.
 
-**Order form:** **Variant** replaces Color. Typing suggests every variant whose name contains the text, with how many are left. Only a variant picked from the list is accepted.
+**Order form:** **Variant** replaces Color. Typing suggests every variant whose name contains the text. Once a variant is picked, **Size** becomes a list of its sizes with how many are left; out-of-stock sizes can't be picked, and a variant with a single size picks it by itself. The chosen size is written on the order (invoice, Steadfast note). Without a variant, Size stays free text and the item isn't tracked. Exchanges choose the replacement's variant and size the same way.
 
 **Stock follows orders automatically:**
 
@@ -174,14 +181,14 @@ Rules:
 |---|---|
 | Order placed | taken |
 | Quantity edited | moves by the difference |
-| Order cancelled, refused at the door or deleted | given back |
-| Return after delivery | the returned pieces go back, unless *Back in stock* was unticked (defective / damaged) |
+| Order cancelled or deleted | given back |
+| Returned (refused at the door or after delivery) | **no change**: add resellable pieces back yourself with Update |
 | Exchange created | replacement taken |
 | Exchange delivered | the returned item goes back, unless the reason was *Defective* |
 
-An order needing more than is in stock is refused as a whole ("Only 3 of Black left").
+An order needing more than is in stock is refused as a whole ("Only 3 of Black / M left").
 
-**Implementation:** each order change re-checks how much stock the order should hold against what its history says it holds, and moves only the difference. Orders placed before stock existed never move stock.
+**Implementation:** each order change re-checks how much stock of each variant + size the order should hold against what its history says it holds, and moves only the difference. Every quantity change is one guarded SQL update, so two orders can't both take the last piece. Orders placed before stock existed never move stock.
 
 **Permissions:** *View stock* and *Add and update stock*. Order takers can search variants without either.
 
@@ -231,7 +238,8 @@ An exchange swaps items of a **delivered** order. It is a new order of type *Exc
   - **Rider collects (COD)** = the positive difference + the delivery charge if the customer pays.
 - **Courier:** the Steadfast note always starts with "EXCHANGE - collect the old item(s): …".
 - **Exchange invoice:** a separate PDF showing the new items, returned items and the summary.
-- **Locking:** exchange orders can't be edited (cancel and recreate them). An order that has exchanges keeps its items locked.
+- **Order ID:** optional, like Add Order; left empty, one is generated.
+- **Editing:** an exchange order is edited like any order (items, sizes, prices, customer, delivery charge, advance). The money is worked out again: the rider collects the positive difference against the returned items' credit, plus the delivery if the customer pays it. Exchanges have no discount. The order that was exchanged keeps its items locked.
 - **Dashboard:** booked on the exchange's delivery date.
   - **Total Exchange Items**, plus the items **paid by Customer** and **paid by Erezer**.
   - Product revenue grows only by the positive difference. Refunds on cheaper exchanges, and Erezer-paid delivery (the courier's real charge when known), reduce net profit.
@@ -239,14 +247,14 @@ An exchange swaps items of a **delivered** order. It is a new order of type *Exc
 
 ### Returns
 
-Every return is a **record** on the order (reason, return charge, **Paid by Customer / Erezer**, refund, back in stock or not, items), shown as a *Return* card on the order page and editable afterwards. There is **no time limit**.
+Every return is a **record** on the order (reason, return charge, **Paid by Customer / Erezer**, refund, items), shown as a *Return* card on the order page and editable afterwards. There is **no time limit**. **Returns don't change stock**: if the pieces can be sold again, add them back on the Stock page.
 
 - **Return after delivery:** the **Return** button beside **Add Order** (find the order by number or phone), or the button on a delivered order's page.
   - Tick the products and how many pieces come back. Some products only → the order stays *Delivered* with a **Partly returned** badge; everything → it becomes *Returned*.
-  - The **reason** suggests who pays and whether the pieces can be resold (*Defective* and *Damaged in delivery* don't go back in stock); both stay editable.
+  - The **reason** suggests who pays; it stays editable.
   - **Refund** = the products' value (price less its share of the discount) − the return charge **if the customer pays it**. The delivery charge is not refunded.
 - **Refused at the door:** mark the order **Returned** (or Steadfast does). When marking it by hand, the admin must choose **Return charge paid by** each time; there is no default. Steadfast's automatic updates record Erezer. If the customer pays, their share (delivery + return charge) is kept from any **advance** and the rest refunded.
-- **Undoing:** moving a Returned order to another status cancels its return records; the card disappears and stock follows.
+- **Undoing:** moving a Returned order to another status cancels its return records; the card disappears.
 - **Dashboard:** booked on the day the return is recorded. **Total Returned Items**, plus items **paid by Customer** and **paid by Erezer** with their charges. Erezer-paid charges are a cost; customer-paid charges on refused parcels are recovered and added back to net profit.
 - **Permission:** *Create returns* (moderators can be given it). Correcting a return also works with *Update order status*.
 

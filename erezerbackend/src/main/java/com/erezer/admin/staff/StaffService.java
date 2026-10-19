@@ -33,10 +33,13 @@ public class StaffService {
 
     private final UserRepository users;
     private final PasswordEncoder passwordEncoder;
+    private final PasswordResetRequests passwordRequests;
     private final UserSessions sessions;
     private final Clock clock;
 
-    StaffService(UserRepository users, PasswordEncoder passwordEncoder, UserSessions sessions, Clock clock) {
+    StaffService(UserRepository users, PasswordEncoder passwordEncoder, UserSessions sessions,
+            PasswordResetRequests passwordRequests, Clock clock) {
+        this.passwordRequests = passwordRequests;
         this.users = users;
         this.passwordEncoder = passwordEncoder;
         this.sessions = sessions;
@@ -117,13 +120,14 @@ public class StaffService {
 
     /** Sets a new password chosen by an admin, unlocks the account and signs the user out everywhere. */
     @Transactional
-    public StaffResponse resetPassword(long id, String newPassword) {
+    public StaffResponse resetPassword(long id, String newPassword, long adminId) {
         User user = load(id);
         PasswordPolicy.validate(newPassword);
         user.changePasswordHash(passwordEncoder.encode(newPassword));
         user.unlock();
         user.invalidateSessions(clock.instant());
         sessions.revokeAll(id);
+        passwordRequests.resolveFor(id, adminId, clock.instant());
         return toResponse(user, clock.instant());
     }
 

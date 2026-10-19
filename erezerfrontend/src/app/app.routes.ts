@@ -19,6 +19,13 @@ export const routes: Routes = [
     loadComponent: () => import('./features/auth/login/login-page').then((m) => m.LoginPage),
   },
   {
+    path: 'forgot-password',
+    title: 'Forgot password',
+    canActivate: [guestGuard],
+    loadComponent: () => import('./features/auth/password-reset/forgot-password-page').then((m) => m.ForgotPasswordPage),
+  },
+
+  {
     path: '',
     component: Shell,
     canMatch: [authGuard],

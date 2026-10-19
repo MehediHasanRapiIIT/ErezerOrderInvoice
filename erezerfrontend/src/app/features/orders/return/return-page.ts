@@ -48,7 +48,6 @@ export class ReturnPage implements OnInit {
   protected readonly reason = signal<ReturnReason>('DID_NOT_LIKE');
   protected readonly paidBy = signal<DeliveryPaidBy>('CUSTOMER');
   protected readonly returnCharge = signal<number | null>(0);
-  protected readonly restock = signal(true);
   protected note = '';
   protected readonly saving = signal(false);
 
@@ -141,13 +140,12 @@ export class ReturnPage implements OnInit {
     );
   }
 
-  /** The reason suggests who pays and whether the pieces can go back on the shelf; both stay editable. */
+  /** The reason suggests who pays; it stays editable. */
   protected setReason(value: ReturnReason): void {
     const r = RETURN_REASONS.find((x) => x.value === value);
     this.reason.set(value);
     if (r) {
       this.paidBy.set(r.suggestedPayer);
-      this.restock.set(r.resellable);
     }
   }
 
@@ -161,7 +159,6 @@ export class ReturnPage implements OnInit {
         reason: this.reason(),
         paidBy: this.paidBy(),
         returnCharge: this.charge(),
-        restock: this.restock(),
         note: this.note.trim() || null,
       })
       .subscribe({

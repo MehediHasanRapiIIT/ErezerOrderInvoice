@@ -6,6 +6,27 @@
   <a routerLink="/staff/new" class="btn-primary"><i class="fas fa-user-plus"></i> Add staff</a>
 </div>
 
+@if (openRequests().length) {
+  <section class="card mt-6 border-amber-500/50 p-5" aria-labelledby="password-requests">
+    <h2 id="password-requests" class="font-semibold text-amber-300"><i class="fas fa-key mr-2"></i>Forgot password ({{ openRequests().length }})</h2>
+    <p class="mt-1 text-xs text-slate-400">They asked from the sign-in page. Set a new password, then give it to them; they can change it after signing in.</p>
+    <ul class="mt-3 divide-y divide-line">
+      @for (r of openRequests(); track r.id) {
+        <li class="flex flex-wrap items-center justify-between gap-3 py-2.5">
+          <div class="min-w-0">
+            <p class="font-semibold text-white">{{ r.fullName }} <span class="ml-1 text-xs font-normal text-slate-400">{{ r.role === 'ADMIN' ? 'Admin' : 'Moderator' }}</span></p>
+            <p class="text-xs text-slate-400">{{ r.email }} · asked {{ r.requestedAt | bdDate }}</p>
+          </div>
+          <div class="flex gap-2">
+            <button type="button" class="btn-primary" (click)="resetFor(r)"><i class="fas fa-key"></i> Set new password</button>
+            <button type="button" class="btn-secondary" (click)="dismiss(r)" title="Close without changing the password">Dismiss</button>
+          </div>
+        </li>
+      }
+    </ul>
+  </section>
+}
+
 <section class="card mt-6 overflow-hidden">
   <div class="flex flex-wrap items-center gap-2 border-b border-line p-4">
     <div class="relative min-w-[220px] flex-1">

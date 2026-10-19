@@ -9,6 +9,12 @@
     </div>
 
     <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-5 rounded-xl border border-line bg-panel p-6 shadow-xl" novalidate>
+      @if (signedOutIdle && !error()) {
+        <div class="flex items-start gap-2 rounded-md border border-amber-800 bg-amber-950/50 px-3 py-2 text-sm text-amber-200" role="status">
+          <i class="fas fa-clock mt-0.5"></i>
+          <span>You were signed out after 30 minutes without activity. Sign in again to continue.</span>
+        </div>
+      }
       @if (error(); as message) {
         <div class="flex items-start gap-2 rounded-md border border-red-800 bg-red-950/60 px-3 py-2 text-sm text-red-200" role="alert">
           <i class="fas fa-exclamation-circle mt-0.5"></i>
@@ -31,7 +37,10 @@
       </label>
 
       <label class="block">
-        <span class="mb-1.5 block text-sm font-medium text-slate-300">Password</span>
+        <span class="mb-1.5 flex items-center justify-between text-sm font-medium text-slate-300">
+          Password
+          <a routerLink="/forgot-password" class="text-xs font-normal text-brand-light hover:underline">Forgot password?</a>
+        </span>
         <div class="relative">
           <input
             [type]="showPassword() ? 'text' : 'password'"

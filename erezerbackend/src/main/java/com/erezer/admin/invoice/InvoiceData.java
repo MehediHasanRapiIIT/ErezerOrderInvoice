@@ -9,7 +9,6 @@ import java.util.List;
 record InvoiceData(
         String orderNumber,
         ZonedDateTime orderedAt,
-        ZonedDateTime acceptedAt,
         String paymentMethod,
         String customerName,
         String customerPhone,

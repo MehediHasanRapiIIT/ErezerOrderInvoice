@@ -1,7 +1,10 @@
 <a [routerLink]="isEdit() ? ['/orders', id()] : ['/orders']" class="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white">
   <i class="fas fa-arrow-left text-xs"></i> {{ isEdit() ? 'Back to order' : 'Orders' }}
 </a>
-<h1 class="page-title">{{ isEdit() ? 'Edit Order' : 'Add Order' }}</h1>
+<h1 class="page-title">{{ isEdit() ? (exchange() ? 'Edit Exchange' : 'Edit Order') : 'Add Order' }}</h1>
+@if (exchange(); as ex) {
+  <p class="page-subtitle">Exchange of <a [routerLink]="['/orders', ex.ofOrderId]" class="font-mono text-brand-light hover:underline">{{ ex.ofOrderNumber }}</a> · the items below are what ships to the customer</p>
+}
 
 @if (loading()) {
   <div class="flex justify-center py-24 text-slate-400"><i class="fas fa-circle-notch fa-spin text-2xl"></i></div>
@@ -54,15 +57,12 @@
               <app-variant-picker [name]="item.controls.color.value" (nameChange)="item.controls.color.setValue($event); item.controls.color.markAsDirty()"
                                   [variantId]="item.controls.variantId.value" (variantIdChange)="item.controls.variantId.setValue($event)" />
             </div>
-            <label class="block sm:col-span-1">
+            <div class="block sm:col-span-1">
               <span class="field-label">Size</span>
-              <input formControlName="size" class="field" placeholder="L" [attr.list]="'sizes-' + i" />
-              <datalist [id]="'sizes-' + i">
-                @for (s of sizeSuggestions; track s) {
-                  <option [value]="s"></option>
-                }
-              </datalist>
-            </label>
+              <app-size-field [variantId]="item.controls.variantId.value" [suggestions]="sizeSuggestions" [listId]="'sizes-' + i"
+                              [stockItemId]="item.controls.stockItemId.value" (stockItemIdChange)="item.controls.stockItemId.setValue($event)"
+                              [size]="item.controls.size.value" (sizeChange)="item.controls.size.setValue($event); item.controls.size.markAsDirty()" />
+            </div>
             <label class="block sm:col-span-1">
               <span class="field-label">Qty *</span>
               <input type="number" min="1" step="1" formControlName="quantity" class="field" [class.field-invalid]="item.controls.quantity.invalid && item.controls.quantity.touched" />
@@ -217,16 +217,27 @@
           <span>Delivery charge *</span>
           <input type="number" min="0" step="0.01" formControlName="deliveryCharge" class="field w-32 text-right" />
         </label>
-        <label class="flex items-center justify-between gap-3 text-sm text-slate-400">
-          <span>Discount</span>
-          <input type="number" min="0" step="0.01" formControlName="discount" class="field w-32 text-right" [class.field-invalid]="discountTooLarge()" />
-        </label>
-        @if (discountTooLarge()) {
-          <p class="field-error text-right">Discount cannot exceed the subtotal</p>
+        @if (exchange(); as ex) {
+          <div class="flex justify-between text-sm text-slate-400"><span>Returned items credit</span><span>−{{ ex.credit | taka }}</span></div>
+          <p class="text-xs text-slate-500">Delivery paid by {{ ex.deliveryPaidBy === 'EREZER' ? 'Erezer (not collected)' : 'the customer' }}. Exchanges have no discount.</p>
+          <div class="flex justify-between border-t border-line pt-3 text-lg font-bold text-white">
+            <span>Rider collects</span><span class="text-brand-light">{{ total() | taka }}</span>
+          </div>
+          @if (subtotal() < ex.credit) {
+            <p class="text-right text-xs text-amber-300">The new items cost {{ ex.credit - subtotal() | taka }} less than the returned ones.</p>
+          }
+        } @else {
+          <label class="flex items-center justify-between gap-3 text-sm text-slate-400">
+            <span>Discount</span>
+            <input type="number" min="0" step="0.01" formControlName="discount" class="field w-32 text-right" [class.field-invalid]="discountTooLarge()" />
+          </label>
+          @if (discountTooLarge()) {
+            <p class="field-error text-right">Discount cannot exceed the subtotal</p>
+          }
+          <div class="flex justify-between border-t border-line pt-3 text-lg font-bold text-white">
+            <span>Total</span><span class="text-brand-light">{{ total() | taka }}</span>
+          </div>
         }
-        <div class="flex justify-between border-t border-line pt-3 text-lg font-bold text-white">
-          <span>Total</span><span class="text-brand-light">{{ total() | taka }}</span>
-        </div>
         <label class="flex items-center justify-between gap-3 text-sm text-slate-400">
           <span>Advance <span class="text-xs text-slate-500">(optional)</span></span>
           <input type="number" min="0" step="0.01" formControlName="advance" class="field w-32 text-right" placeholder="0"

@@ -65,7 +65,7 @@ class StockIntegrationTest extends IntegrationTest {
     }
 
     @Test
-    void ordersTakeStockAndGiveItBackWhenCancelledReturnedOrDeleted() throws Exception {
+    void ordersTakeStockAndGiveItBackWhenCancelledOrDeletedButNotWhenReturned() throws Exception {
         long v = variant("Black " + tag, 10);
 
         long a = order(v, 3);
@@ -86,16 +86,16 @@ class StockIntegrationTest extends IntegrationTest {
         long b = order(v, 4);
         setStatus(b, "{\"status\":\"DELIVERED\"}");
         assertThat(quantity(v)).isEqualTo(6);
-        setStatus(b, "{\"status\":\"RETURNED\",\"returnDeliveryCharge\":50}");
-        assertThat(quantity(v)).isEqualTo(10);
+        setStatus(b, "{\"status\":\"RETURNED\",\"returnDeliveryCharge\":50,\"returnPaidBy\":\"EREZER\"}");
+        assertThat(quantity(v)).isEqualTo(6); // returns don't change stock; staff add resellable pieces back themselves
 
         long c = order(v, 2);
         mvc.perform(delete("/api/orders/" + c).header("Authorization", admin)).andExpect(status().isNoContent());
-        assertThat(quantity(v)).isEqualTo(10);
+        assertThat(quantity(v)).isEqualTo(6);
 
         MvcResult history = mvc.perform(get("/api/stock/variants/" + v + "/history").param("size", "50").header("Authorization", admin)).andReturn();
         List<String> reasons = read(history, "$.content[*].reason");
-        assertThat(reasons).contains("ORDER_PLACED", "ORDER_CHANGED", "ORDER_CANCELLED", "ORDER_RETURNED", "ORDER_DELETED");
+        assertThat(reasons).contains("ORDER_PLACED", "ORDER_CHANGED", "ORDER_CANCELLED", "ORDER_DELETED").doesNotContain("ORDER_RETURNED");
         mvc.perform(get("/api/stock/variants/" + v + "/history").header("Authorization", admin))
                 .andExpect(jsonPath("$.content[0].orderNumber").value(startsWith("EZ-")));
     }

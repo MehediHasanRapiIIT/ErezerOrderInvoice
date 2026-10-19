@@ -119,7 +119,9 @@
                 </label>
                 <label class="block sm:col-span-2">
                   <span class="field-label">Size</span>
-                  <input class="field" [ngModel]="l.size" (ngModelChange)="update(l, { size: $event })" />
+                  <app-size-field [variantId]="l.variantId" [listId]="'ex-sizes-' + l.item.id"
+                                  [stockItemId]="l.stockItemId" (stockItemIdChange)="update(l, { stockItemId: $event })"
+                                  [size]="l.size" (sizeChange)="update(l, { size: $event })" />
                 </label>
                 <div class="block sm:col-span-2">
                   <span class="field-label">Variant</span>
@@ -183,6 +185,11 @@
         </div>
       }
 
+      <label class="block">
+        <span class="field-label">Order ID</span>
+        <input class="field font-mono uppercase" [(ngModel)]="orderNumber" maxlength="30" placeholder="Generated automatically" aria-label="Order ID" />
+        <span class="mt-1 block text-xs text-slate-500">Leave empty to generate one like EZ-583882</span>
+      </label>
       <label class="block">
         <span class="field-label">Reason</span>
         <select class="field" (change)="setReason($any($event.target).value)" aria-label="Reason">

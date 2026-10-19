@@ -68,7 +68,9 @@ public final class OrderDtos {
             @Min(1) @Max(10000) int quantity,
             @Size(max = 10) List<@NotNull Long> imageIds,
             /** The stock variant (its name replaces {@code color}); null = not tracked in stock. */
-            Long variantId) {
+            Long variantId,
+            /** The variant's size (its name replaces {@code size}); may be left out when the variant has one size. */
+            Long stockItemId) {
     }
 
     public record StatusChangeRequest(
@@ -89,8 +91,6 @@ public final class OrderDtos {
             @NotNull ReturnReason reason,
             @NotNull DeliveryPaidBy paidBy,
             @NotNull @DecimalMin("0") @DecimalMax("9999999") @Digits(integer = 10, fraction = 2) BigDecimal returnCharge,
-            /** Put the pieces back into stock; when not given, follows the reason (not for defective/damaged). */
-            Boolean restock,
             @Size(max = 1000) String note) {
     }
 
@@ -157,7 +157,10 @@ public final class OrderDtos {
             @NotNull @DecimalMin("0") @DecimalMax("9999999") @Digits(integer = 10, fraction = 2) BigDecimal deliveryCharge,
             Boolean refund,
             Boolean overrideTimeLimit,
-            @Size(max = 1000) String note) {
+            @Size(max = 1000) String note,
+            /** Optional, like a normal order's; generated when empty. */
+            @Size(max = 30) @Pattern(regexp = "^[A-Za-z0-9-]*$", message = "may contain only letters, digits and dashes")
+            String orderNumber) {
 
         /** Missing means no. */
         public boolean refundChosen() {
@@ -283,7 +286,8 @@ public final class OrderDtos {
             int alreadyExchanged,
             int remaining,
             List<Image> images,
-            Long variantId) {
+            Long variantId,
+            Long stockItemId) {
     }
 
     public record Customer(String name, String phone, String email, String address) {
@@ -300,7 +304,8 @@ public final class OrderDtos {
             int quantity,
             BigDecimal lineTotal,
             List<Image> images,
-            Long variantId) {
+            Long variantId,
+            Long stockItemId) {
     }
 
     public record Image(long fileId, String url) {

@@ -52,9 +52,9 @@ class ReturnIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.returns[0].kind").value("AFTER_DELIVERY"))
                 .andExpect(jsonPath("$.returns[0].itemsValue").value(1000.0))
                 .andExpect(jsonPath("$.returns[0].refundAmount").value(880.0))
-                .andExpect(jsonPath("$.returns[0].restock").value(true))
+                .andExpect(jsonPath("$.returns[0].restock").value(false))
                 .andExpect(jsonPath("$.notes[0].body").value(startsWith("Return: T-Shirt")));
-        assertThat(stock(black)).isEqualTo(9);                                        // back on the shelf
+        assertThat(stock(black)).isEqualTo(8);                                        // returns don't change stock
 
         MvcResult after = summary();
         assertThat(delta(before, after, "$.current.refunds")).isEqualTo(880.0);
@@ -71,13 +71,13 @@ class ReturnIntegrationTest extends IntegrationTest {
         doReturn(id, items.get(0), 2, "DID_NOT_LIKE", "CUSTOMER", 0)
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.detail").value("Only 1 of T-Shirt " + tag + " can still be returned"));
 
-        // The rest comes back defective, Erezer pays: full refund, not restocked; the order is now Returned.
+        // The rest comes back defective, Erezer pays: full refund; the order is now Returned.
         doReturn(id, List.of(new long[] {items.get(0), 1}, new long[] {items.get(1), 1}), "DEFECTIVE", "EREZER", 100)
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("RETURNED"))
                 .andExpect(jsonPath("$.returns[0].refundAmount").value(1400.0))
                 .andExpect(jsonPath("$.returns[0].restock").value(false));
-        assertThat(stock(black)).isEqualTo(9);                                        // defective: not resold
+        assertThat(stock(black)).isEqualTo(8);                                        // still no stock change
         mvc.perform(get("/api/orders/" + id + "/return-options").header("Authorization", admin))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("NOT_RETURNABLE"));
     }

@@ -23,6 +23,9 @@ public final class AuthDtos {
             @NotBlank @Size(min = 10, max = 72) String newPassword) {
     }
 
+    public record ForgotPasswordRequest(@NotBlank @Email @Size(max = 160) String email) {
+    }
+
     public record TokenResponse(String accessToken, String tokenType, Instant expiresAt, CurrentUserResponse user) {
 
         public TokenResponse(String accessToken, Instant expiresAt, CurrentUserResponse user) {

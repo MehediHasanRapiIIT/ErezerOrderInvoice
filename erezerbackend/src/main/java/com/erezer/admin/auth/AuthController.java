@@ -4,11 +4,13 @@ import com.erezer.admin.auth.AuthService.Session;
 import com.erezer.admin.auth.RefreshTokenService.ClientInfo;
 import com.erezer.admin.auth.dto.AuthDtos.ChangePasswordRequest;
 import com.erezer.admin.auth.dto.AuthDtos.CurrentUserResponse;
+import com.erezer.admin.auth.dto.AuthDtos.ForgotPasswordRequest;
 import com.erezer.admin.auth.dto.AuthDtos.LoginRequest;
 import com.erezer.admin.auth.dto.AuthDtos.TokenResponse;
 import com.erezer.admin.common.error.ApiException;
 import com.erezer.admin.security.CurrentUser;
 import com.erezer.admin.security.SecurityProperties;
+import com.erezer.admin.staff.PasswordResetRequests;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.time.Duration;
@@ -29,10 +31,12 @@ import org.springframework.web.bind.annotation.RestController;
 class AuthController {
 
     private final AuthService authService;
+    private final PasswordResetRequests passwordReset;
     private final SecurityProperties properties;
 
-    AuthController(AuthService authService, SecurityProperties properties) {
+    AuthController(AuthService authService, PasswordResetRequests passwordReset, SecurityProperties properties) {
         this.authService = authService;
+        this.passwordReset = passwordReset;
         this.properties = properties;
     }
 
@@ -57,6 +61,16 @@ class AuthController {
             authService.logout(refreshToken);
         }
         return ResponseEntity.noContent().header(HttpHeaders.SET_COOKIE, refreshCookie("", Duration.ZERO)).build();
+    }
+
+    /**
+     * "Forgot password": tells the admins, who set a new password on the Staff page. Always answers the same way, so
+     * it doesn't reveal which emails have an account.
+     */
+    @PostMapping("/forgot-password")
+    ResponseEntity<Void> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request, HttpServletRequest http) {
+        passwordReset.request(request.email(), http.getRemoteAddr());
+        return ResponseEntity.accepted().build();
     }
 
     @GetMapping("/me")

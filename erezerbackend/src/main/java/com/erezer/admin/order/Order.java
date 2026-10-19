@@ -197,6 +197,9 @@ public class Order extends AuditableEntity {
             // The rider collects only a positive price difference; a cheaper replacement is refunded separately.
             BigDecimal difference = subtotal.subtract(exchangeCredit).max(BigDecimal.ZERO);
             total = difference.add(exchangeDeliveryPaidBy == DeliveryPaidBy.CUSTOMER ? deliveryCharge : BigDecimal.ZERO);
+            if (advanceAmount.compareTo(total) > 0) {
+                throw ApiException.badRequest("ADVANCE_TOO_LARGE", "The advance cannot be more than what the rider collects");
+            }
             return;
         }
         if (discount.compareTo(subtotal) > 0) {
@@ -315,7 +318,7 @@ public class Order extends AuditableEntity {
     }
 
     public boolean isEditable() {
-        return orderType == OrderType.SALE && status != OrderStatus.CANCELLED && status != OrderStatus.RETURNED;
+        return status != OrderStatus.CANCELLED && status != OrderStatus.RETURNED;
     }
 
     public boolean isDeleted() {

@@ -16,7 +16,6 @@ import java.util.Objects;
 import java.util.stream.Stream;
 import com.erezer.admin.stock.StockReason;
 import com.erezer.admin.stock.StockService;
-import com.erezer.admin.stock.StockVariant;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -61,9 +60,9 @@ public class OrderService {
         if (request.version() == null || request.version() != order.getVersion()) {
             throw ApiException.conflict("STALE_DATA", "This order was changed by someone else. Reload and try again.");
         }
-        if (order.isExchange()) {
-            throw ApiException.conflict("ORDER_LOCKED",
-                    "Exchange orders cannot be edited. Cancel it and create a new exchange instead.");
+        if (order.isExchange() && request.discount() != null && request.discount().signum() != 0) {
+            // What the rider collects is the price difference; a cheaper replacement is the way to lower it.
+            throw ApiException.badRequest("EXCHANGE_DISCOUNT", "Exchange orders have no discount. Lower the new items' price instead.");
         }
         if (!order.isEditable()) {
             throw ApiException.conflict("ORDER_LOCKED", "Cancelled or returned orders can no longer be edited");
@@ -198,21 +197,18 @@ public class OrderService {
                 .flatMap(i -> i.imageIds() == null ? Stream.<Long>empty() : i.imageIds().stream())
                 .toList();
         Map<Long, StoredFile> images = imageIds.isEmpty() ? Map.of() : files.requireImages(imageIds);
-        Map<Long, StockVariant> variants = stock.requireVariants(request.items().stream().map(OrderItemRequest::variantId).toList());
-
-        order.replaceItems(request.items().stream().map(i -> toItem(i, images, variants)).toList());
+        order.replaceItems(request.items().stream().map(i -> toItem(i, images, stock.pick(i.variantId(), i.stockItemId()))).toList());
     }
 
-    static OrderItem toItem(OrderItemRequest request, Map<Long, StoredFile> images, Map<Long, StockVariant> variants) {
+    static OrderItem toItem(OrderItemRequest request, Map<Long, StoredFile> images, StockService.StockPick pick) {
         List<StoredFile> itemImages = request.imageIds() == null ? List.of()
                 : request.imageIds().stream().distinct().map(images::get).toList();
         String code = blankToNull(request.productCode());
         OrderItem item = new OrderItem(request.productName().trim(), code == null ? null : code.toUpperCase(Locale.ROOT),
                 blankToNull(request.description()), blankToNull(request.color()), blankToNull(request.size()),
                 request.unitPrice(), request.quantity(), itemImages);
-        if (request.variantId() != null) {
-            StockVariant variant = variants.get(request.variantId());
-            item.useVariant(variant.getId(), variant.getName());
+        if (pick != null) {
+            item.useStock(pick);
         }
         return item;
     }

@@ -37,6 +37,7 @@ public enum Permission {
 
     STOCK_VIEW("Stock", "View stock", false),
     STOCK_MANAGE("Stock", "Add and update stock", false),
+    SIZE_MANAGE("Stock", "Manage the size list", true),
 
     CUSTOMER_VIEW("Customers", "View customers", false),
     CUSTOMER_EXPORT("Customers", "Export customers", false),

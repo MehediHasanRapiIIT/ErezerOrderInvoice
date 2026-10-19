@@ -114,8 +114,8 @@ public class ReturnService {
         }
 
         Instant now = clock.instant();
-        boolean restock = request.restock() != null ? request.restock() : request.reason().resellable();
-        OrderReturn ret = new OrderReturn(orderId, ReturnKind.AFTER_DELIVERY, request.reason(), restock, blankToNull(request.note()), userId, now);
+        // Returns never change stock; staff count returned pieces back in on the Stock page if they can be resold.
+        OrderReturn ret = new OrderReturn(orderId, ReturnKind.AFTER_DELIVERY, request.reason(), false, blankToNull(request.note()), userId, now);
         BigDecimal value = BigDecimal.ZERO;
         for (ReturnLineRequest line : request.items()) {
             OrderItem item = items.get(line.orderItemId());
@@ -149,7 +149,7 @@ public class ReturnService {
         ReturnReason why = reason != null ? reason : refused ? ReturnReason.REFUSED : ReturnReason.OTHER;
         DeliveryPaidBy payer = paidBy != null ? paidBy : DeliveryPaidBy.EREZER;
         OrderReturn ret = new OrderReturn(order.getId(), refused ? ReturnKind.REFUSED : ReturnKind.AFTER_DELIVERY, why,
-                refused || why.resellable(), null, userId, now);
+                false, null, userId, now); // returns never change stock
         BigDecimal value = BigDecimal.ZERO;
         if (!refused) {
             Map<Long, Integer> returned = returnedQuantities(order.getId());
@@ -244,7 +244,7 @@ public class ReturnService {
                 + " · return charge " + taka(r.getReturnCharge()) + " paid by "
                 + (r.getPaidBy() == DeliveryPaidBy.CUSTOMER ? "customer" : "Erezer")
                 + " · refund " + taka(r.getRefundAmount())
-                + (r.isRestock() ? " · back in stock" : " · not restocked");
+                + (r.isRestock() ? " · back in stock" : "");
     }
 
     /** The outbound part of a refused parcel's courier cost: the delivery charge (the return charge is separate). */

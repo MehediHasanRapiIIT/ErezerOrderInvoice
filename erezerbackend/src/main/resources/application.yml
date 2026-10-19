@@ -79,7 +79,8 @@ app:
       secret: ${JWT_SECRET:}
       issuer: erezer-admin
       access-token-ttl: ${JWT_ACCESS_TTL:15m}
-      refresh-token-ttl: ${JWT_REFRESH_TTL:7d}
+      # Each refresh starts a new window, so this is the idle timeout: 30 minutes without using the panel signs out.
+      refresh-token-ttl: ${JWT_REFRESH_TTL:30m}
     refresh-cookie:
       name: erezer_rt
       path: /api/auth

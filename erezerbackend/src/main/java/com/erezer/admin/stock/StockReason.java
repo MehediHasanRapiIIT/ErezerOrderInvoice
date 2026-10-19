@@ -9,7 +9,8 @@ public enum StockReason {
     ORDER_CANCELLED("Order cancelled"),
     ORDER_RETURNED("Order returned"),
     ORDER_DELETED("Order deleted"),
-    EXCHANGE("Exchange");
+    EXCHANGE("Exchange"),
+    MERGED("Merged");
 
     private final String label;
 
