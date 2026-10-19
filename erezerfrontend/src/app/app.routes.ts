@@ -35,6 +35,18 @@ export const routes: Routes = [
         loadChildren: () => import('./features/orders/orders.routes').then((m) => m.ORDER_ROUTES),
       },
       {
+        path: 'sold-products',
+        title: 'Sold Products',
+        canActivate: [requirePermission('SALES_VIEW')],
+        loadComponent: () => import('./features/sold-products/sold-products-page').then((m) => m.SoldProductsPage),
+      },
+      {
+        path: 'stock',
+        title: 'Stock',
+        canActivate: [requirePermission('STOCK_VIEW')],
+        loadComponent: () => import('./features/stock/stock-page').then((m) => m.StockPage),
+      },
+      {
         path: 'customers',
         title: 'Customers',
         canActivate: [requirePermission('CUSTOMER_VIEW')],
@@ -43,6 +55,10 @@ export const routes: Routes = [
       {
         path: 'expenses',
         loadChildren: () => import('./features/expenses/expenses.routes').then((m) => m.EXPENSE_ROUTES),
+      },
+      {
+        path: 'assets',
+        loadChildren: () => import('./features/assets/assets.routes').then((m) => m.ASSET_ROUTES),
       },
       {
         path: 'settings/courier',

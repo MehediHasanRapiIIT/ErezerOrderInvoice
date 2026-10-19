@@ -27,6 +27,26 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
             nativeQuery = true)
     boolean orderNumberTaken(@Param("number") String orderNumber, @Param("excludeId") long excludeId);
 
+    /** Delivered orders whose number matches exactly, or whose customer phone matches, for the exchange page. */
+    @Query("""
+            select o from Order o
+            where o.status = com.erezer.admin.order.OrderStatus.DELIVERED
+              and (upper(o.orderNumber) = :number or o.customerPhoneKey = :phoneKey)
+            order by o.deliveredAt desc
+            """)
+    List<Order> findExchangeCandidates(@Param("number") String number, @Param("phoneKey") String phoneKey,
+            org.springframework.data.domain.Limit limit);
+
+    List<Order> findByExchangeOfOrderIdOrderByCreatedAtDesc(Long exchangeOfOrderId);
+
+    /** The original's number even if it was deleted later. */
+    @Query(value = "select order_number from orders where id = :id", nativeQuery = true)
+    String findOriginalNumber(@Param("id") long id);
+
+    /** Any exchange ever made for the order, deleted ones included (their item rows still reference it). */
+    @Query(value = "select exists(select 1 from orders where exchange_of_order_id = :id)", nativeQuery = true)
+    boolean hasExchanges(@Param("id") long id);
+
     @Query("select o.status as status, count(o) as count from Order o group by o.status")
     List<StatusCount> countByStatus();
 

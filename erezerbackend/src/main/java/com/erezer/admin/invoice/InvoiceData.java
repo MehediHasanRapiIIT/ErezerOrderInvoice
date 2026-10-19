@@ -20,8 +20,25 @@ record InvoiceData(
         BigDecimal discount,
         BigDecimal deliveryCharge,
         BigDecimal total,
+        BigDecimal advance,
         String courier,
-        String trackingNumber) {
+        String trackingNumber,
+        Exchange exchange) {
+
+    /** Present on exchange invoices: what the exchange replaces and how the money works out. */
+    record Exchange(
+            String ofOrderNumber,
+            String reason,
+            boolean paidByErezer,
+            BigDecimal credit,
+            BigDecimal priceDifference,
+            boolean refund,
+            List<Returned> returned) {
+    }
+
+    /** "Regular Fit T-Shirt (M)", quantity and the credit given for it. */
+    record Returned(String description, String productCode, int quantity, BigDecimal credit) {
+    }
 
     record Line(
             int number,

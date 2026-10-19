@@ -17,6 +17,18 @@ export const ORDER_ROUTES: Routes = [
     loadComponent: () => import('./order-form/order-form-page').then((m) => m.OrderFormPage),
   },
   {
+    path: 'exchange',
+    title: 'Exchange products',
+    canActivate: [requirePermission('EXCHANGE_CREATE')],
+    loadComponent: () => import('./exchange/exchange-page').then((m) => m.ExchangePage),
+  },
+  {
+    path: 'return',
+    title: 'Return products',
+    canActivate: [requirePermission('RETURN_CREATE')],
+    loadComponent: () => import('./return/return-page').then((m) => m.ReturnPage),
+  },
+  {
     path: 'send-to-courier',
     title: 'Send to Steadfast',
     canActivate: [requirePermission('COURIER_SEND')],

@@ -27,6 +27,12 @@
     <button type="button" class="btn-secondary" (click)="refresh()">
       <i class="fas fa-sync-alt" [class.fa-spin]="orders.isLoading()"></i> Refresh
     </button>
+    <a *appHasPermission="'EXCHANGE_CREATE'" routerLink="/orders/exchange" class="btn-secondary">
+      <i class="fas fa-exchange-alt text-brand-light"></i> Exchange
+    </a>
+    <a *appHasPermission="'RETURN_CREATE'" routerLink="/orders/return" class="btn-secondary">
+      <i class="fas fa-undo-alt text-amber-300"></i> Return
+    </a>
     <a *appHasPermission="'ORDER_CREATE'" routerLink="/orders/new" class="btn-primary">
       <i class="fas fa-plus"></i> Add Order
     </a>
@@ -81,6 +87,13 @@
         @for (p of paymentMethods; track p) {
           <option [value]="p" [selected]="p === payment()">{{ paymentLabels[p] }}</option>
         }
+        <option value="ADVANCE" [selected]="'ADVANCE' === payment()">Advance paid</option>
+        <option value="DUE" [selected]="'DUE' === payment()">Due</option>
+      </select>
+      <select class="field w-auto" (change)="setFilter('type', $any($event.target).value)" aria-label="Order type">
+        <option value="" [selected]="'' === type()">Type: All</option>
+        <option value="SALE" [selected]="'SALE' === type()">Sales</option>
+        <option value="EXCHANGE" [selected]="'EXCHANGE' === type()">Exchanges</option>
       </select>
       @if (hasFilters()) {
         <button type="button" class="cursor-pointer px-2 text-sm text-slate-400 hover:text-white" (click)="clearFilters()">
@@ -138,6 +151,11 @@
                 <a [routerLink]="['/orders', order.id]" class="font-mono text-xs font-semibold text-slate-200 hover:text-white" (click)="$event.stopPropagation()">
                   {{ order.orderNumber }}
                 </a>
+                @if (order.orderType === 'EXCHANGE') {
+                  <span class="mt-1 block w-fit rounded border border-brand/50 bg-brand/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-light">
+                    <i class="fas fa-exchange-alt mr-0.5"></i>Exchange
+                  </span>
+                }
               </td>
               <td class="px-4 py-3">
                 <p class="font-semibold text-white">{{ order.customerName }}</p>
@@ -147,10 +165,30 @@
                 <p class="text-slate-200">{{ order.createdAt | bdDate: 'd MMM y' }}</p>
                 <p class="text-xs text-slate-400">{{ order.createdAt | bdDate: 'h:mm a' }}</p>
               </td>
-              <td class="px-4 py-3 text-right font-semibold text-white">{{ order.total | taka }}</td>
+              <td class="px-4 py-3 text-right">
+                <p class="font-semibold text-white">{{ order.total | taka }}</p>
+                @if (order.advance > 0) {
+                  <p class="text-xs text-emerald-300">Advance {{ order.advance | taka }}</p>
+                  <p class="text-xs text-amber-300">Due {{ order.due | taka }}</p>
+                }
+              </td>
               <td class="px-4 py-3 text-xs uppercase text-slate-300">{{ paymentLabels[order.paymentMethod] }}</td>
               <td class="px-4 py-3"><app-status-badge [status]="order.status" /></td>
-              <td class="relative px-4 py-3 text-right">
+              <td class="relative whitespace-nowrap px-4 py-3 text-right" (click)="$event.stopPropagation()">
+                @if (canBulkSend() && (isSendable(order) || order.status === 'PLACED')) {
+                  <button type="button" class="cursor-pointer rounded p-2 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-30"
+                          [class]="isSendable(order) ? 'text-brand-light hover:text-white' : 'text-slate-500'"
+                          [disabled]="!isSendable(order)" (click)="sendOrderId.set(order.id)"
+                          [title]="isSendable(order) ? 'Send to Steadfast' : 'Accept the order before sending it to the courier'"
+                          [attr.aria-label]="'Send ' + order.orderNumber + ' to Steadfast'">
+                    <i class="fas fa-shipping-fast"></i>
+                  </button>
+                }
+                <button type="button" class="cursor-pointer rounded p-2 text-slate-400 hover:bg-white/5 hover:text-white disabled:opacity-40"
+                        (click)="printInvoice(order)" [disabled]="printingId() === order.id"
+                        title="Print invoice" [attr.aria-label]="'Print invoice ' + order.orderNumber">
+                  <i class="fas" [class.fa-print]="printingId() !== order.id" [class.fa-circle-notch]="printingId() === order.id" [class.fa-spin]="printingId() === order.id"></i>
+                </button>
                 <button
                   type="button"
                   class="cursor-pointer rounded p-2 text-slate-400 hover:bg-white/5 hover:text-white"
@@ -228,4 +266,8 @@
       </div>
     </div>
   </div>
+}
+
+@if (sendOrderId(); as id) {
+  <app-send-to-courier-dialog [orderId]="id" (closed)="onSendClosed($event)" />
 }

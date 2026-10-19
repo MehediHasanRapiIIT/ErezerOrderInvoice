@@ -4,6 +4,13 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../../environments/environment';
 import { Page } from '../../../core/http/page';
 import {
+  DeliveryPaidBy,
+  ReturnOptions,
+  ReturnReason,
+  ReturnRequest,
+  ExchangeCandidate,
+  ExchangeOptions,
+  ExchangeRequest,
   OrderDetail,
   OrderQuery,
   OrderRequest,
@@ -64,12 +71,42 @@ export class OrderApi {
     return this.http.post<OrderDetail>(`${this.baseUrl}/${id}/status`, request);
   }
 
+  recordCourierCost(id: number, courierCharge: number | null, returnDeliveryCharge?: number | null): Observable<OrderDetail> {
+    return this.http.put<OrderDetail>(`${this.baseUrl}/${id}/courier-cost`, { courierCharge, returnDeliveryCharge: returnDeliveryCharge ?? null });
+  }
+
   addNote(id: number, body: string): Observable<OrderDetail> {
     return this.http.post<OrderDetail>(`${this.baseUrl}/${id}/notes`, { body });
   }
 
   delete(id: number): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/${id}`);
+  }
+
+  /** Delivered orders by order number or customer phone. */
+  lookupExchange(q: string): Observable<ExchangeCandidate[]> {
+    return this.http.get<ExchangeCandidate[]>(`${environment.apiBaseUrl}/exchanges/lookup`, { params: { q } });
+  }
+
+  exchangeOptions(orderId: number): Observable<ExchangeOptions> {
+    return this.http.get<ExchangeOptions>(`${this.baseUrl}/${orderId}/exchange-options`);
+  }
+
+  createExchange(orderId: number, request: ExchangeRequest): Observable<{ id: number }> {
+    return this.http.post<{ id: number }>(`${this.baseUrl}/${orderId}/exchanges`, request);
+  }
+
+  returnOptions(orderId: number): Observable<ReturnOptions> {
+    return this.http.get<ReturnOptions>(`${this.baseUrl}/${orderId}/return-options`);
+  }
+
+  /** Products sent back after delivery; answers with the updated order. */
+  createReturn(orderId: number, request: ReturnRequest): Observable<OrderDetail> {
+    return this.http.post<OrderDetail>(`${this.baseUrl}/${orderId}/returns`, request);
+  }
+
+  updateReturn(returnId: number, body: { reason: ReturnReason; paidBy: DeliveryPaidBy; returnCharge: number; note: string | null }): Observable<OrderDetail> {
+    return this.http.put<OrderDetail>(`${environment.apiBaseUrl}/returns/${returnId}`, body);
   }
 
   uploadImages(files: File[]): Observable<UploadedFile[]> {
@@ -81,7 +118,7 @@ export class OrderApi {
 
 function filterParams(query: OrderQuery): HttpParams {
   let params = new HttpParams().set('tab', query.tab);
-  for (const key of ['q', 'status', 'paymentMethod', 'from', 'to'] as const) {
+  for (const key of ['q', 'status', 'paymentMethod', 'type', 'balance', 'from', 'to'] as const) {
     const value = query[key];
     if (value) {
       params = params.set(key, value);

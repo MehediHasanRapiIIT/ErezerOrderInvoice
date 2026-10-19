@@ -50,7 +50,8 @@ public class DashboardService {
         Totals current = totals(from, to);
         String granularity = days <= MAX_DAILY_BUCKETS ? "DAY" : "MONTH";
         return new DashboardSummary(from, to, current, totals(previousFrom, previousTo),
-                orderCounts(from, to, current), granularity, series(from, to, granularity), topCategories(from, to));
+                orderCounts(from, to, current), exchanges(from, to), returns(from, to), granularity, series(from, to, granularity),
+                topCategories(from, to));
     }
 
     /**
@@ -66,6 +67,9 @@ public class DashboardService {
      *   <li>The delivery charge collected from customers is passed to the courier, so it is not profit, except the
      *       difference when the courier reported charging us less or more ({@code orders.courier_charge}).</li>
      *   <li>When the courier reported its real charge for a refused parcel, that charge is the cost of the return.</li>
+     *   <li><b>Exchanges</b> (orders of type EXCHANGE) earn only a positive price difference ({@code product_amount});
+     *       a cheaper replacement with a refund is an exchange refund; when Erezer pays the exchange delivery, the
+     *       courier's charge is an exchange cost. All are booked on the exchange's delivery day.</li>
      * </ul>
      */
     private Totals totals(LocalDate from, LocalDate to) {
@@ -73,34 +77,48 @@ public class DashboardService {
         // Every delivery in the period, including orders that were returned afterwards.
         var delivered = jdbc.sql("""
                         select count(*) as n, coalesce(sum(total), 0) as total,
-                               coalesce(sum(total - delivery_charge), 0) as product,
-                               coalesce(sum(delivery_charge), 0) as delivery,
-                               coalesce(sum(delivery_charge - coalesce(courier_charge, delivery_charge)), 0) as margin
+                               coalesce(sum(product_amount), 0) as product,
+                               coalesce(sum(delivery_collected), 0) as delivery,
+                               coalesce(sum(case when order_type = 'EXCHANGE' and exchange_delivery_paid_by = 'EREZER' then 0
+                                                 else delivery_charge - coalesce(courier_charge, delivery_charge) end), 0)
+                                   as margin,
+                               coalesce(sum(case when order_type = 'EXCHANGE' and exchange_delivery_paid_by = 'EREZER'
+                                                     then coalesce(courier_charge, delivery_charge)
+                                                 else 0 end), 0) as exchange_cost,
+                               coalesce(sum(exchange_refund_amount), 0) as exchange_refunds,
+                               coalesce(sum(coalesce(courier_charge, delivery_charge)), 0) as courier_delivery
                         from orders
                         where deleted_at is null and status in ('DELIVERED', 'RETURNED')
                           and delivered_at >= :start and delivered_at < :end
                         """)
                 .params(range).query((rs, i) -> new Object[] {
                         rs.getLong("n"), rs.getBigDecimal("total"), rs.getBigDecimal("product"), rs.getBigDecimal("delivery"),
-                        rs.getBigDecimal("margin")})
+                        rs.getBigDecimal("margin"), rs.getBigDecimal("exchange_cost"), rs.getBigDecimal("exchange_refunds"),
+                        rs.getBigDecimal("courier_delivery")})
                 .single();
+        // Returns recorded in the period (order_returns). The courier is always paid the return charge; a refused
+        // parcel costs delivery + return (the courier's real charge when known). After delivery the customer is
+        // refunded (less the charge when they pay it); a refused parcel the customer pays for is money recovered.
         var returned = jdbc.sql("""
                         select count(*) as n,
-                               count(*) filter (where delivered_at is null) as refused,
-                               coalesce(sum(total), 0) as total,
-                               coalesce(sum(total - delivery_charge), 0) as product,
-                               coalesce(sum(case when delivered_at is null
-                                                     then coalesce(courier_charge, delivery_charge + return_delivery_charge)
-                                                 else return_delivery_charge end), 0) as courier_cost,
-                               coalesce(sum(case when delivered_at is not null then total - delivery_charge
-                                                 else 0 end), 0) as refunds
-                        from orders
-                        where deleted_at is null and status = 'RETURNED'
-                          and returned_at >= :start and returned_at < :end
+                               count(*) filter (where r.kind = 'REFUSED') as refused,
+                               coalesce(sum(case when r.kind = 'REFUSED' then o.total else r.items_value end), 0) as total,
+                               coalesce(sum(case when r.kind = 'REFUSED' then o.product_amount else r.items_value end), 0) as product,
+                               coalesce(sum(case when r.kind = 'REFUSED'
+                                                     then coalesce(o.courier_charge, o.delivery_charge + r.return_charge)
+                                                 else r.return_charge end), 0) as courier_cost,
+                               coalesce(sum(case when r.kind = 'AFTER_DELIVERY' then r.refund_amount else 0 end), 0) as refunds,
+                               coalesce(sum(case when r.kind = 'REFUSED' and r.paid_by = 'CUSTOMER'
+                                                     then coalesce(o.courier_charge, o.delivery_charge + r.return_charge)
+                                                 else 0 end), 0) as recovered
+                        from order_returns r
+                        join orders o on o.id = r.order_id
+                        where r.cancelled_at is null and o.deleted_at is null
+                          and r.created_at >= :start and r.created_at < :end
                         """)
                 .params(range).query((rs, i) -> new Object[] {
                         rs.getLong("n"), rs.getLong("refused"), rs.getBigDecimal("total"), rs.getBigDecimal("product"),
-                        rs.getBigDecimal("courier_cost"), rs.getBigDecimal("refunds")})
+                        rs.getBigDecimal("courier_cost"), rs.getBigDecimal("refunds"), rs.getBigDecimal("recovered")})
                 .single();
         var expenses = jdbc.sql("""
                         select count(*) as n, coalesce(sum(amount), 0) as total
@@ -115,11 +133,65 @@ public class DashboardService {
         BigDecimal refunds = (BigDecimal) returned[5];
         BigDecimal expenseTotal = (BigDecimal) expenses[1];
         BigDecimal deliveryDifference = (BigDecimal) delivered[4];
-        BigDecimal netProfit = productRevenue.add(deliveryDifference).subtract(refunds).subtract(returnCourierCost)
-                .subtract(expenseTotal);
+        BigDecimal exchangeCost = (BigDecimal) delivered[5];
+        BigDecimal exchangeRefunds = (BigDecimal) delivered[6];
+        BigDecimal recovered = (BigDecimal) returned[6];
+        BigDecimal netProfit = productRevenue.add(deliveryDifference).subtract(refunds).subtract(exchangeRefunds)
+                .subtract(returnCourierCost).add(recovered).subtract(exchangeCost).subtract(expenseTotal);
         return new Totals((BigDecimal) delivered[1], productRevenue, (BigDecimal) delivered[3], deliveryDifference,
-                (BigDecimal) returned[2], (BigDecimal) returned[3], returnCourierCost, refunds, expenseTotal, netProfit,
+                (BigDecimal) returned[2], (BigDecimal) returned[3], returnCourierCost, recovered, refunds, exchangeRefunds,
+                exchangeCost, ((BigDecimal) delivered[7]).add(returnCourierCost), (BigDecimal) delivered[7], expenseTotal,
+                netProfit,
                 (long) delivered[0], (long) returned[0], (long) returned[1], (long) expenses[0]);
+    }
+
+    /** Returns recorded in the period, in items (a return without items is the whole order), by who paid. */
+    private DashboardSummary.Returns returns(LocalDate from, LocalDate to) {
+        return jdbc.sql("""
+                        select count(*),
+                               coalesce(sum(q.items), 0),
+                               coalesce(sum(q.items) filter (where r.paid_by = 'CUSTOMER'), 0),
+                               coalesce(sum(q.items) filter (where r.paid_by = 'EREZER'), 0),
+                               coalesce(sum(c.cost) filter (where r.paid_by = 'CUSTOMER'), 0),
+                               coalesce(sum(c.cost) filter (where r.paid_by = 'EREZER'), 0)
+                        from order_returns r
+                        join orders o on o.id = r.order_id
+                        cross join lateral (select coalesce(
+                                (select sum(i.quantity) from order_return_items i where i.return_id = r.id),
+                                (select sum(oi.quantity) from order_items oi where oi.order_id = r.order_id), 0) as items) q
+                        cross join lateral (select case when r.kind = 'REFUSED'
+                                                        then coalesce(o.courier_charge, o.delivery_charge + r.return_charge)
+                                                    else r.return_charge end as cost) c
+                        where r.cancelled_at is null and o.deleted_at is null
+                          and r.created_at >= :start and r.created_at < :end
+                        """)
+                .params(range(from, to))
+                .query((rs, i) -> new DashboardSummary.Returns(rs.getLong(1), rs.getLong(2), rs.getLong(3), rs.getLong(4),
+                        rs.getBigDecimal(5), rs.getBigDecimal(6)))
+                .single();
+    }
+
+    /** Exchanges delivered in the period, in items, split by who paid the exchange delivery. */
+    private DashboardSummary.Exchanges exchanges(LocalDate from, LocalDate to) {
+        return jdbc.sql("""
+                        select count(*) as exchanges,
+                               coalesce(sum(i.items), 0) as items,
+                               coalesce(sum(i.items) filter (where o.exchange_delivery_paid_by = 'CUSTOMER'), 0) as by_customer,
+                               coalesce(sum(i.items) filter (where o.exchange_delivery_paid_by = 'EREZER'), 0) as by_erezer,
+                               coalesce(sum(o.delivery_collected), 0) as collected,
+                               coalesce(sum(coalesce(o.courier_charge, o.delivery_charge))
+                                        filter (where o.exchange_delivery_paid_by = 'EREZER'), 0) as erezer_cost
+                        from orders o
+                        join (select order_id, sum(quantity) as items from order_items group by order_id) i
+                          on i.order_id = o.id
+                        where o.deleted_at is null and o.order_type = 'EXCHANGE' and o.status in ('DELIVERED', 'RETURNED')
+                          and o.delivered_at >= :start and o.delivered_at < :end
+                        """)
+                .params(range(from, to))
+                .query((rs, i) -> new DashboardSummary.Exchanges(rs.getLong("exchanges"), rs.getLong("items"),
+                        rs.getLong("by_customer"), rs.getLong("by_erezer"), rs.getBigDecimal("collected"),
+                        rs.getBigDecimal("erezer_cost")))
+                .single();
     }
 
     private OrderCounts orderCounts(LocalDate from, LocalDate to, Totals current) {
@@ -148,7 +220,7 @@ public class DashboardService {
         Map<LocalDate, BigDecimal> revenue = new HashMap<>();
         jdbc.sql("""
                         select date_trunc(:unit, delivered_at at time zone :zone)::date as bucket,
-                               sum(total - delivery_charge) as amount
+                               sum(product_amount) as amount
                         from orders
                         where deleted_at is null and status in ('DELIVERED', 'RETURNED')
                           and delivered_at >= :start and delivered_at < :end

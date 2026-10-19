@@ -1,0 +1,163 @@
+<div class="mx-auto max-w-3xl">
+  <a [routerLink]="isEdit() ? ['/assets', id()] : ['/assets']" class="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white">
+    <i class="fas fa-arrow-left text-xs"></i> {{ isEdit() ? 'Asset' : 'Assets' }}
+  </a>
+  <h1 class="page-title">{{ isEdit() ? 'Edit Asset' : 'Add Asset' }}</h1>
+  <p class="page-subtitle">Not an expense: it never changes the expense totals or the dashboard.</p>
+
+  @if (loading()) {
+    <div class="flex justify-center py-24 text-slate-400"><i class="fas fa-circle-notch fa-spin text-2xl"></i></div>
+  } @else {
+    @if (serverError(); as message) {
+      <div class="mt-4 rounded-lg border border-red-800 bg-red-950/60 px-4 py-3 text-sm text-red-200" role="alert">{{ message }}</div>
+    }
+
+    <form [formGroup]="form" (ngSubmit)="submit()" class="card mt-6 grid grid-cols-1 gap-5 p-6 sm:grid-cols-6" novalidate>
+      <label class="block sm:col-span-4">
+        <span class="field-label">Name *</span>
+        <input formControlName="name" class="field" placeholder="e.g. Hikvision CCTV camera" maxlength="120" [class.field-invalid]="form.controls.name.invalid && form.controls.name.touched" />
+      </label>
+
+      <label class="block sm:col-span-2">
+        <span class="field-label">Category *</span>
+        <select formControlName="categoryId" class="field" [class.field-invalid]="form.controls.categoryId.invalid && form.controls.categoryId.touched">
+          <option [ngValue]="null" disabled>Select</option>
+          @for (c of categoryOptions(); track c.id) {
+            <option [ngValue]="c.id">{{ c.name }}{{ c.active ? '' : ' (inactive)' }}</option>
+          }
+        </select>
+        @if (form.controls.categoryId.invalid && form.controls.categoryId.touched) {
+          <span class="field-error">Choose a category</span>
+        }
+      </label>
+
+      <label class="block sm:col-span-1">
+        <span class="field-label">Quantity *</span>
+        <input type="number" min="1" step="1" formControlName="quantity" class="field" [class.field-invalid]="form.controls.quantity.invalid && form.controls.quantity.touched" />
+      </label>
+
+      <label class="block sm:col-span-2">
+        <span class="field-label">Unit cost (৳) *</span>
+        <input type="number" min="0" step="0.01" formControlName="unitCost" class="field font-semibold" placeholder="0.00" [class.field-invalid]="form.controls.unitCost.invalid && form.controls.unitCost.touched" />
+        @if (form.controls.unitCost.invalid && form.controls.unitCost.touched) {
+          <span class="field-error">Enter what one piece cost (0 if it was a gift)</span>
+        }
+      </label>
+
+      <div class="block sm:col-span-3">
+        <span class="field-label">Total cost</span>
+        <p class="flex h-10 items-center rounded-md bg-white/5 px-3 text-lg font-bold text-white">{{ total() | taka }}</p>
+      </div>
+
+      <label class="block sm:col-span-3">
+        <span class="field-label">Purchase date *</span>
+        <input type="date" formControlName="purchaseDate" class="field" [max]="today" [class.field-invalid]="form.controls.purchaseDate.invalid && form.controls.purchaseDate.touched" />
+      </label>
+
+      @if (!isEdit()) {
+        <label class="block sm:col-span-3">
+          <span class="field-label">Status</span>
+          <select formControlName="status" class="field">
+            @for (s of ownedStatuses; track s) {
+              <option [ngValue]="s">{{ statusLabels[s] }}</option>
+            }
+          </select>
+        </label>
+      } @else {
+        <div class="block sm:col-span-3">
+          <span class="field-label">Status</span>
+          <p class="flex h-10 items-center text-sm text-slate-400">Change it from the asset's page.</p>
+        </div>
+      }
+
+      <label class="block sm:col-span-3">
+        <span class="field-label">Location</span>
+        <input formControlName="location" class="field" list="asset-locations" placeholder="e.g. Shop, Office, Warehouse" maxlength="80" autocomplete="off" />
+        <datalist id="asset-locations">
+          @for (l of locations(); track l) { <option [value]="l"></option> }
+        </datalist>
+      </label>
+
+      <label class="block sm:col-span-3">
+        <span class="field-label">Serial / model no.</span>
+        <input formControlName="serialNumber" class="field font-mono" maxlength="120" />
+      </label>
+
+      <label class="block sm:col-span-3">
+        <span class="field-label">Warranty until</span>
+        <input type="date" formControlName="warrantyUntil" class="field" />
+      </label>
+
+      <label class="block sm:col-span-3">
+        <span class="field-label">Bought from</span>
+        <input formControlName="supplier" class="field" placeholder="Shop, Daraz, person…" maxlength="120" />
+      </label>
+
+      <label class="block sm:col-span-3">
+        <span class="field-label">Paid with</span>
+        <select formControlName="paymentMethod" class="field">
+          <option value="">—</option>
+          @for (p of paymentMethods; track p) {
+            <option [ngValue]="p">{{ paymentLabels[p] }}</option>
+          }
+        </select>
+      </label>
+
+      <label class="block sm:col-span-6">
+        <span class="field-label">Reference</span>
+        <input formControlName="reference" class="field font-mono" placeholder="Bill or transaction number" maxlength="80" />
+      </label>
+
+      <label class="block sm:col-span-6">
+        <span class="field-label">Notes</span>
+        <textarea formControlName="notes" rows="3" class="field" maxlength="1000"></textarea>
+      </label>
+
+      <!-- Photo and receipt -->
+      @for (kind of ['photo', 'receipt']; track kind) {
+        @let file = kind === 'photo' ? photo() : receipt();
+        <div class="sm:col-span-3">
+          <span class="field-label">{{ kind === 'photo' ? 'Photo' : 'Receipt' }}</span>
+          @if (file) {
+            <div class="flex items-center gap-3 rounded-lg border border-line bg-app p-3">
+              @if (isPdf(file)) {
+                <span class="flex h-16 w-16 items-center justify-center rounded bg-red-500/10 text-2xl text-red-300"><i class="fas fa-file-pdf"></i></span>
+              } @else {
+                <img [src]="file.url" [alt]="kind" class="h-16 w-16 rounded object-cover" />
+              }
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-sm text-white">{{ file.fileName ?? (kind === 'photo' ? 'Photo' : 'Receipt') }}</p>
+                <a [href]="file.url" target="_blank" rel="noopener" class="text-xs text-brand-light hover:underline">Open</a>
+              </div>
+              <button type="button" class="cursor-pointer rounded p-2 text-red-300 hover:bg-red-500/10" (click)="removeFile($any(kind))" [attr.aria-label]="'Remove ' + kind">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+          } @else {
+            <label class="flex cursor-pointer items-center gap-3 rounded-lg border-2 border-dashed border-line px-4 py-4 text-slate-400 transition hover:border-brand hover:text-brand-light">
+              @if (uploading() === kind) {
+                <i class="fas fa-circle-notch fa-spin text-xl"></i> Uploading…
+              } @else {
+                <i class="fas text-2xl" [class.fa-camera]="kind === 'photo'" [class.fa-receipt]="kind === 'receipt'"></i>
+                <span class="text-sm">{{ kind === 'photo' ? 'Add a photo' : 'Attach the bill' }}
+                  <span class="block text-xs text-slate-500">{{ kind === 'photo' ? 'JPEG, PNG or WebP' : 'Photo or PDF' }} · 10 MB</span></span>
+              }
+              <input type="file" class="sr-only" [accept]="kind === 'photo' ? 'image/jpeg,image/png,image/webp' : 'image/jpeg,image/png,image/webp,application/pdf'"
+                     (change)="onFileSelected($any(kind), $any($event.target))" [disabled]="uploading() !== null" />
+            </label>
+          }
+        </div>
+      }
+
+      <div class="flex justify-end gap-3 border-t border-line pt-5 sm:col-span-6">
+        <a [routerLink]="isEdit() ? ['/assets', id()] : ['/assets']" class="btn-secondary">Cancel</a>
+        <button type="submit" class="btn-primary" [disabled]="saving() || uploading() !== null">
+          @if (saving()) {
+            <i class="fas fa-circle-notch fa-spin"></i>
+          }
+          {{ isEdit() ? 'Save changes' : 'Add asset' }}
+        </button>
+      </div>
+    </form>
+  }
+</div>

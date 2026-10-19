@@ -39,20 +39,21 @@
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-6">
             <label class="block sm:col-span-4">
               <span class="field-label">Product name *</span>
-              <input formControlName="productName" class="field" placeholder="e.g. Regular Fit T-Shirt" [class.field-invalid]="item.controls.productName.invalid && item.controls.productName.touched" />
+              <input formControlName="productName" class="field" placeholder="e.g. Regular Fit T-Shirt" list="product-names" autocomplete="off" [class.field-invalid]="item.controls.productName.invalid && item.controls.productName.touched" />
             </label>
             <label class="block sm:col-span-2">
-              <span class="field-label">Product code *</span>
+              <span class="field-label">Product code <span class="text-xs font-normal text-slate-500">(optional)</span></span>
               <input formControlName="productCode" class="field font-mono uppercase" placeholder="TS-1006" [class.field-invalid]="item.controls.productCode.invalid && item.controls.productCode.touched" />
             </label>
             <label class="block sm:col-span-6">
               <span class="field-label">Description</span>
               <textarea formControlName="description" rows="2" class="field" placeholder="Fabric, print, special instructions…"></textarea>
             </label>
-            <label class="block sm:col-span-2">
-              <span class="field-label">Color</span>
-              <input formControlName="color" class="field" placeholder="White" />
-            </label>
+            <div class="block sm:col-span-2">
+              <span class="field-label">Variant</span>
+              <app-variant-picker [name]="item.controls.color.value" (nameChange)="item.controls.color.setValue($event); item.controls.color.markAsDirty()"
+                                  [variantId]="item.controls.variantId.value" (variantIdChange)="item.controls.variantId.setValue($event)" />
+            </div>
             <label class="block sm:col-span-1">
               <span class="field-label">Size</span>
               <input formControlName="size" class="field" placeholder="L" [attr.list]="'sizes-' + i" />
@@ -226,6 +227,23 @@
         <div class="flex justify-between border-t border-line pt-3 text-lg font-bold text-white">
           <span>Total</span><span class="text-brand-light">{{ total() | taka }}</span>
         </div>
+        <label class="flex items-center justify-between gap-3 text-sm text-slate-400">
+          <span>Advance <span class="text-xs text-slate-500">(optional)</span></span>
+          <input type="number" min="0" step="0.01" formControlName="advance" class="field w-32 text-right" placeholder="0"
+                 [class.field-invalid]="advanceTooLarge()" aria-label="Advance" />
+        </label>
+        <label class="flex items-center justify-between gap-3 text-sm text-slate-400">
+          <span>Due <span class="text-xs text-slate-500">(optional)</span></span>
+          <input type="number" min="0" step="0.01" class="field w-32 text-right" [value]="due()" (input)="setDue($any($event.target).value)"
+                 [class.field-invalid]="advanceTooLarge()" aria-label="Due" />
+        </label>
+        @if (advanceTooLarge()) {
+          <p class="field-error text-right">The advance cannot be more than the total</p>
+        } @else if (advance() > 0) {
+          <p class="text-right text-xs text-slate-500">
+            {{ form.controls.paymentMethod.value === 'CASH' ? 'The rider collects the due: ' : 'Due: ' }}<b class="text-slate-300">{{ due() | taka }}</b>
+          </p>
+        }
       </section>
     </div>
 
@@ -246,3 +264,8 @@
     </div>
   </form>
 }
+
+<!-- Product names already used on orders: keeps categories (Sold Products) consistent. -->
+<datalist id="product-names">
+  @for (n of productNames(); track n) { <option [value]="n"></option> }
+</datalist>

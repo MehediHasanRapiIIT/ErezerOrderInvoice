@@ -18,6 +18,7 @@ public interface StoredFileRepository extends JpaRepository<StoredFile, Long> {
             where f.createdAt < :cutoff
               and not exists (select 1 from OrderItemImage i where i.file = f)
               and not exists (select 1 from Expense e where e.receipt = f)
+              and not exists (select 1 from Asset a where a.photo = f or a.receipt = f)
             """)
     List<StoredFile> findUnreferencedBefore(@Param("cutoff") Instant cutoff, Limit limit);
 }

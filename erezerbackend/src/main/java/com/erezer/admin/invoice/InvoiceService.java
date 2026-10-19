@@ -3,6 +3,8 @@ package com.erezer.admin.invoice;
 import com.erezer.admin.common.error.ApiException;
 import com.erezer.admin.config.AppProperties;
 import com.erezer.admin.invoice.ImagePreparer.PreparedImage;
+import com.erezer.admin.order.DeliveryPaidBy;
+import com.erezer.admin.order.ExchangeItemRepository;
 import com.erezer.admin.order.Order;
 import com.erezer.admin.order.OrderItem;
 import com.erezer.admin.order.OrderItemImage;
@@ -28,9 +30,11 @@ public class InvoiceService {
     private final ImagePreparer imagePreparer;
     private final InvoicePdfRenderer renderer;
     private final AppProperties appProperties;
+    private final ExchangeItemRepository exchangeItems;
 
     InvoiceService(OrderRepository orders, StorageService storage, ImagePreparer imagePreparer,
-            InvoicePdfRenderer renderer, AppProperties appProperties) {
+            InvoicePdfRenderer renderer, AppProperties appProperties, ExchangeItemRepository exchangeItems) {
+        this.exchangeItems = exchangeItems;
         this.orders = orders;
         this.storage = storage;
         this.imagePreparer = imagePreparer;
@@ -64,7 +68,27 @@ public class InvoiceService {
         return new InvoiceData(order.getOrderNumber(), order.getCreatedAt().atZone(appProperties.zoneId()), acceptedAt,
                 order.getPaymentMethod().label(), order.getCustomerName(), order.getCustomerPhone(),
                 order.getCustomerEmail(), order.getCustomerAddress(), lines, order.getSubtotal(), order.getDiscount(),
-                order.getDeliveryCharge(), order.getTotal(), order.getCourier(), order.getTrackingNumber());
+                order.getDeliveryCharge(), order.getTotal(), order.getAdvanceAmount(), order.getCourier(),
+                order.getTrackingNumber(),
+                exchange(order));
+    }
+
+    private InvoiceData.Exchange exchange(Order order) {
+        if (!order.isExchange()) {
+            return null;
+        }
+        List<InvoiceData.Returned> returned = exchangeItems.findByExchangeOrderIdOrderByReplacementPosition(order.getId())
+                .stream()
+                .map(e -> {
+                    String variant = e.getColor() != null && e.getSize() != null ? e.getColor() + " / " + e.getSize()
+                            : e.getColor() != null ? e.getColor() : e.getSize();
+                    return new InvoiceData.Returned(e.getProductName() + (variant == null ? "" : " (" + variant + ")"),
+                            e.getProductCode(), e.getQuantity(), e.getCredit());
+                })
+                .toList();
+        return new InvoiceData.Exchange(orders.findOriginalNumber(order.getExchangeOfOrderId()),
+                order.getExchangeReason().label(), order.getExchangeDeliveryPaidBy() == DeliveryPaidBy.EREZER,
+                order.getExchangeCredit(), order.getExchangePriceDifference(), order.isExchangeRefund(), returned);
     }
 
     /** A missing or unreadable image is skipped rather than failing the whole invoice. */

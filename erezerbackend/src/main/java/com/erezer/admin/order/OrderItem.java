@@ -36,7 +36,7 @@ public class OrderItem {
     @Column(name = "product_name", nullable = false, length = 160)
     private String productName;
 
-    @Column(name = "product_code", nullable = false, length = 60)
+    @Column(name = "product_code", length = 60)
     private String productCode;
 
     @Column(name = "description", length = 1000)
@@ -47,6 +47,10 @@ public class OrderItem {
 
     @Column(name = "size", length = 30)
     private String size;
+
+    /** The stock variant picked for this item; its name is kept in {@code color}. Null = not tracked in stock. */
+    @Column(name = "variant_id")
+    private Long variantId;
 
     @Column(name = "unit_price", nullable = false, precision = 12, scale = 2)
     private BigDecimal unitPrice;
@@ -78,6 +82,15 @@ public class OrderItem {
         for (int i = 0; i < imageFiles.size(); i++) {
             images.add(new OrderItemImage(this, imageFiles.get(i), i));
         }
+    }
+
+    void useVariant(long variantId, String variantName) {
+        this.variantId = variantId;
+        this.color = variantName;
+    }
+
+    public Long getVariantId() {
+        return variantId;
     }
 
     void attachTo(Order order, int position) {

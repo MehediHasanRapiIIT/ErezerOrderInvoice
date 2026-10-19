@@ -1,0 +1,237 @@
+<a routerLink="/orders" class="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white">
+  <i class="fas fa-arrow-left text-xs"></i> Orders
+</a>
+<h1 class="page-title"><i class="fas fa-exchange-alt mr-2 text-brand-light"></i>Exchange products</h1>
+<p class="page-subtitle">Take items back from a delivered order and send replacements</p>
+
+@if (!options()) {
+  <!-- Step 1: find the order -->
+  <section class="card mt-6 max-w-2xl p-6">
+    <form class="flex flex-col gap-3 sm:flex-row" (ngSubmit)="search()">
+      <label class="block flex-1">
+        <span class="field-label">Order ID or customer phone</span>
+        <input class="field" name="q" [(ngModel)]="query" placeholder="e.g. EZ-583882 or 01711000000" autocomplete="off" />
+      </label>
+      <button type="submit" class="btn-primary self-end" [disabled]="searching() || loading()">
+        @if (searching() || loading()) { <i class="fas fa-circle-notch fa-spin"></i> } @else { <i class="fas fa-search"></i> }
+        Find order
+      </button>
+    </form>
+    <p class="mt-2 text-xs text-slate-500">Only delivered orders can be exchanged.</p>
+
+    @if (searched() && !candidates().length) {
+      <p class="mt-4 rounded-md border border-line px-3 py-2 text-sm text-slate-300">
+        <i class="fas fa-info-circle mr-1 text-slate-400"></i>No delivered order matches. Check the number, or the order may not be delivered yet.
+      </p>
+    }
+    @if (candidates().length > 1) {
+      <ul class="mt-4 divide-y divide-line rounded-md border border-line">
+        @for (c of candidates(); track c.id) {
+          <li>
+            <button type="button" class="flex w-full cursor-pointer items-center justify-between gap-3 px-4 py-3 text-left text-sm hover:bg-white/5" (click)="load(c.id)">
+              <span>
+                <span class="font-mono text-white">{{ c.orderNumber }}</span>
+                <span class="ml-2 text-slate-300">{{ c.customerName }}</span>
+              </span>
+              <span class="text-xs text-slate-400">Delivered {{ c.deliveredAt | bdDate: 'd MMM y' }} · {{ c.total | taka }}</span>
+            </button>
+          </li>
+        }
+      </ul>
+    }
+  </section>
+} @else {
+  @let o = options()!;
+  <!-- Step 2: the exchange -->
+  <section class="card mt-6 flex flex-wrap items-center justify-between gap-4 p-5">
+    <div>
+      <p class="text-xs text-slate-400">Exchanging items of</p>
+      <a [routerLink]="['/orders', o.orderId]" class="font-mono text-lg font-semibold text-white hover:underline">{{ o.orderNumber }}</a>
+      <p class="text-sm text-slate-300">{{ o.customer.name }} · <span class="font-mono">{{ o.customer.phone }}</span></p>
+      <p class="text-xs text-slate-500">{{ o.customer.address }}</p>
+    </div>
+    <div class="text-right text-sm">
+      <p class="text-slate-400">Delivered {{ o.deliveredAt | bdDate }}</p>
+      <button type="button" class="mt-1 cursor-pointer text-xs text-brand-light hover:underline" (click)="startOver()">Choose another order</button>
+    </div>
+  </section>
+
+
+  @if (o.exchanges.length) {
+    <p class="mt-4 text-sm text-slate-400">
+      <i class="fas fa-history mr-1"></i>Earlier exchanges:
+      @for (e of o.exchanges; track e.id) {
+        <a [routerLink]="['/orders', e.id]" class="ml-1 font-mono text-brand-light hover:underline">{{ e.orderNumber }}</a>{{ $last ? '' : ',' }}
+      }
+    </p>
+  }
+
+  <div class="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
+    <!-- Items -->
+    <div class="space-y-4 xl:col-span-2">
+      @for (l of lines(); track l.item.id) {
+        <section class="card p-5" [class.ring-1]="l.selected" [class.ring-brand]="l.selected">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div class="flex gap-3">
+              @if (l.item.images[0]; as img) {
+                <img [src]="img.url" alt="" class="h-14 w-14 rounded-md border border-line object-cover" />
+              } @else {
+                <div class="flex h-14 w-14 items-center justify-center rounded-md border border-line text-slate-600"><i class="fas fa-tshirt"></i></div>
+              }
+              <div>
+                <p class="font-semibold text-white">{{ l.item.productName }}</p>
+                <p class="text-xs text-slate-400">{{ l.item.productCode ? 'Code ' + l.item.productCode : '' }}{{ l.item.productCode && variant(l.item.color, l.item.size) ? ' · ' : '' }}{{ variant(l.item.color, l.item.size) }}</p>
+                <p class="text-xs text-slate-400">{{ l.item.quantity }} × {{ l.item.unitPrice | taka }}
+                  @if (l.item.unitCredit !== l.item.unitPrice) { <span class="text-slate-500">(paid {{ l.item.unitCredit | taka }} each after discount)</span> }
+                </p>
+                @if (l.item.alreadyExchanged > 0) {
+                  <p class="text-xs text-amber-300">{{ l.item.alreadyExchanged }} already exchanged</p>
+                }
+              </div>
+            </div>
+            @if (l.item.remaining > 0) {
+              <div class="inline-flex rounded-md border border-line p-0.5 text-sm" role="radiogroup" [attr.aria-label]="'Exchange ' + l.item.productName">
+                <button type="button" role="radio" [attr.aria-checked]="l.selected" class="cursor-pointer rounded px-3 py-1.5"
+                        [class]="l.selected ? 'bg-brand text-white' : 'text-slate-300 hover:bg-white/5'" (click)="update(l, { selected: true })">
+                  <i class="fas fa-exchange-alt mr-1"></i>Exchange
+                </button>
+                <button type="button" role="radio" [attr.aria-checked]="!l.selected" class="cursor-pointer rounded px-3 py-1.5"
+                        [class]="!l.selected ? 'bg-white/10 text-white' : 'text-slate-300 hover:bg-white/5'" (click)="update(l, { selected: false })">
+                  Not included
+                </button>
+              </div>
+            } @else {
+              <span class="rounded-md border border-line px-3 py-1.5 text-xs text-slate-400">Already exchanged</span>
+            }
+          </div>
+
+          @if (l.selected) {
+            <div class="mt-4 border-t border-line pt-4">
+              <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-brand-light">Send instead</p>
+              <div class="grid grid-cols-1 gap-3 sm:grid-cols-6">
+                <label class="block sm:col-span-3">
+                  <span class="field-label">Product name *</span>
+                  <input class="field" [ngModel]="l.productName" (ngModelChange)="update(l, { productName: $event })" list="exchange-product-names" autocomplete="off" />
+                </label>
+                <label class="block sm:col-span-3">
+                  <span class="field-label">Product code <span class="text-xs font-normal text-slate-500">(optional)</span></span>
+                  <input class="field font-mono" [ngModel]="l.productCode" (ngModelChange)="update(l, { productCode: $event })" />
+                </label>
+                <label class="block sm:col-span-2">
+                  <span class="field-label">Size</span>
+                  <input class="field" [ngModel]="l.size" (ngModelChange)="update(l, { size: $event })" />
+                </label>
+                <div class="block sm:col-span-2">
+                  <span class="field-label">Variant</span>
+                  <app-variant-picker [name]="l.color" (nameChange)="update(l, { color: $event })"
+                                      [variantId]="l.variantId" (variantIdChange)="update(l, { variantId: $event })" />
+                </div>
+                <label class="block sm:col-span-1">
+                  <span class="field-label">Price (৳) *</span>
+                  <input type="number" min="0" step="0.01" class="field" [ngModel]="l.unitPrice" (ngModelChange)="update(l, { unitPrice: $event })" />
+                </label>
+                <label class="block sm:col-span-1">
+                  <span class="field-label">Qty</span>
+                  <input type="number" min="1" [max]="l.item.remaining" class="field" [ngModel]="l.quantity" (ngModelChange)="update(l, { quantity: +$event })"
+                         [class.field-invalid]="!(l.quantity >= 1 && l.quantity <= l.item.remaining)" />
+                </label>
+                <label class="block sm:col-span-6">
+                  <span class="field-label">Description</span>
+                  <input class="field" [ngModel]="l.description" (ngModelChange)="update(l, { description: $event })" />
+                </label>
+              </div>
+              <div class="mt-3 flex flex-wrap items-center gap-2">
+                @for (img of l.images; track img.fileId) {
+                  <div class="group relative">
+                    <img [src]="img.url" alt="" class="h-16 w-16 rounded-md border border-line object-cover" />
+                    <button type="button" class="absolute -right-1.5 -top-1.5 hidden h-5 w-5 cursor-pointer items-center justify-center rounded-full bg-red-600 text-[10px] text-white group-hover:flex"
+                            (click)="removeImage(l, img)" aria-label="Remove image"><i class="fas fa-times"></i></button>
+                  </div>
+                }
+                <label class="flex h-16 w-16 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-line text-xs text-slate-400 hover:border-brand hover:text-white">
+                  @if (l.uploading) { <i class="fas fa-circle-notch fa-spin"></i> } @else { <i class="fas fa-plus"></i><span>Image</span> }
+                  <input type="file" class="sr-only" accept="image/jpeg,image/png,image/webp" multiple (change)="onFiles(l, $any($event.target))" />
+                </label>
+              </div>
+              <p class="mt-1 text-xs text-slate-500">The original's images are copied; remove them if the new product looks different.</p>
+            </div>
+          }
+        </section>
+      }
+    </div>
+
+    <!-- Summary -->
+    <aside class="card h-fit space-y-4 p-5 xl:sticky xl:top-20">
+      <h2 class="font-semibold text-white">Summary</h2>
+      <dl class="space-y-2 text-sm">
+        <div class="flex justify-between"><dt class="text-slate-400">Returned items value</dt><dd class="text-white">{{ credit() | taka }}</dd></div>
+        <div class="flex justify-between"><dt class="text-slate-400">New items</dt><dd class="text-white">{{ newItems() | taka }}</dd></div>
+        <div class="flex justify-between border-t border-line pt-2">
+          <dt class="text-slate-400">Price difference</dt>
+          <dd [class]="difference() > 0 ? 'text-white' : difference() < 0 ? 'text-amber-300' : 'text-white'">
+            {{ difference() | taka }}
+            <span class="block text-right text-xs text-slate-500">{{ difference() > 0 ? 'customer pays' : difference() < 0 ? 'new items are cheaper' : 'no difference' }}</span>
+          </dd>
+        </div>
+      </dl>
+
+      @if (difference() < 0) {
+        <div class="rounded-md border border-line p-3 text-sm">
+          <p class="mb-2 text-slate-300">The customer paid {{ -difference() | taka }} more than the new items cost.</p>
+          <label class="flex cursor-pointer items-center gap-2"><input type="radio" name="refund" class="accent-blue-600" [checked]="refund()" (change)="refund.set(true)" /> Refund the customer</label>
+          <label class="mt-1 flex cursor-pointer items-center gap-2"><input type="radio" name="refund" class="accent-blue-600" [checked]="!refund()" (change)="refund.set(false)" /> No refund</label>
+        </div>
+      }
+
+      <label class="block">
+        <span class="field-label">Reason</span>
+        <select class="field" (change)="setReason($any($event.target).value)" aria-label="Reason">
+          @for (r of reasons; track r.value) { <option [value]="r.value" [selected]="r.value === reason()">{{ r.label }}</option> }
+        </select>
+      </label>
+      <div class="grid grid-cols-2 gap-3">
+        <label class="block">
+          <span class="field-label">Exchange delivery (৳)</span>
+          <input type="number" min="0" step="1" class="field" [ngModel]="deliveryCharge()" (ngModelChange)="deliveryCharge.set($event)" aria-label="Exchange delivery charge" />
+        </label>
+        <label class="block">
+          <span class="field-label">Paid by</span>
+          <select class="field" (change)="paidBy.set($any($event.target).value)" aria-label="Delivery paid by">
+            <option value="CUSTOMER" [selected]="paidBy() === 'CUSTOMER'">Customer</option>
+            <option value="EREZER" [selected]="paidBy() === 'EREZER'">Erezer</option>
+          </select>
+        </label>
+      </div>
+      <label class="block">
+        <span class="field-label">Note (optional)</span>
+        <textarea rows="2" class="field" [(ngModel)]="note" placeholder="e.g. customer will hand over the old shirt"></textarea>
+      </label>
+
+      <div class="rounded-lg bg-white/5 p-4">
+        <div class="flex items-baseline justify-between">
+          <span class="text-sm text-slate-300">Rider collects (COD)</span>
+          <span class="text-2xl font-bold text-white">{{ collect() | taka }}</span>
+        </div>
+        @if (refundAmount() > 0) {
+          <p class="mt-1 text-sm text-amber-300"><i class="fas fa-hand-holding-usd mr-1"></i>Refund to customer: {{ refundAmount() | taka }} (by bKash or cash)</p>
+        }
+        @if (paidBy() === 'EREZER' && delivery() > 0) {
+          <p class="mt-1 text-xs text-slate-400">Erezer pays the {{ delivery() | taka }} delivery.</p>
+        }
+      </div>
+
+      @for (p of problems(); track p) {
+        <p class="text-xs text-red-300"><i class="fas fa-exclamation-circle mr-1"></i>{{ p }}</p>
+      }
+      <button type="button" class="btn-primary w-full justify-center" [disabled]="saving() || problems().length > 0 || uploadingAny()" (click)="submit()">
+        @if (saving()) { <i class="fas fa-circle-notch fa-spin"></i> } @else { <i class="fas fa-exchange-alt"></i> }
+        Create exchange
+      </button>
+      <p class="text-xs text-slate-500">Creates a new exchange order (Accepted). Send it to Steadfast as usual; the rider is told to collect the old items.</p>
+    </aside>
+  </div>
+}
+
+<datalist id="exchange-product-names">
+  @for (n of productNames(); track n) { <option [value]="n"></option> }
+</datalist>

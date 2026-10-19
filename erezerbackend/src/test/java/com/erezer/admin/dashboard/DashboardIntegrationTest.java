@@ -64,7 +64,8 @@ class DashboardIntegrationTest extends IntegrationTest {
         assertThat(delta(before, after, "totalRevenue")).isEqualTo(1820.0);      // 960 + 860
         assertThat(delta(before, after, "productRevenue")).isEqualTo(1700.0);    // 900 + 800
         assertThat(delta(before, after, "deliveryCharges")).isEqualTo(120.0);    // 60 + 60
-        assertThat(delta(before, after, "returnRevenue")).isEqualTo(1980.0);     // 1120 + 860
+        // Refused: the whole order total; after delivery: the products' value (the delivery charge is not refunded).
+        assertThat(delta(before, after, "returnRevenue")).isEqualTo(1920.0);     // 1120 + 800
         assertThat(delta(before, after, "returnProductRevenue")).isEqualTo(1800.0); // 1000 + 800
         assertThat(delta(before, after, "returnDeliveryTotal")).isEqualTo(240.0); // (120 + 60) + 60
         assertThat(delta(before, after, "refunds")).isEqualTo(800.0);

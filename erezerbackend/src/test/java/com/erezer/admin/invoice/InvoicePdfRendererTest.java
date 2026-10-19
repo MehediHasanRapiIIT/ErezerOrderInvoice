@@ -46,6 +46,7 @@ class InvoicePdfRendererTest {
                 "Regular Fit T-Shirt");
         assertThat(page1).containsPattern("Page 1 of\s*3");
         assertThat(page1).contains("৳").contains("2,760.00");
+        assertThat(page1).contains("Advance paid", "500.00", "Due", "2,260.00");
         assertThat(page1).doesNotContain("Product Images");
         assertThat(page1).contains("Erase the Ordinary", "ACCEPTED DATE", "10 Oct 2026, 9:15 AM", "ORDER DATE",
                 "9 Oct 2026, 11:01 PM", "CASH ON DELIVERY"); // Dhaka time, 12-hour clock
@@ -93,7 +94,8 @@ class InvoicePdfRendererTest {
         return new InvoiceData("EZ-583882", ZonedDateTime.of(2026, 10, 9, 23, 1, 0, 0, ZoneId.of("Asia/Dhaka")),
                 ZonedDateTime.of(2026, 10, 10, 9, 15, 0, 0, ZoneId.of("Asia/Dhaka")),
                 "Cash on delivery", "Mehedi Hasan", "01646065553", "m@example.com", "Mirpur-2, Dhaka", lines,
-                subtotal, discount, delivery, subtotal.subtract(discount).add(delivery), "Pathao", "PT123");
+                subtotal, discount, delivery, subtotal.subtract(discount).add(delivery),
+                lines.size() > 1 ? new BigDecimal("500.00") : BigDecimal.ZERO, "Pathao", "PT123", null);
     }
 
     /** Leaves the PDF in target/ so a human can eyeball the layout after `mvn test`. */

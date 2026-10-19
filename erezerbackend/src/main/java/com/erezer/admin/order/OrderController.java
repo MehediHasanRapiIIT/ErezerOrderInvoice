@@ -11,6 +11,7 @@ import com.erezer.admin.order.dto.OrderDtos.OrderStats;
 import com.erezer.admin.order.dto.OrderDtos.OrderSummary;
 import com.erezer.admin.order.dto.OrderDtos.StatusChangeRequest;
 import com.erezer.admin.security.CurrentUser;
+import com.erezer.admin.security.Permission;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.time.LocalDate;
@@ -75,10 +76,12 @@ class OrderController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) String q,
+            @RequestParam(required = false) OrderType type,
+            @RequestParam(required = false) OrderQueryService.Balance balance,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "createdAt,desc") String sort) {
-        OrderFilter filter = filter(tab, status, paymentMethod, from, to, q);
+        OrderFilter filter = filter(tab, status, paymentMethod, from, to, q, type, balance);
         if (filter.statuses().isEmpty()) {
             return new PageResponse<>(List.of(), page, size, 0, 0);
         }
@@ -96,8 +99,10 @@ class OrderController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) String q,
+            @RequestParam(required = false) OrderType type,
+            @RequestParam(required = false) OrderQueryService.Balance balance,
             @RequestParam(defaultValue = "createdAt,desc") String sort) {
-        OrderFilter filter = filter(tab, status, paymentMethod, from, to, q);
+        OrderFilter filter = filter(tab, status, paymentMethod, from, to, q, type, balance);
         if (filter.statuses().isEmpty()) {
             return new OrderQueryService.MatchingIds(List.of(), 0);
         }
@@ -114,8 +119,10 @@ class OrderController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) String q,
+            @RequestParam(required = false) OrderType type,
+            @RequestParam(required = false) OrderQueryService.Balance balance,
             @RequestParam(defaultValue = "createdAt,desc") String sort) {
-        byte[] workbook = exportService.export(filter(tab, status, paymentMethod, from, to, q), parseSort(sort));
+        byte[] workbook = exportService.export(filter(tab, status, paymentMethod, from, to, q, type, balance), parseSort(sort));
         String fileName = "orders-" + LocalDate.now(appProperties.zoneId()) + ".xlsx";
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
@@ -146,19 +153,28 @@ class OrderController {
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('ORDER_EDIT')")
     OrderDetail update(@PathVariable long id, @Valid @RequestBody OrderRequest request) {
-        orderService.update(id, request);
+        orderService.update(id, request, CurrentUser.id());
         return queryService.detail(id);
     }
 
     @PostMapping("/{id}/status")
     @PreAuthorize("hasAuthority('ORDER_STATUS_UPDATE')")
     OrderDetail changeStatus(@PathVariable long id, @Valid @RequestBody StatusChangeRequest request) {
-        orderService.changeStatus(id, request, CurrentUser.id());
+        orderService.changeStatus(id, request, CurrentUser.id(), CurrentUser.has(Permission.ORDER_STATUS_OVERRIDE));
+        return queryService.detail(id);
+    }
+
+    /** Internal courier cost of the order (never on the invoice). */
+    @PutMapping("/{id}/courier-cost")
+    @PreAuthorize("hasAuthority('ORDER_COURIER_COST')")
+    OrderDetail recordCourierCost(@PathVariable long id,
+            @Valid @RequestBody com.erezer.admin.order.dto.OrderDtos.CourierCostRequest request) {
+        orderService.recordCourierCost(id, request.courierCharge(), request.returnDeliveryCharge());
         return queryService.detail(id);
     }
 
     @PostMapping("/{id}/notes")
-    @PreAuthorize("hasAnyAuthority('ORDER_EDIT', 'ORDER_STATUS_UPDATE')")
+    @PreAuthorize("hasAuthority('ORDER_NOTE_ADD')")
     OrderDetail addNote(@PathVariable long id, @Valid @RequestBody NoteRequest request) {
         orderService.addNote(id, request.body(), CurrentUser.id());
         return queryService.detail(id);
@@ -173,7 +189,7 @@ class OrderController {
 
     /** Combines the tab with an optional status narrowing; an empty status set means "nothing matches". */
     private static OrderFilter filter(String tab, List<OrderStatus> status, PaymentMethod paymentMethod,
-            LocalDate from, LocalDate to, String q) {
+            LocalDate from, LocalDate to, String q, OrderType type, OrderQueryService.Balance balance) {
         Set<OrderStatus> statuses = statusesFor(tab);
         if (status != null && !status.isEmpty()) {
             statuses.retainAll(status);
@@ -181,7 +197,7 @@ class OrderController {
         if (from != null && to != null && from.isAfter(to)) {
             throw ApiException.badRequest("INVALID_DATE_RANGE", "The start date must be on or before the end date");
         }
-        return new OrderFilter(statuses, paymentMethod, from, to, q);
+        return new OrderFilter(statuses, paymentMethod, from, to, q, type, balance);
     }
 
     private static Set<OrderStatus> statusesFor(String tab) {

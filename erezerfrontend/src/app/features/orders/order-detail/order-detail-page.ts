@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
-import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormsModule, NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/auth/auth.service';
 import { errorMessage, toProblem } from '../../../core/http/api-error';
@@ -10,8 +10,8 @@ import { HasPermissionDirective } from '../../../shared/has-permission.directive
 import { ConfirmService } from '../../../shared/ui/confirm-dialog';
 import { TakaPipe } from '../../../shared/ui/taka.pipe';
 import { OrderApi } from '../data/order.api';
-import { PAYMENT_LABELS, STATUS_FLOW, STATUS_LABELS } from '../data/order-labels';
-import { OrderDetail, OrderImage, OrderStatus } from '../data/order.models';
+import { PAYMENT_LABELS, RETURN_REASONS, STATUS_FLOW, STATUS_LABELS } from '../data/order-labels';
+import { DeliveryPaidBy, OrderDetail, OrderImage, OrderStatus, ReturnReason, ReturnView } from '../data/order.models';
 import { StatusBadge } from '../status-badge';
 import { CourierApi, SENDABLE_STATUSES, SendResult } from '../../courier/courier.api';
 import { SendToCourierDialog } from '../../courier/send-to-courier-dialog';
@@ -27,7 +27,7 @@ export interface TimelineStep {
 
 @Component({
   selector: 'app-order-detail-page',
-  imports: [BdDatePipe, ReactiveFormsModule, RouterLink, HasPermissionDirective, StatusBadge, TakaPipe, SendToCourierDialog, ShipmentCard],
+  imports: [BdDatePipe, FormsModule, ReactiveFormsModule, RouterLink, HasPermissionDirective, StatusBadge, TakaPipe, SendToCourierDialog, ShipmentCard],
   templateUrl: './order-detail-page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -88,8 +88,13 @@ export class OrderDetailPage {
     courier: [''],
     trackingNumber: [''],
     returnDeliveryCharge: this.fb.control<number | null>(null, Validators.min(0)),
+    /** No default: who pays the return charge is the admin's choice each time. */
+    returnPaidBy: this.fb.control<DeliveryPaidBy | ''>(''),
+    returnReason: this.fb.control<ReturnReason>('REFUSED'),
     note: ['', Validators.maxLength(1000)],
   });
+
+  protected readonly returnReasons = RETURN_REASONS;
 
   protected readonly noteForm = this.fb.group({ body: ['', [Validators.required, Validators.maxLength(2000)]] });
 
@@ -101,8 +106,16 @@ export class OrderDetailPage {
   constructor() {
     // Preselect the next step of the flow whenever the order changes.
     effect(() => {
-      const next = this.order()?.allowedNextStatuses[0] ?? '';
-      this.statusForm.reset({ status: next, courier: this.order()?.courier ?? '', trackingNumber: this.order()?.trackingNumber ?? '' });
+      const order = this.order();
+      // Preselect the normal next step (not simply the first status, which for free changes would be "Placed").
+      const flowNext = order ? STATUS_FLOW[STATUS_FLOW.indexOf(order.status) + 1] : undefined;
+      const next = order ? (flowNext && order.allowedNextStatuses.includes(flowNext) ? flowNext : order.allowedNextStatuses[0] ?? '') : '';
+      this.statusForm.reset({
+        status: next,
+        courier: this.order()?.courier ?? '',
+        trackingNumber: this.order()?.trackingNumber ?? '',
+        returnReason: order?.status === 'DELIVERED' ? 'DID_NOT_LIKE' : 'REFUSED',
+      });
       this.selectedStatus.set(next);
     });
     this.statusForm.controls.status.valueChanges.subscribe((value) => this.selectedStatus.set(value));
@@ -118,10 +131,29 @@ export class OrderDetailPage {
       this.toast.error('Courier and tracking number are required to mark the order as shipped');
       return;
     }
-    if (value.status === 'CANCELLED' || value.status === 'RETURNED') {
+    if (value.status === 'RETURNED' && !value.returnPaidBy) {
+      this.toast.error('Choose who pays the return charge: Erezer or the customer');
+      return;
+    }
+    const backwards = STATUS_FLOW.includes(value.status) && STATUS_FLOW.includes(order.status)
+      && STATUS_FLOW.indexOf(value.status) < STATUS_FLOW.indexOf(order.status);
+    const reopening = order.status === 'CANCELLED' || order.status === 'RETURNED';
+    if (order.freeStatusChange && (backwards || reopening) && this.shipment()) {
+      const confirmed = await this.confirm.ask({
+        title: 'This order is booked with Steadfast',
+        message: `Changing it to ${STATUS_LABELS[value.status].toLowerCase()} here does not change the parcel at Steadfast, and Steadfast's own updates may change the status again later. Continue?`,
+        confirmLabel: 'Change anyway',
+        danger: true,
+      });
+      if (!confirmed) {
+        return;
+      }
+    } else if (value.status === 'CANCELLED' || value.status === 'RETURNED') {
       const confirmed = await this.confirm.ask({
         title: `Mark order as ${STATUS_LABELS[value.status].toLowerCase()}?`,
-        message: 'This is final: the order can no longer be edited or moved to another status.',
+        message: order.freeStatusChange
+          ? 'Stock is given back. You can still change the status again later.'
+          : 'Stock is given back, and you will not be able to change this order\'s status afterwards.',
         confirmLabel: `Mark ${STATUS_LABELS[value.status].toLowerCase()}`,
         danger: true,
       });
@@ -138,6 +170,8 @@ export class OrderDetailPage {
         trackingNumber: value.trackingNumber.trim() || null,
         note: value.note.trim() || null,
         returnDeliveryCharge: value.status === 'RETURNED' ? value.returnDeliveryCharge : null,
+        returnPaidBy: value.status === 'RETURNED' ? value.returnPaidBy || null : null,
+        returnReason: value.status === 'RETURNED' ? value.returnReason : null,
       })
       .subscribe({
         next: (updated) => {
@@ -150,6 +184,87 @@ export class OrderDetailPage {
           this.savingStatus.set(false);
         },
       });
+  }
+
+  // Correcting a return afterwards
+  protected readonly editingReturn = signal<number | null>(null);
+  protected readonly savingReturn = signal(false);
+  protected returnEdit: { reason: ReturnReason; paidBy: DeliveryPaidBy; returnCharge: number | null; note: string } = {
+    reason: 'OTHER',
+    paidBy: 'EREZER',
+    returnCharge: 0,
+    note: '',
+  };
+
+  protected readonly activeReturns = computed(() => (this.order()?.returns ?? []).filter((r) => r.active));
+
+  protected editReturn(r: ReturnView): void {
+    this.returnEdit = { reason: r.reason, paidBy: r.paidBy, returnCharge: r.returnCharge, note: r.note ?? '' };
+    this.editingReturn.set(r.id);
+  }
+
+  protected saveReturn(r: ReturnView): void {
+    const charge = Number(this.returnEdit.returnCharge);
+    if (this.returnEdit.returnCharge === null || `${this.returnEdit.returnCharge}` === '' || !(charge >= 0)) {
+      this.toast.error('Enter a return charge of 0 or more');
+      return;
+    }
+    this.savingReturn.set(true);
+    this.api
+      .updateReturn(r.id, {
+        reason: this.returnEdit.reason,
+        paidBy: this.returnEdit.paidBy,
+        returnCharge: charge,
+        note: this.returnEdit.note.trim() || null,
+      })
+      .subscribe({
+        next: (updated) => {
+          this.resource.set(updated);
+          this.savingReturn.set(false);
+          this.editingReturn.set(null);
+          this.toast.success('Return updated');
+        },
+        error: (err: unknown) => {
+          this.savingReturn.set(false);
+          this.toast.error(errorMessage(err));
+        },
+      });
+  }
+
+  protected courierChargeInput: number | null = null;
+  protected returnChargeInput: number | null = null;
+  protected readonly savingCourierCost = signal(false);
+  /** Fills the courier cost form whenever the order (re)loads. */
+  private readonly syncCourierCostForm = effect(() => {
+    const cc = this.order()?.courierCost;
+    this.courierChargeInput = cc?.courierCharge ?? null;
+    this.returnChargeInput = cc?.returnDeliveryCharge ?? null;
+  });
+
+  protected saveCourierCost(): void {
+    const order = this.order();
+    if (!order) {
+      return;
+    }
+    const charge = this.courierChargeInput === null || `${this.courierChargeInput}` === '' ? null : Number(this.courierChargeInput);
+    const returned = order.status === 'RETURNED' && !order.courierCost.refused;
+    const returnCharge = returned && this.returnChargeInput !== null && `${this.returnChargeInput}` !== '' ? Number(this.returnChargeInput) : null;
+    if ((charge !== null && !(charge >= 0)) || (returnCharge !== null && !(returnCharge >= 0))) {
+      this.toast.error('Enter an amount of 0 or more');
+      return;
+    }
+    this.savingCourierCost.set(true);
+    this.api.recordCourierCost(order.id, charge, returnCharge).subscribe({
+      next: (updated) => {
+        this.resource.set(updated);
+        this.savingCourierCost.set(false);
+        this.toast.success('Courier cost saved');
+      },
+      error: (err: unknown) => {
+        this.savingCourierCost.set(false);
+        this.toast.error(errorMessage(err));
+      },
+    });
   }
 
   protected submitNote(): void {
@@ -285,7 +400,8 @@ export function buildTimeline(order: OrderDetail): TimelineStep[] {
   const steps: TimelineStep[] = STATUS_FLOW.map((status, index) => ({
     status,
     label: STATUS_LABELS[status],
-    at: reachedAt.get(status),
+    // A step still ahead shows no date, even if the order reached it before being moved back.
+    at: index <= lastFlowIndex ? reachedAt.get(status) : undefined,
     state: index < lastFlowIndex || (index === lastFlowIndex && (failed || status === 'DELIVERED'))
       ? 'done'
       : index === lastFlowIndex

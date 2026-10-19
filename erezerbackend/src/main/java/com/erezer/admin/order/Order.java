@@ -63,6 +63,10 @@ public class Order extends AuditableEntity {
     @Column(name = "total", nullable = false, precision = 12, scale = 2)
     private BigDecimal total = BigDecimal.ZERO;
 
+    /** Paid before delivery (e.g. by bKash); the rest is due. */
+    @Column(name = "advance_amount", nullable = false, precision = 12, scale = 2)
+    private BigDecimal advanceAmount = BigDecimal.ZERO;
+
     /** What the courier charged to bring a returned parcel back. */
     @Column(name = "return_delivery_charge", nullable = false, precision = 12, scale = 2)
     private BigDecimal returnDeliveryCharge = BigDecimal.ZERO;
@@ -85,6 +89,10 @@ public class Order extends AuditableEntity {
     @Column(name = "deleted_at")
     private Instant deletedAt;
 
+    /** False for orders placed before stock existed: they never move stock. */
+    @Column(name = "stock_tracked", nullable = false, updatable = false)
+    private boolean stockTracked = true;
+
     /** What the courier actually charged for this parcel (reported by the courier); null when unknown. */
     @Column(name = "courier_charge", precision = 12, scale = 2)
     private BigDecimal courierCharge;
@@ -92,6 +100,35 @@ public class Order extends AuditableEntity {
     @CreatedBy
     @Column(name = "created_by", updatable = false)
     private Long createdBy;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "order_type", nullable = false, length = 20, updatable = false)
+    private OrderType orderType = OrderType.SALE;
+
+    // ---- Exchange orders only (see V8__order_exchanges.sql) ----
+
+    /** The delivered order whose items this exchange replaces. */
+    @Column(name = "exchange_of_order_id", updatable = false)
+    private Long exchangeOfOrderId;
+
+    /** Value of the returned items: what the customer already paid for them. */
+    @Column(name = "exchange_credit", precision = 12, scale = 2, updatable = false)
+    private BigDecimal exchangeCredit;
+
+    /** When the replacement is cheaper: whether the difference is handed back to the customer. */
+    @Column(name = "exchange_refund", nullable = false, updatable = false)
+    private boolean exchangeRefund;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "exchange_delivery_paid_by", length = 10, updatable = false)
+    private DeliveryPaidBy exchangeDeliveryPaidBy;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "exchange_reason", length = 30, updatable = false)
+    private ExchangeReason exchangeReason;
+
+    @Column(name = "exchange_returned_summary", length = 500, updatable = false)
+    private String exchangeReturnedSummary;
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("position")
@@ -110,6 +147,23 @@ public class Order extends AuditableEntity {
         this.statusHistory.add(new OrderStatusChange(this, null, OrderStatus.PLACED, null, createdBy, now));
     }
 
+    /** An exchange for {@code original}: same customer, paid cash on delivery, accepted straight away. */
+    static Order exchange(String orderNumber, Order original, BigDecimal credit, boolean refund, DeliveryPaidBy paidBy,
+            ExchangeReason reason, String returnedSummary, BigDecimal deliveryCharge, Instant now, Long createdBy) {
+        Order order = new Order(orderNumber, now, createdBy);
+        order.orderType = OrderType.EXCHANGE;
+        order.exchangeOfOrderId = original.getId();
+        order.exchangeCredit = money(credit);
+        order.exchangeRefund = refund;
+        order.exchangeDeliveryPaidBy = paidBy;
+        order.exchangeReason = reason;
+        order.exchangeReturnedSummary = returnedSummary;
+        order.updateDetails(orderNumber, PaymentMethod.CASH, original.customerName, original.customerPhone,
+                original.customerEmail, original.customerAddress, BigDecimal.ZERO, deliveryCharge);
+        order.changeStatus(OrderStatus.ACCEPTED, "Exchange of " + original.orderNumber, createdBy, now);
+        return order;
+    }
+
     void updateDetails(String orderNumber, PaymentMethod paymentMethod, String customerName, String customerPhone,
             String customerEmail, String customerAddress, BigDecimal discount, BigDecimal deliveryCharge) {
         this.orderNumber = orderNumber;
@@ -120,6 +174,10 @@ public class Order extends AuditableEntity {
         this.customerAddress = customerAddress;
         this.discount = money(discount);
         this.deliveryCharge = money(deliveryCharge);
+    }
+
+    void setAdvance(BigDecimal advance) {
+        this.advanceAmount = money(advance);
     }
 
     /** Replaces all line items; images of removed items become orphans and are purged later. */
@@ -135,10 +193,19 @@ public class Order extends AuditableEntity {
 
     private void recalculate() {
         subtotal = items.stream().map(OrderItem::getLineTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (orderType == OrderType.EXCHANGE) {
+            // The rider collects only a positive price difference; a cheaper replacement is refunded separately.
+            BigDecimal difference = subtotal.subtract(exchangeCredit).max(BigDecimal.ZERO);
+            total = difference.add(exchangeDeliveryPaidBy == DeliveryPaidBy.CUSTOMER ? deliveryCharge : BigDecimal.ZERO);
+            return;
+        }
         if (discount.compareTo(subtotal) > 0) {
             throw ApiException.badRequest("DISCOUNT_TOO_LARGE", "Discount cannot exceed the product subtotal");
         }
         total = subtotal.subtract(discount).add(deliveryCharge);
+        if (advanceAmount.compareTo(total) > 0) {
+            throw ApiException.badRequest("ADVANCE_TOO_LARGE", "The advance cannot be more than the order total");
+        }
     }
 
     void changeStatus(OrderStatus target, String note, Long changedBy, Instant now) {
@@ -153,6 +220,44 @@ public class Order extends AuditableEntity {
             case RETURNED -> returnedAt = now;
             case CANCELLED -> cancelledAt = now;
             default -> {
+            }
+        }
+    }
+
+    /**
+     * Moves the order to any status, outside the normal flow (staff with the "change status freely" permission).
+     * The delivered/returned/cancelled dates are made consistent with the new status, so the dashboard counts it
+     * correctly: back before delivery → no longer a sale; delivered again after a mistaken return → the original
+     * delivery date is kept.
+     */
+    void forceStatus(OrderStatus target, String note, Long changedBy, Instant now) {
+        if (target == status) {
+            throw ApiException.badRequest("SAME_STATUS", "The order is already " + label(status));
+        }
+        if (target == OrderStatus.IN_PRODUCTION) {
+            throw ApiException.badRequest("INVALID_STATUS", "This status is no longer used");
+        }
+        statusHistory.add(new OrderStatusChange(this, status, target, note, changedBy, now));
+        status = target;
+        switch (target) {
+            case DELIVERED -> {
+                deliveredAt = deliveredAt != null ? deliveredAt : now;
+                returnedAt = null;
+                cancelledAt = null;
+            }
+            case RETURNED -> {
+                returnedAt = now;
+                cancelledAt = null;
+            }
+            case CANCELLED -> {
+                cancelledAt = now;
+                deliveredAt = null;
+                returnedAt = null;
+            }
+            default -> {
+                deliveredAt = null;
+                returnedAt = null;
+                cancelledAt = null;
             }
         }
     }
@@ -172,12 +277,68 @@ public class Order extends AuditableEntity {
         }
     }
 
+    /**
+     * Staff record what the courier really charged (null = unknown, the delivery charge is used as an estimate)
+     * and, for returned orders, the return charge.
+     */
+    void recordCourierCosts(BigDecimal charge, BigDecimal returnCharge) {
+        this.courierCharge = charge == null ? null : money(charge);
+        if (returnCharge != null) {
+            this.returnDeliveryCharge = money(returnCharge);
+        }
+    }
+
+    /** Whether the parcel went to a courier (so a courier cost is expected). */
+    public boolean hasCourierCost() {
+        return status.isDispatched();
+    }
+
+    /**
+     * Everything the courier is paid for this order, by the same rules as the dashboard: the courier's real charge
+     * when known (otherwise the delivery charge), plus the return charge when it came back after delivery. For a
+     * parcel refused at the door the courier's charge already covers both ways; unknown, it is delivery + return.
+     * Null while the order has not been shipped.
+     */
+    public BigDecimal getTotalCourierCost() {
+        if (!hasCourierCost()) {
+            return courierCharge; // recorded ahead of shipping, or nothing yet
+        }
+        if (status == OrderStatus.RETURNED && deliveredAt == null) {
+            return courierCharge != null ? courierCharge : deliveryCharge.add(returnDeliveryCharge);
+        }
+        BigDecimal delivery = courierCharge != null ? courierCharge : deliveryCharge;
+        return status == OrderStatus.RETURNED ? delivery.add(returnDeliveryCharge) : delivery;
+    }
+
     void markDeleted(Instant now) {
         this.deletedAt = now;
     }
 
     public boolean isEditable() {
-        return status != OrderStatus.CANCELLED && status != OrderStatus.RETURNED;
+        return orderType == OrderType.SALE && status != OrderStatus.CANCELLED && status != OrderStatus.RETURNED;
+    }
+
+    public boolean isDeleted() {
+        return deletedAt != null;
+    }
+
+    public boolean isStockTracked() {
+        return stockTracked;
+    }
+
+    public boolean isExchange() {
+        return orderType == OrderType.EXCHANGE;
+    }
+
+    /** Price of the replacement minus the returned items' value; negative when the replacement is cheaper. */
+    public BigDecimal getExchangePriceDifference() {
+        return isExchange() ? subtotal.subtract(exchangeCredit) : null;
+    }
+
+    /** Money handed back to the customer (cheaper replacement with a refund chosen), otherwise zero. */
+    public BigDecimal getExchangeRefundAmount() {
+        BigDecimal difference = getExchangePriceDifference();
+        return difference != null && exchangeRefund && difference.signum() < 0 ? difference.negate() : BigDecimal.ZERO;
     }
 
     static BigDecimal money(BigDecimal value) {
@@ -232,6 +393,15 @@ public class Order extends AuditableEntity {
         return total;
     }
 
+    public BigDecimal getAdvanceAmount() {
+        return advanceAmount;
+    }
+
+    /** Still to be collected: total − advance. */
+    public BigDecimal getDueAmount() {
+        return total.subtract(advanceAmount);
+    }
+
     public BigDecimal getReturnDeliveryCharge() {
         return returnDeliveryCharge;
     }
@@ -258,6 +428,34 @@ public class Order extends AuditableEntity {
 
     public Long getCreatedBy() {
         return createdBy;
+    }
+
+    public OrderType getOrderType() {
+        return orderType;
+    }
+
+    public Long getExchangeOfOrderId() {
+        return exchangeOfOrderId;
+    }
+
+    public BigDecimal getExchangeCredit() {
+        return exchangeCredit;
+    }
+
+    public boolean isExchangeRefund() {
+        return exchangeRefund;
+    }
+
+    public DeliveryPaidBy getExchangeDeliveryPaidBy() {
+        return exchangeDeliveryPaidBy;
+    }
+
+    public ExchangeReason getExchangeReason() {
+        return exchangeReason;
+    }
+
+    public String getExchangeReturnedSummary() {
+        return exchangeReturnedSummary;
     }
 
     public List<OrderItem> getItems() {

@@ -1,12 +1,11 @@
 import { DecimalPipe, NgTemplateOutlet, PercentPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { rxResource, toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Params, Router } from '@angular/router';
+import { ActivatedRoute, Params, Router, RouterLink } from '@angular/router';
 import { isoDate } from '../../shared/date-range';
 import { TakaPipe } from '../../shared/ui/taka.pipe';
 import { DashboardApi } from './dashboard.api';
 import { DashboardTotals } from './dashboard.models';
-import { RevenueChart } from './revenue-chart';
 import { BdDatePipe } from '../../shared/ui/bd-date.pipe';
 import { bdToday } from '../../shared/ui/bd-date.pipe';
 
@@ -57,7 +56,7 @@ function presetRange(preset: Preset): { from: string; to: string } {
 
 @Component({
   selector: 'app-dashboard-page',
-  imports: [BdDatePipe, DecimalPipe, NgTemplateOutlet, PercentPipe, TakaPipe, RevenueChart],
+  imports: [BdDatePipe, DecimalPipe, NgTemplateOutlet, PercentPipe, RouterLink, TakaPipe],
   templateUrl: './dashboard-page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -97,6 +96,10 @@ export class DashboardPage {
       { label: 'Total Delivery Charge', key: 'deliveryCharges', trend: 'neutral',
         hint: 'Delivery charges collected from customers; this is passed on to the courier',
         sub: 'Collected, paid to courier' },
+      { label: 'Total Courier Cost', key: 'courierCost', trend: 'up-bad',
+        hint: "Everything paid to couriers in this period: each delivered parcel's real courier charge (the delivery "
+          + 'charge when unknown), exchanges included, plus the courier cost of returns',
+        sub: `Delivery ${taka(c?.deliveryCourierCost)} · Returns ${taka(c?.returnDeliveryTotal)}` },
     ];
   });
 
@@ -104,7 +107,8 @@ export class DashboardPage {
     const c = this.data()?.current;
     return [
       { label: 'Return Revenue', key: 'returnRevenue', trend: 'up-bad',
-        hint: 'Order totals of orders returned in this period (sales that did not happen or were reversed)',
+        hint: 'Value of returns recorded in this period: the full total of parcels refused at the door, '
+          + "and the products' value of returns after delivery (the delivery charge is not refunded)",
         sub: `${c?.returnedOrders ?? 0} returns` },
       { label: 'Return Product Revenue', key: 'returnProductRevenue', trend: 'up-bad',
         hint: 'Product value of returned orders (order total minus delivery charge)',
@@ -164,4 +168,8 @@ export class DashboardPage {
   private updateParams(changes: Params): void {
     void this.router.navigate([], { relativeTo: this.route, queryParams: changes, queryParamsHandling: 'merge' });
   }
+}
+
+function taka(value: number | undefined): string {
+  return `৳${(value ?? 0).toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
 }

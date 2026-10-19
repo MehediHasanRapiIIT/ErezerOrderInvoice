@@ -11,8 +11,11 @@ export interface NavItem {
 export const NAV_ITEMS: readonly NavItem[] = [
   { label: 'Dashboard', icon: 'fa-chart-pie', route: '/dashboard', permissions: ['DASHBOARD_VIEW'] },
   { label: 'Orders', icon: 'fa-receipt', route: '/orders', permissions: ['ORDER_VIEW', 'ORDER_CREATE'] },
+  { label: 'Sold Products', icon: 'fa-chart-bar', route: '/sold-products', permissions: ['SALES_VIEW'] },
+  { label: 'Stock', icon: 'fa-boxes', route: '/stock', permissions: ['STOCK_VIEW'] },
   { label: 'Customers', icon: 'fa-address-book', route: '/customers', permissions: ['CUSTOMER_VIEW'] },
   { label: 'Expenses', icon: 'fa-wallet', route: '/expenses', permissions: ['EXPENSE_VIEW'] },
+  { label: 'Assets', icon: 'fa-chair', route: '/assets', permissions: ['ASSET_VIEW'] },
   { label: 'Courier Settings', icon: 'fa-shipping-fast', route: '/settings/courier', permissions: ['COURIER_SETTINGS'] },
   { label: 'Staff Management', icon: 'fa-users-cog', route: '/staff', permissions: ['STAFF_MANAGE'] },
 ];

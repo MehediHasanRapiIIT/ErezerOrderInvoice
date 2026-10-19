@@ -15,6 +15,8 @@ public record DashboardSummary(
         Totals current,
         Totals previous,
         OrderCounts orders,
+        Exchanges exchanges,
+        Returns returns,
         String granularity,
         List<SeriesPoint> series,
         List<CategoryTotal> topExpenseCategories) {
@@ -32,9 +34,17 @@ public record DashboardSummary(
      * @param returnDeliveryTotal  courier cost of those returns: delivery + return charge when refused at the door,
      *                             only the return charge when returned after delivery; the courier's reported charge
      *                             when it is known
-     * @param refunds              product value refunded for returns of orders that had been delivered
+     * @param returnChargesRecovered courier cost of refused parcels the customer paid for (e.g. from an advance)
+     * @param refunds              money refunded for returns after delivery (less return charges customers paid)
+     * @param courierCost          everything paid to couriers in the period: the courier charge (or the delivery charge
+     *                             when unknown) of deliveries + {@code returnDeliveryTotal}; exchange deliveries included
+     * @param deliveryCourierCost  the delivery part of {@code courierCost}
      * @param expenses             Σ expenses dated in the period
-     * @param netProfit            productRevenue + deliveryChargeDifference − refunds − returnDeliveryTotal − expenses
+     * @param exchangeRefunds      money handed back on exchanges delivered in the period whose replacement was cheaper
+     *                             (refund chosen)
+     * @param exchangeCost         courier cost of exchanges delivered in the period whose delivery Erezer paid
+     * @param netProfit            productRevenue + deliveryChargeDifference − refunds − exchangeRefunds
+     *                             − returnDeliveryTotal − exchangeCost − expenses
      * @param deliveredOrders      deliveries in the period (including orders returned later)
      * @param returnedOrders       returns recorded in the period
      * @param refusedOrders        of those returns, how many were refused at the door (never delivered)
@@ -47,13 +57,40 @@ public record DashboardSummary(
             BigDecimal returnRevenue,
             BigDecimal returnProductRevenue,
             BigDecimal returnDeliveryTotal,
+            BigDecimal returnChargesRecovered,
             BigDecimal refunds,
+            BigDecimal exchangeRefunds,
+            BigDecimal exchangeCost,
+            BigDecimal courierCost,
+            BigDecimal deliveryCourierCost,
             BigDecimal expenses,
             BigDecimal netProfit,
             long deliveredOrders,
             long returnedOrders,
             long refusedOrders,
             long expenseCount) {
+    }
+
+    /**
+     * Exchanges delivered in the period, counted in items (two T-shirts exchanged together count as two).
+     *
+     * @param itemsPaidByCustomer items in exchanges whose delivery the customer paid
+     * @param itemsPaidByErezer   items in exchanges whose delivery Erezer paid
+     * @param deliveryCollected   exchange delivery charges collected from customers
+     * @param erezerCost          courier cost of the exchanges Erezer paid for (the courier's real charge when known)
+     */
+    public record Exchanges(long exchanges, long items, long itemsPaidByCustomer, long itemsPaidByErezer,
+            BigDecimal deliveryCollected, BigDecimal erezerCost) {
+    }
+
+    /**
+     * Returns recorded in the period, counted in items, split by who paid the courier's return charge.
+     *
+     * @param chargesPaidByCustomer return charges customers paid (deducted from refunds, or covered for refused parcels)
+     * @param chargesPaidByErezer   return charges Erezer paid
+     */
+    public record Returns(long returns, long items, long itemsPaidByCustomer, long itemsPaidByErezer,
+            BigDecimal chargesPaidByCustomer, BigDecimal chargesPaidByErezer) {
     }
 
     /** @param returnRate returns ÷ (deliveries + refusals) in the range, 0–1; null when nothing reached an outcome */

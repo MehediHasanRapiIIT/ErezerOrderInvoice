@@ -34,9 +34,9 @@ public class OrderExportService {
 
     private static final String[] HEADERS = {
             "Order ID", "Date", "Status", "Payment", "Customer", "Phone", "Email", "Address", "Products",
-            "Items", "Subtotal", "Discount", "Delivery charge", "Total", "Return delivery charge", "Courier",
+            "Items", "Subtotal", "Discount", "Delivery charge", "Total", "Advance", "Due", "Return delivery charge", "Courier",
             "Tracking number"};
-    private static final int[] WIDTHS = {14, 18, 16, 16, 22, 15, 24, 36, 48, 7, 12, 11, 14, 12, 14, 14, 18};
+    private static final int[] WIDTHS = {14, 18, 16, 16, 22, 15, 24, 36, 48, 7, 12, 11, 14, 12, 12, 12, 14, 14, 18};
 
     private final OrderRepository orders;
     private final OrderQueryService queryService;
@@ -103,6 +103,8 @@ public class OrderExportService {
         money(row, c++, o.getDiscount(), styles);
         money(row, c++, o.getDeliveryCharge(), styles);
         money(row, c++, o.getTotal(), styles);
+        money(row, c++, o.getAdvanceAmount(), styles);
+        money(row, c++, o.getDueAmount(), styles);
         money(row, c++, o.getReturnDeliveryCharge(), styles);
         text(row, c++, o.getCourier());
         text(row, c, o.getTrackingNumber());
@@ -110,7 +112,7 @@ public class OrderExportService {
 
     private static String products(List<OrderItem> items) {
         return items.stream()
-                .map(i -> i.getProductName() + " (" + i.getProductCode() + ")"
+                .map(i -> i.getProductName() + (i.getProductCode() == null ? "" : " (" + i.getProductCode() + ")")
                         + (i.getSize() == null ? "" : " " + i.getSize()) + " ×" + i.getQuantity())
                 .collect(Collectors.joining("; "));
     }

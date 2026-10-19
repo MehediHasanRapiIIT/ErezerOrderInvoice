@@ -22,13 +22,14 @@ import org.springframework.stereotype.Component;
 class ParcelPlanner {
 
     /** Orders that are confirmed but not yet with a courier. */
-    static final Set<OrderStatus> SENDABLE = EnumSet.of(OrderStatus.ACCEPTED, OrderStatus.IN_PRODUCTION, OrderStatus.PROCESSING);
+    static final Set<OrderStatus> SENDABLE = EnumSet.of(OrderStatus.ACCEPTED, OrderStatus.PROCESSING);
 
     static final int MAX_NAME = 100;
     static final int MAX_ADDRESS = 490;
     static final int MAX_NOTE = 480;
     static final int MAX_ITEM_DESCRIPTION = 255;
     static final BigDecimal MAX_COD = new BigDecimal("1000000");
+    static final String EXCHANGE_NOTE_PREFIX = "EXCHANGE - collect the old item(s): ";
     /** Steadfast replaces these with spaces; doing it here means the preview shows exactly what is booked. */
     private static final Pattern STRIPPED = Pattern.compile("[{};<>$]");
     private static final Pattern BD_MOBILE = Pattern.compile("^01[3-9]\\d{8}$");
@@ -86,6 +87,18 @@ class ParcelPlanner {
             problems.add("Delivery type must be home delivery or hub pickup");
         }
         String note = blankToNull(clean(overrides.note()));
+        if (order.isExchange()) {
+            // The rider must know to bring the old items back; that instruction survives any edit of the note.
+            String instruction = clean(EXCHANGE_NOTE_PREFIX + order.getExchangeReturnedSummary());
+            if (note == null) {
+                note = instruction;
+            } else if (!note.startsWith(EXCHANGE_NOTE_PREFIX.strip())) {
+                note = instruction + " · " + note;
+            }
+            if (note.length() > MAX_NOTE) {
+                note = note.substring(0, MAX_NOTE - 1) + "…";
+            }
+        }
         if (note != null && note.length() > MAX_NOTE) {
             problems.add("Note is longer than " + MAX_NOTE + " characters");
         }
@@ -103,9 +116,12 @@ class ParcelPlanner {
         return new Plan(parcel, cod, defaultCod, List.copyOf(problems), blocked);
     }
 
-    /** Cash on delivery collects the full order total; prepaid orders (bKash, Nagad, bank, card) collect nothing. */
+    /**
+     * Cash on delivery collects what is still due (total − any advance); prepaid orders (bKash, Nagad, bank, card)
+     * collect nothing.
+     */
     static BigDecimal defaultCod(Order order) {
-        return order.getPaymentMethod() == PaymentMethod.CASH ? order.getTotal() : BigDecimal.ZERO;
+        return order.getPaymentMethod() == PaymentMethod.CASH ? order.getDueAmount() : BigDecimal.ZERO;
     }
 
     /** "Regular Fit T-Shirt ×1, Cargo Pant ×2", shortened to fit Steadfast's limit. */

@@ -16,6 +16,8 @@ import { ToastService } from '../../../core/notify/toast.service';
 import { COMPLETE_PHONE_DIGITS, phoneKey } from '../../../shared/phone';
 import { HasUnsavedChanges } from '../../../shared/unsaved-changes.guard';
 import { Customer, CustomerApi } from '../../customers/customer.api';
+import { VariantPicker } from '../../stock/variant-picker';
+import { SoldProductsApi } from '../../sold-products/sold-products.api';
 import { TakaPipe } from '../../../shared/ui/taka.pipe';
 import { OrderApi } from '../data/order.api';
 import { PAYMENT_LABELS, PAYMENT_METHODS, SIZE_SUGGESTIONS } from '../data/order-labels';
@@ -34,6 +36,8 @@ type ItemForm = FormGroup<{
   productCode: FormControl<string>;
   description: FormControl<string>;
   color: FormControl<string>;
+  /** The stock variant picked for `color`; null while the typed text is not a picked variant. */
+  variantId: FormControl<number | null>;
   size: FormControl<string>;
   unitPrice: FormControl<number | null>;
   quantity: FormControl<number>;
@@ -45,7 +49,7 @@ let nextKey = 1;
 /** Create (/orders/new) and edit (/orders/:id/edit) form. */
 @Component({
   selector: 'app-order-form-page',
-  imports: [BdDatePipe, ReactiveFormsModule, RouterLink, TakaPipe],
+  imports: [BdDatePipe, ReactiveFormsModule, RouterLink, TakaPipe, VariantPicker],
   templateUrl: './order-form-page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -56,6 +60,9 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
   private readonly api = inject(OrderApi);
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
+  private readonly soldProducts = inject(SoldProductsApi);
+  /** Names already used, suggested in Product name so the same category is not typed differently. */
+  protected readonly productNames = toSignal(this.soldProducts.productNames().pipe(catchError(() => of([] as string[]))), { initialValue: [] as string[] });
   private readonly auth = inject(AuthService);
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly customers = inject(CustomerApi);
@@ -87,6 +94,7 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
     }),
     deliveryCharge: this.fb.control<number | null>(60, [Validators.required, Validators.min(0)]),
     discount: this.fb.control<number | null>(0, Validators.min(0)),
+    advance: this.fb.control<number | null>(null, Validators.min(0)),
     items: this.fb.array<ItemForm>([]),
   });
 
@@ -101,6 +109,21 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
     () => this.subtotal() - (Number(this.formValue().discount) || 0) + (Number(this.formValue().deliveryCharge) || 0),
   );
   protected readonly discountTooLarge = computed(() => (Number(this.formValue().discount) || 0) > this.subtotal());
+  protected readonly advance = computed(() => Math.max(Number(this.formValue().advance) || 0, 0));
+  /** Due is always total − advance; typing a due fills in the advance instead. */
+  protected readonly due = computed(() => Math.round((this.total() - this.advance()) * 100) / 100);
+  protected readonly advanceTooLarge = computed(() => this.advance() > this.total() + 0.001);
+
+  protected setDue(value: string): void {
+    const due = Number(value);
+    if (value === '' || !Number.isFinite(due)) {
+      this.form.controls.advance.setValue(null);
+      return;
+    }
+    const advance = Math.round((this.total() - Math.max(due, 0)) * 100) / 100;
+    this.form.controls.advance.setValue(advance > 0 ? advance : null);
+    this.form.controls.advance.markAsDirty();
+  }
   protected readonly isUploading = computed(() => Object.values(this.uploading()).some((n) => n > 0));
 
   /** undefined = no complete number yet, null = new customer, otherwise their history. */
@@ -238,7 +261,13 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
 
   protected submit(): void {
     this.serverErrors.set([]);
-    if (this.form.invalid || this.discountTooLarge() || this.items.length === 0) {
+    // A variant must be picked from the list (or left empty) so the order is counted in stock.
+    const unpicked = this.items.controls.find((i) => i.controls.color.value.trim() !== '' && i.controls.variantId.value === null);
+    if (unpicked) {
+      this.toast.error(`${unpicked.controls.productName.value || 'A product'}: choose the variant from the list`);
+      return;
+    }
+    if (this.form.invalid || this.discountTooLarge() || this.advanceTooLarge() || this.items.length === 0) {
       this.form.markAllAsTouched();
       this.toast.error(this.items.length === 0 ? 'Add at least one product' : 'Please fix the highlighted fields');
       return;
@@ -268,6 +297,7 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
     this.saved = true;
     this.saving.set(false);
     this.toast.success(message);
+    this.soldProducts.refreshNames();
     if (this.auth.hasPermission('ORDER_VIEW')) {
       void this.router.navigate(['/orders', id]);
     } else {
@@ -310,9 +340,10 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
       this.items.push(
         this.createItem({
           productName: item.productName,
-          productCode: item.productCode,
+          productCode: item.productCode ?? '',
           description: item.description ?? '',
           color: item.color ?? '',
+          variantId: item.variantId ?? null,
           size: item.size ?? '',
           unitPrice: item.unitPrice,
           quantity: item.quantity,
@@ -326,6 +357,7 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
       customer: { ...order.customer, email: order.customer.email ?? '' },
       deliveryCharge: order.deliveryCharge,
       discount: order.discount,
+      advance: order.advance > 0 ? order.advance : null,
     });
     this.form.markAsPristine();
   }
@@ -334,9 +366,10 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
     return this.fb.group({
       key: [`item-${nextKey++}`],
       productName: [value?.productName ?? '', [Validators.required, Validators.maxLength(160)]],
-      productCode: [value?.productCode ?? '', [Validators.required, Validators.maxLength(60)]],
+      productCode: [value?.productCode ?? '', Validators.maxLength(60)],
       description: [value?.description ?? '', Validators.maxLength(1000)],
-      color: [value?.color ?? '', Validators.maxLength(60)],
+      color: [value?.color ?? '', Validators.maxLength(80)],
+      variantId: this.fb.control<number | null>(value?.variantId ?? null),
       size: [value?.size ?? '', Validators.maxLength(30)],
       unitPrice: this.fb.control<number | null>(value?.unitPrice ?? null, [Validators.required, Validators.min(0)]),
       quantity: [value?.quantity ?? 1, [Validators.required, Validators.min(1), Validators.max(10000)]],
@@ -398,15 +431,17 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
       },
       deliveryCharge: Number(v.deliveryCharge) || 0,
       discount: Number(v.discount) || 0,
+      advance: Number(v.advance) || 0,
       items: v.items.map((i) => ({
         productName: i.productName.trim(),
-        productCode: i.productCode.trim(),
+        productCode: i.productCode.trim() || null,
         description: i.description.trim() || null,
         color: i.color.trim() || null,
         size: i.size.trim() || null,
         unitPrice: Number(i.unitPrice) || 0,
         quantity: Number(i.quantity) || 1,
         imageIds: i.images.map((img) => img.fileId),
+        variantId: i.variantId,
       })),
       version: this.version,
     };

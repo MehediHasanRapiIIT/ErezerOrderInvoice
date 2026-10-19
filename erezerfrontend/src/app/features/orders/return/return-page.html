@@ -1,0 +1,177 @@
+<a routerLink="/orders" class="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white">
+  <i class="fas fa-arrow-left text-xs"></i> Orders
+</a>
+<h1 class="page-title"><i class="fas fa-undo-alt mr-2 text-brand-light"></i>Return products</h1>
+<p class="page-subtitle">Take back products from a delivered order and refund the customer</p>
+
+@if (!options()) {
+  <!-- Step 1: find the order -->
+  <section class="card mt-6 max-w-2xl p-6">
+    <form class="flex flex-col gap-3 sm:flex-row" (ngSubmit)="search()">
+      <label class="block flex-1">
+        <span class="field-label">Order ID or customer phone</span>
+        <input class="field" name="q" [(ngModel)]="query" placeholder="e.g. EZ-583882 or 01711000000" autocomplete="off" />
+      </label>
+      <button type="submit" class="btn-primary self-end" [disabled]="searching() || loading()">
+        @if (searching() || loading()) { <i class="fas fa-circle-notch fa-spin"></i> } @else { <i class="fas fa-search"></i> }
+        Find order
+      </button>
+    </form>
+    <p class="mt-2 text-xs text-slate-500">Only delivered orders can be returned. For a parcel the customer refused, mark the order <b>Returned</b> instead.</p>
+
+    @if (searched() && !candidates().length) {
+      <p class="mt-4 rounded-md border border-line px-3 py-2 text-sm text-slate-300">
+        <i class="fas fa-info-circle mr-1 text-slate-400"></i>No delivered order matches. Check the number, or the order may not be delivered yet.
+      </p>
+    }
+    @if (candidates().length > 1) {
+      <ul class="mt-4 divide-y divide-line rounded-md border border-line">
+        @for (c of candidates(); track c.id) {
+          <li>
+            <button type="button" class="flex w-full cursor-pointer items-center justify-between gap-3 px-4 py-3 text-left text-sm hover:bg-white/5" (click)="load(c.id)">
+              <span>
+                <span class="font-mono text-white">{{ c.orderNumber }}</span>
+                <span class="ml-2 text-slate-300">{{ c.customerName }}</span>
+              </span>
+              <span class="text-xs text-slate-400">Delivered {{ c.deliveredAt | bdDate: 'd MMM y' }} · {{ c.total | taka }}</span>
+            </button>
+          </li>
+        }
+      </ul>
+    }
+  </section>
+} @else {
+  @let o = options()!;
+  <!-- Step 2: the return -->
+  <section class="card mt-6 flex flex-wrap items-center justify-between gap-4 p-5">
+    <div>
+      <p class="text-xs text-slate-400">Returning products of</p>
+      <a [routerLink]="['/orders', o.orderId]" class="font-mono text-lg font-semibold text-white hover:underline">{{ o.orderNumber }}</a>
+      <p class="text-sm text-slate-300">{{ o.customer.name }} · <span class="font-mono">{{ o.customer.phone }}</span></p>
+      <p class="text-xs text-slate-500">{{ o.customer.address }}</p>
+    </div>
+    <div class="text-right text-sm">
+      <p class="text-slate-400">Delivered {{ o.deliveredAt | bdDate }}</p>
+      <button type="button" class="mt-1 cursor-pointer text-xs text-brand-light hover:underline" (click)="startOver()">Choose another order</button>
+    </div>
+  </section>
+
+  @if (o.returns.length) {
+    <p class="mt-4 text-sm text-slate-400">
+      <i class="fas fa-history mr-1"></i>Earlier returns:
+      @for (r of o.returns; track r.id) {
+        <span class="ml-1" [class.line-through]="!r.active">{{ r.createdAt | bdDate: 'd MMM y' }} ({{ r.reasonLabel }}, refund {{ r.refundAmount | taka }})</span>{{ $last ? '' : ',' }}
+      }
+    </p>
+  }
+
+  <div class="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
+    <!-- Items -->
+    <div class="space-y-4 xl:col-span-2">
+      <div class="flex justify-end">
+        <button type="button" class="cursor-pointer text-sm text-brand-light hover:underline" (click)="selectAll()">
+          <i class="fas fa-check-double mr-1"></i>Return everything
+        </button>
+      </div>
+      @for (l of lines(); track l.item.id) {
+        <section class="card p-5" [class.ring-1]="l.selected" [class.ring-brand]="l.selected">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <label class="flex flex-1 gap-3" [class.cursor-pointer]="l.item.remaining > 0">
+              <input type="checkbox" class="mt-1 h-4 w-4 accent-blue-600" [checked]="l.selected" [disabled]="l.item.remaining === 0"
+                     (change)="update(l, { selected: $any($event.target).checked })" [attr.aria-label]="'Return ' + l.item.productName" />
+              @if (l.item.images[0]; as img) {
+                <img [src]="img.url" alt="" class="h-14 w-14 rounded-md border border-line object-cover" />
+              } @else {
+                <span class="flex h-14 w-14 items-center justify-center rounded-md border border-line text-slate-600"><i class="fas fa-tshirt"></i></span>
+              }
+              <span>
+                <span class="block font-semibold text-white">{{ l.item.productName }}</span>
+                <span class="block text-xs text-slate-400">{{ l.item.productCode ? 'Code ' + l.item.productCode : '' }}{{ l.item.productCode && variant(l.item.color, l.item.size) ? ' · ' : '' }}{{ variant(l.item.color, l.item.size) }}</span>
+                <span class="block text-xs text-slate-400">{{ l.item.quantity }} × {{ l.item.unitPrice | taka }}
+                  @if (l.item.unitCredit !== l.item.unitPrice) { <span class="text-slate-500">(paid {{ l.item.unitCredit | taka }} each after discount)</span> }
+                </span>
+                @if (l.item.alreadyReturned > 0) { <span class="block text-xs text-amber-300">{{ l.item.alreadyReturned }} already returned</span> }
+                @if (l.item.alreadyExchanged > 0) { <span class="block text-xs text-amber-300">{{ l.item.alreadyExchanged }} exchanged</span> }
+              </span>
+            </label>
+            @if (l.item.remaining === 0) {
+              <span class="rounded-md border border-line px-3 py-1.5 text-xs text-slate-400">Nothing left to return</span>
+            } @else if (l.selected) {
+              <label class="flex items-center gap-2 text-sm">
+                <span class="text-slate-400">Pieces</span>
+                <input type="number" min="1" [max]="l.item.remaining" class="field w-20" [ngModel]="l.quantity" (ngModelChange)="update(l, { quantity: +$event })"
+                       [class.field-invalid]="!(l.quantity >= 1 && l.quantity <= l.item.remaining)" aria-label="Pieces to return" />
+                <span class="text-xs text-slate-500">of {{ l.item.remaining }}</span>
+              </label>
+            }
+          </div>
+        </section>
+      }
+    </div>
+
+    <!-- Summary -->
+    <aside class="card h-fit space-y-4 p-5 xl:sticky xl:top-20">
+      <h2 class="font-semibold text-white">Summary</h2>
+
+      <label class="block">
+        <span class="field-label">Reason</span>
+        <select class="field" (change)="setReason($any($event.target).value)" aria-label="Reason">
+          @for (r of reasons; track r.value) { <option [value]="r.value" [selected]="r.value === reason()">{{ r.label }}</option> }
+        </select>
+      </label>
+      <div class="grid grid-cols-2 gap-3">
+        <label class="block">
+          <span class="field-label">Return charge (৳)</span>
+          <input type="number" min="0" step="1" class="field" [ngModel]="returnCharge()" (ngModelChange)="returnCharge.set($event)" aria-label="Return charge" />
+        </label>
+        <label class="block">
+          <span class="field-label">Paid by</span>
+          <select class="field" (change)="paidBy.set($any($event.target).value)" aria-label="Return charge paid by">
+            <option value="CUSTOMER" [selected]="paidBy() === 'CUSTOMER'">Customer</option>
+            <option value="EREZER" [selected]="paidBy() === 'EREZER'">Erezer</option>
+          </select>
+        </label>
+      </div>
+      <label class="flex cursor-pointer items-start gap-2 text-sm text-slate-300">
+        <input type="checkbox" class="mt-0.5 h-4 w-4 accent-blue-600" [checked]="restock()" (change)="restock.set($any($event.target).checked)" />
+        <span>Put the pieces back in stock <span class="block text-xs text-slate-500">Untick for defective or damaged products that can't be sold again.</span></span>
+      </label>
+      <label class="block">
+        <span class="field-label">Note (optional)</span>
+        <textarea rows="2" class="field" [(ngModel)]="note" placeholder="e.g. refund sent by bKash"></textarea>
+      </label>
+
+      <dl class="space-y-2 text-sm">
+        <div class="flex justify-between"><dt class="text-slate-400">Products value ({{ pieces() }} pcs)</dt><dd class="text-white">{{ itemsValue() | taka }}</dd></div>
+        <div class="flex justify-between">
+          <dt class="text-slate-400">Return charge ({{ paidBy() === 'CUSTOMER' ? 'customer' : 'Erezer' }})</dt>
+          <dd [class]="customerShare() > 0 ? 'text-amber-300' : 'text-slate-500'">{{ customerShare() > 0 ? '−' : '' }}{{ charge() | taka }}</dd>
+        </div>
+      </dl>
+
+      <div class="rounded-lg bg-white/5 p-4">
+        <div class="flex items-baseline justify-between">
+          <span class="text-sm text-slate-300">Refund to customer</span>
+          <span class="text-2xl font-bold text-white">{{ refund() | taka }}</span>
+        </div>
+        @if (paidBy() === 'EREZER' && charge() > 0) {
+          <p class="mt-1 text-xs text-slate-400">Erezer pays the {{ charge() | taka }} return charge (counted as a cost).</p>
+        }
+        @if (customerShare() > itemsValue()) {
+          <p class="mt-1 text-xs text-amber-300">The charge is more than the products' value; the refund stays at ৳0.</p>
+        }
+        @if (wholeOrder()) {
+          <p class="mt-1 text-xs text-slate-400"><i class="fas fa-info-circle mr-1"></i>Everything comes back, so the order becomes <b>Returned</b>.</p>
+        }
+      </div>
+
+      @for (p of problems(); track p) {
+        <p class="text-xs text-red-300"><i class="fas fa-exclamation-circle mr-1"></i>{{ p }}</p>
+      }
+      <button type="button" class="btn-primary w-full justify-center" [disabled]="saving() || problems().length > 0" (click)="submit()">
+        @if (saving()) { <i class="fas fa-circle-notch fa-spin"></i> } @else { <i class="fas fa-undo-alt"></i> }
+        Record return
+      </button>
+    </aside>
+  </div>
+}

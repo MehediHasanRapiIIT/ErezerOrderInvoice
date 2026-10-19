@@ -12,7 +12,11 @@ import java.time.Clock;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Stream;
+import com.erezer.admin.stock.StockReason;
+import com.erezer.admin.stock.StockService;
+import com.erezer.admin.stock.StockVariant;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,10 +30,15 @@ public class OrderService {
     private final OrderRepository orders;
     private final OrderNoteRepository notes;
     private final FileService files;
+    private final StockService stock;
+    private final ReturnService returns;
     private final Clock clock;
     private final SecureRandom random = new SecureRandom();
 
-    OrderService(OrderRepository orders, OrderNoteRepository notes, FileService files, Clock clock) {
+    OrderService(OrderRepository orders, OrderNoteRepository notes, FileService files, StockService stock,
+            ReturnService returns, Clock clock) {
+        this.returns = returns;
+        this.stock = stock;
         this.orders = orders;
         this.notes = notes;
         this.files = files;
@@ -41,17 +50,27 @@ public class OrderService {
         String number = resolveOrderNumber(request.orderNumber(), 0L);
         Order order = new Order(number, clock.instant(), userId);
         apply(order, number, request);
-        return orders.save(order).getId();
+        long id = orders.save(order).getId();
+        stock.syncOrder(order, StockReason.ORDER_PLACED, userId);
+        return id;
     }
 
     @Transactional
-    public void update(long id, OrderRequest request) {
+    public void update(long id, OrderRequest request, long userId) {
         Order order = load(id);
         if (request.version() == null || request.version() != order.getVersion()) {
             throw ApiException.conflict("STALE_DATA", "This order was changed by someone else. Reload and try again.");
         }
+        if (order.isExchange()) {
+            throw ApiException.conflict("ORDER_LOCKED",
+                    "Exchange orders cannot be edited. Cancel it and create a new exchange instead.");
+        }
         if (!order.isEditable()) {
             throw ApiException.conflict("ORDER_LOCKED", "Cancelled or returned orders can no longer be edited");
+        }
+        if (orders.hasExchanges(id)) {
+            throw ApiException.conflict("ORDER_LOCKED",
+                    "This order has exchanges, so its items can no longer be edited");
         }
         String number = request.orderNumber() == null || request.orderNumber().isBlank()
                 ? order.getOrderNumber()
@@ -60,16 +79,24 @@ public class OrderService {
         // Item-only edits touch child tables alone; marking the order modified makes Hibernate
         // bump its version, so concurrent edits of line items are still detected.
         order.touch(clock.instant());
+        stock.syncOrder(order, StockReason.ORDER_CHANGED, userId);
     }
 
+    /**
+     * @param free whether the user may change the status freely (any status, any time); otherwise only the normal
+     *             forward flow is allowed
+     */
     @Transactional
-    public void changeStatus(long id, StatusChangeRequest request, long userId) {
+    public void changeStatus(long id, StatusChangeRequest request, long userId, boolean free) {
         Order order = load(id);
         OrderStatus target = request.status();
 
         if (target == OrderStatus.SHIPPED) {
-            String courier = blankToNull(request.courier());
-            String tracking = blankToNull(request.trackingNumber());
+            // A free move back to Shipped may reuse the courier details the order already has.
+            String courier = Objects.requireNonNullElse(blankToNull(request.courier()), free ? Objects.toString(order.getCourier(), "") : "");
+            String tracking = Objects.requireNonNullElse(blankToNull(request.trackingNumber()), free ? Objects.toString(order.getTrackingNumber(), "") : "");
+            courier = blankToNull(courier);
+            tracking = blankToNull(tracking);
             if (courier == null || tracking == null) {
                 throw ApiException.badRequest("SHIPMENT_DETAILS_REQUIRED",
                         "Courier and tracking number are required to mark an order as shipped");
@@ -79,7 +106,30 @@ public class OrderService {
         if (target == OrderStatus.RETURNED && request.returnDeliveryCharge() != null) {
             order.setReturnDeliveryCharge(request.returnDeliveryCharge());
         }
-        order.changeStatus(target, blankToNull(request.note()), userId, clock.instant());
+        OrderStatus before = order.getStatus();
+        if (free && !order.getStatus().canMoveTo(target)) {
+            String note = blankToNull(request.note());
+            order.forceStatus(target, note == null ? "Status changed manually" : "Status changed manually · " + note,
+                    userId, clock.instant());
+        } else {
+            order.changeStatus(target, blankToNull(request.note()), userId, clock.instant());
+        }
+        if (before == OrderStatus.RETURNED && target != OrderStatus.RETURNED) {
+            returns.cancelActiveReturns(order); // moved out of Returned again: the return no longer stands
+        }
+        if (target == OrderStatus.RETURNED) {
+            returns.recordWholeReturn(order, request.returnReason(), request.returnDeliveryCharge(), request.returnPaidBy(), userId);
+        }
+        stock.syncOrder(order, reasonFor(target), userId);
+    }
+
+    private static StockReason reasonFor(OrderStatus status) {
+        return switch (status) {
+            case CANCELLED -> StockReason.ORDER_CANCELLED;
+            case RETURNED -> StockReason.ORDER_RETURNED;
+            case DELIVERED -> StockReason.EXCHANGE; // only an exchange moves stock on delivery (old items back)
+            default -> StockReason.ORDER_CHANGED;
+        };
     }
 
     /** Courier booked the parcel: the order moves to Shipped with the courier's tracking code. */
@@ -106,7 +156,22 @@ public class OrderService {
             return false;
         }
         order.changeStatus(target, note, null, clock.instant());
+        if (target == OrderStatus.RETURNED) {
+            // The courier reported the parcel back: refused at the door, Erezer pays (staff can change it after).
+            returns.recordWholeReturn(order, null, null, DeliveryPaidBy.EREZER, null);
+        }
+        stock.syncOrder(order, reasonFor(target), null);
         return true;
+    }
+
+    /** Records the real courier charge (null clears it) at any time and, for returned orders, the return charge. */
+    @Transactional
+    public void recordCourierCost(long orderId, BigDecimal courierCharge, BigDecimal returnCharge) {
+        Order order = load(orderId);
+        if (returnCharge != null && order.getStatus() != OrderStatus.RETURNED) {
+            throw ApiException.badRequest("NOT_RETURNED", "A return charge applies only to returned orders");
+        }
+        order.recordCourierCosts(courierCharge, returnCharge);
     }
 
     @Transactional
@@ -118,31 +183,41 @@ public class OrderService {
     /** Soft delete: the row stays for audit and so its order number is never reused. */
     @Transactional
     public void delete(long id) {
-        load(id).markDeleted(clock.instant());
+        Order order = load(id);
+        order.markDeleted(clock.instant());
+        stock.syncOrder(order, StockReason.ORDER_DELETED, null);
     }
 
     private void apply(Order order, String number, OrderRequest request) {
         var customer = request.customer();
         order.updateDetails(number, request.paymentMethod(), customer.name().trim(), customer.phone().trim(),
                 blankToNull(customer.email()), customer.address().trim(), request.discount(), request.deliveryCharge());
+        order.setAdvance(request.advance());
 
         List<Long> imageIds = request.items().stream()
                 .flatMap(i -> i.imageIds() == null ? Stream.<Long>empty() : i.imageIds().stream())
                 .toList();
         Map<Long, StoredFile> images = imageIds.isEmpty() ? Map.of() : files.requireImages(imageIds);
+        Map<Long, StockVariant> variants = stock.requireVariants(request.items().stream().map(OrderItemRequest::variantId).toList());
 
-        order.replaceItems(request.items().stream().map(i -> toItem(i, images)).toList());
+        order.replaceItems(request.items().stream().map(i -> toItem(i, images, variants)).toList());
     }
 
-    private static OrderItem toItem(OrderItemRequest request, Map<Long, StoredFile> images) {
+    static OrderItem toItem(OrderItemRequest request, Map<Long, StoredFile> images, Map<Long, StockVariant> variants) {
         List<StoredFile> itemImages = request.imageIds() == null ? List.of()
                 : request.imageIds().stream().distinct().map(images::get).toList();
-        return new OrderItem(request.productName().trim(), request.productCode().trim().toUpperCase(Locale.ROOT),
+        String code = blankToNull(request.productCode());
+        OrderItem item = new OrderItem(request.productName().trim(), code == null ? null : code.toUpperCase(Locale.ROOT),
                 blankToNull(request.description()), blankToNull(request.color()), blankToNull(request.size()),
                 request.unitPrice(), request.quantity(), itemImages);
+        if (request.variantId() != null) {
+            StockVariant variant = variants.get(request.variantId());
+            item.useVariant(variant.getId(), variant.getName());
+        }
+        return item;
     }
 
-    private String resolveOrderNumber(String requested, long excludeId) {
+    String resolveOrderNumber(String requested, long excludeId) {
         if (requested != null && !requested.isBlank()) {
             String number = requested.trim().toUpperCase(Locale.ROOT);
             if (orders.orderNumberTaken(number, excludeId)) {

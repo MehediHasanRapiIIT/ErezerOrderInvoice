@@ -107,6 +107,8 @@ class OrderApiIntegrationTest extends IntegrationTest {
     @Test
     void statusFlowEnforcesRulesAndRecordsHistory() throws Exception {
         long id = createOrder(orderJson("", "500", 1, "60", "0"));
+        // Ordinary staff follow the flow; admins (and staff allowed to change status freely) are not limited by it.
+        statusBearer = bearer(Role.MODERATOR, Permission.ORDER_VIEW, Permission.ORDER_STATUS_UPDATE);
 
         changeStatus(id, "{\"status\":\"RETURNED\"}")
                 .andExpect(status().isConflict())
@@ -223,8 +225,11 @@ class OrderApiIntegrationTest extends IntegrationTest {
         return ((Number) read(result, "$.id")).longValue();
     }
 
+    /** Who changes the status in {@link #changeStatus}; the admin unless a test sets ordinary staff. */
+    private String statusBearer;
+
     private org.springframework.test.web.servlet.ResultActions changeStatus(long id, String json) throws Exception {
-        return mvc.perform(post("/api/orders/" + id + "/status").header("Authorization", admin)
+        return mvc.perform(post("/api/orders/" + id + "/status").header("Authorization", statusBearer != null ? statusBearer : admin)
                 .contentType(MediaType.APPLICATION_JSON).content(json));
     }
 

@@ -17,12 +17,26 @@ public enum Permission {
     ORDER_CREATE("Orders", "Create orders", false),
     ORDER_EDIT("Orders", "Edit orders", false),
     ORDER_STATUS_UPDATE("Orders", "Update order status", false),
+    ORDER_STATUS_OVERRIDE("Orders", "Change status freely (any status, any time)", false),
+    ORDER_NOTE_ADD("Orders", "Add internal notes", false),
+    ORDER_COURIER_COST("Orders", "Record the courier cost", false),
     ORDER_DELETE("Orders", "Delete orders", false),
+    EXCHANGE_CREATE("Orders", "Create exchanges", false),
+    RETURN_CREATE("Orders", "Create returns", false),
 
     EXPENSE_VIEW("Expenses", "View expenses", false),
     EXPENSE_CREATE("Expenses", "Add expenses", false),
     EXPENSE_EDIT("Expenses", "Edit expenses", false),
     EXPENSE_DELETE("Expenses", "Delete expenses", false),
+
+    ASSET_VIEW("Assets", "View assets", false),
+    ASSET_MANAGE("Assets", "Add and edit assets", false),
+    ASSET_DELETE("Assets", "Delete assets", false),
+
+    SALES_VIEW("Sold products", "View sold products", false),
+
+    STOCK_VIEW("Stock", "View stock", false),
+    STOCK_MANAGE("Stock", "Add and update stock", false),
 
     CUSTOMER_VIEW("Customers", "View customers", false),
     CUSTOMER_EXPORT("Customers", "Export customers", false),

@@ -7,8 +7,18 @@
     <div class="flex flex-wrap items-start justify-between gap-4">
       <div>
         <div class="flex flex-wrap items-center gap-3">
-          <h1 class="page-title">Order {{ o.orderNumber }}</h1>
+          <h1 class="page-title">{{ o.orderType === 'EXCHANGE' ? 'Exchange' : 'Order' }} {{ o.orderNumber }}</h1>
           <app-status-badge [status]="o.status" />
+          @if (o.exchange; as ex) {
+            <a [routerLink]="['/orders', ex.ofOrderId]" class="rounded border border-brand/50 bg-brand/10 px-2 py-0.5 text-xs font-semibold text-brand-light hover:underline">
+              <i class="fas fa-exchange-alt mr-1"></i>Exchange of {{ ex.ofOrderNumber }}
+            </a>
+          }
+          @if (o.partlyReturned) {
+            <span class="rounded border border-amber-500/50 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-300">
+              <i class="fas fa-undo-alt mr-1"></i>Partly returned
+            </span>
+          }
         </div>
         <p class="page-subtitle">
           Created {{ o.createdAt | bdDate: 'd MMM y, h:mm a' }}
@@ -40,6 +50,16 @@
             <i class="fas fa-download"></i>
           </button>
         </div>
+        @if (o.status === 'DELIVERED' && auth.hasPermission('EXCHANGE_CREATE')) {
+          <a routerLink="/orders/exchange" [queryParams]="{ order: o.id }" class="btn-secondary">
+            <i class="fas fa-exchange-alt text-brand-light"></i> Exchange
+          </a>
+        }
+        @if (o.status === 'DELIVERED' && auth.hasPermission('RETURN_CREATE')) {
+          <a routerLink="/orders/return" [queryParams]="{ order: o.id }" class="btn-secondary">
+            <i class="fas fa-undo-alt text-amber-300"></i> Return
+          </a>
+        }
         @if (o.editable && auth.hasPermission('ORDER_EDIT')) {
           <a [routerLink]="['/orders', o.id, 'edit']" class="btn-secondary"><i class="fas fa-pen"></i> Edit Order</a>
         }
@@ -86,7 +106,7 @@
       <div class="space-y-6 lg:col-span-2">
         <!-- Items -->
         <section class="card overflow-hidden">
-          <h2 class="border-b border-line px-5 py-4 font-semibold text-white">Items Ordered</h2>
+          <h2 class="border-b border-line px-5 py-4 font-semibold text-white">{{ o.orderType === 'EXCHANGE' ? 'New items (sent to the customer)' : 'Items Ordered' }}</h2>
           <div class="overflow-x-auto">
             <table class="w-full min-w-[560px] text-sm">
               <thead class="bg-app/60 text-xs uppercase tracking-wider text-slate-400">
@@ -120,7 +140,9 @@
                         </button>
                         <div class="min-w-0">
                           <p class="font-semibold text-white">{{ item.productName }}</p>
-                          <p class="font-mono text-xs text-slate-400">Code: {{ item.productCode }}</p>
+                          @if (item.productCode) {
+                            <p class="font-mono text-xs text-slate-400">Code: {{ item.productCode }}</p>
+                          }
                           @if (item.color || item.size) {
                             <p class="text-xs text-slate-400">{{ item.color }}{{ item.color && item.size ? ' / ' : '' }}{{ item.size }}</p>
                           }
@@ -138,6 +160,26 @@
               </tbody>
             </table>
           </div>
+          @if (o.exchange; as ex) {
+            <dl class="space-y-2 border-t border-line px-5 py-4 text-sm">
+              <div class="flex justify-between text-slate-400"><dt>New items</dt><dd>{{ o.subtotal | taka }}</dd></div>
+              <div class="flex justify-between text-slate-400"><dt>Returned items credit</dt><dd>− {{ ex.credit | taka }}</dd></div>
+              <div class="flex justify-between text-slate-300"><dt>Price difference</dt><dd>{{ ex.priceDifference | taka }}</dd></div>
+              @if (ex.priceDifference < 0) {
+                <div class="flex justify-between" [class]="ex.refund ? 'text-amber-300' : 'text-slate-500'">
+                  <dt>{{ ex.refund ? 'Refund to customer' : 'No refund (customer keeps the difference unpaid)' }}</dt>
+                  <dd>{{ ex.refund ? (ex.refundAmount | taka) : '—' }}</dd>
+                </div>
+              }
+              <div class="flex justify-between text-slate-400">
+                <dt>Exchange delivery</dt>
+                <dd>{{ o.deliveryCharge | taka }} <span class="text-xs">({{ ex.deliveryPaidBy === 'EREZER' ? 'paid by Erezer' : 'paid by customer' }})</span></dd>
+              </div>
+              <div class="flex justify-between border-t border-line pt-3 text-base font-bold text-white">
+                <dt>Rider collects</dt><dd class="text-brand-light">{{ o.total | taka }}</dd>
+              </div>
+            </dl>
+          } @else {
           <dl class="space-y-2 border-t border-line px-5 py-4 text-sm">
             <div class="flex justify-between text-slate-400"><dt>Subtotal</dt><dd>{{ o.subtotal | taka }}</dd></div>
             @if (o.discount > 0) {
@@ -147,10 +189,15 @@
             <div class="flex justify-between border-t border-line pt-3 text-base font-bold text-white">
               <dt>Grand Total</dt><dd class="text-brand-light">{{ o.total | taka }}</dd>
             </div>
+            @if (o.advance > 0) {
+              <div class="flex justify-between text-emerald-300"><dt>Advance paid</dt><dd>− {{ o.advance | taka }}</dd></div>
+              <div class="flex justify-between text-base font-bold text-amber-300"><dt>Due</dt><dd>{{ o.due | taka }}</dd></div>
+            }
             @if (o.status === 'RETURNED') {
               <div class="flex justify-between text-rose-300"><dt>Return delivery charge</dt><dd>{{ o.returnDeliveryCharge | taka }}</dd></div>
             }
           </dl>
+          }
         </section>
 
         <!-- Customer -->
@@ -190,17 +237,181 @@
               <li class="text-sm text-slate-500">No internal notes yet.</li>
             }
           </ul>
-          @if (auth.hasAnyPermission(['ORDER_EDIT', 'ORDER_STATUS_UPDATE'])) {
+          @if (auth.hasPermission('ORDER_NOTE_ADD')) {
             <form [formGroup]="noteForm" (ngSubmit)="submitNote()" class="mt-4 flex gap-2">
               <input formControlName="body" class="field" placeholder="Add a note (Enter to save)" maxlength="2000" aria-label="New note" />
               <button type="submit" class="btn-primary shrink-0" [disabled]="noteForm.invalid || savingNote()">Add note</button>
             </form>
           }
         </section>
+
+        <!-- Courier cost (internal) -->
+        @let cc = o.courierCost;
+        <section class="card p-5">
+          <div class="flex flex-wrap items-baseline justify-between gap-2">
+            <div>
+              <h2 class="font-semibold text-white">Total courier cost</h2>
+              <p class="text-xs text-slate-400">Visible to staff only. Never sent to the customer or printed on the invoice.</p>
+            </div>
+            @if (cc.total != null) {
+              <p class="text-2xl font-bold text-white">{{ cc.total | taka }}</p>
+            }
+          </div>
+          @if (!cc.applicable && cc.courierCharge == null) {
+            <p class="mt-4 text-sm text-slate-500">Not shipped yet. You can already record the courier charge if you know it.</p>
+          }
+          @if (cc.applicable || cc.courierCharge != null) {
+            <dl class="mt-4 space-y-1.5 text-sm">
+              <div class="flex justify-between text-slate-300">
+                <dt>{{ cc.refused ? 'Courier charge (delivery + return)' : 'Courier charge' }}</dt>
+                <dd>
+                  @if (cc.courierCharge != null) {
+                    {{ cc.courierCharge | taka }}
+                  } @else {
+                    {{ (cc.refused ? o.deliveryCharge + cc.returnDeliveryCharge : o.deliveryCharge) | taka }}
+                    <span class="text-xs text-amber-300">(estimate)</span>
+                  }
+                </dd>
+              </div>
+              @if (o.status === 'RETURNED' && !cc.refused) {
+                <div class="flex justify-between text-slate-300"><dt>Return charge</dt><dd>{{ cc.returnDeliveryCharge | taka }}</dd></div>
+              }
+              <div class="flex justify-between text-slate-500"><dt>Delivery charge collected from the customer</dt>
+                <dd>{{ (o.exchange?.deliveryPaidBy === 'EREZER' ? 0 : o.deliveryCharge) | taka }}</dd></div>
+            </dl>
+            @if (cc.estimated) {
+              <p class="mt-2 text-xs text-amber-300/90"><i class="fas fa-info-circle mr-1"></i>The real charge isn't known yet, so the delivery charge is used.
+                Steadfast fills it in automatically when it reports the parcel; you can also enter it below.</p>
+            }
+          }
+          @if (auth.hasPermission('ORDER_COURIER_COST')) {
+              <form class="mt-4 flex flex-wrap items-end gap-2" (ngSubmit)="saveCourierCost()">
+                <label class="block">
+                  <span class="field-label">{{ cc.refused ? 'Courier charge, both ways (৳)' : 'Courier charge (৳)' }}</span>
+                  <input type="number" min="0" step="0.01" class="field w-40" name="courierCharge" [(ngModel)]="courierChargeInput"
+                         placeholder="Unknown" aria-label="Courier charge" />
+                </label>
+                @if (o.status === 'RETURNED' && !cc.refused) {
+                  <label class="block">
+                    <span class="field-label">Return charge (৳)</span>
+                    <input type="number" min="0" step="0.01" class="field w-36" name="returnCharge" [(ngModel)]="returnChargeInput" aria-label="Return charge" />
+                  </label>
+                }
+                <button type="submit" class="btn-primary" [disabled]="savingCourierCost()">
+                  @if (savingCourierCost()) { <i class="fas fa-circle-notch fa-spin"></i> } Save
+                </button>
+              </form>
+          }
+        </section>
       </div>
 
       <!-- Right column -->
       <div class="space-y-6">
+        @if (o.exchange; as ex) {
+          <section class="card p-5">
+            <h2 class="mb-3 font-semibold text-white"><i class="fas fa-exchange-alt mr-2 text-brand-light"></i>Exchange</h2>
+            <dl class="space-y-2 text-sm">
+              <div class="flex justify-between gap-3"><dt class="text-slate-400">Replaces items of</dt>
+                <dd><a [routerLink]="['/orders', ex.ofOrderId]" class="font-mono text-brand-light hover:underline">{{ ex.ofOrderNumber }}</a></dd></div>
+              <div class="flex justify-between gap-3"><dt class="text-slate-400">Reason</dt><dd class="text-white">{{ ex.reasonLabel }}</dd></div>
+              <div class="flex justify-between gap-3"><dt class="text-slate-400">Delivery paid by</dt>
+                <dd class="text-white">{{ ex.deliveryPaidBy === 'EREZER' ? 'Erezer' : 'Customer' }}</dd></div>
+            </dl>
+            <p class="mb-2 mt-4 text-xs font-semibold uppercase tracking-wider text-slate-400">Rider collects from the customer</p>
+            <ul class="space-y-2 text-sm">
+              @for (r of ex.returnedItems; track $index) {
+                <li class="flex justify-between gap-3 rounded-md bg-white/5 px-3 py-2">
+                  <span class="text-slate-200">{{ r.productName }}{{ r.color && r.size ? ' (' + r.color + ' / ' + r.size + ')' : r.color || r.size ? ' (' + (r.color || r.size) + ')' : '' }} ×{{ r.quantity }}</span>
+                  <span class="text-slate-400">{{ r.credit | taka }}</span>
+                </li>
+              }
+            </ul>
+          </section>
+        }
+        @for (r of activeReturns(); track r.id) {
+          <section class="card p-5">
+            <div class="mb-3 flex items-center justify-between gap-3">
+              <h2 class="font-semibold text-white">
+                <i class="fas fa-undo-alt mr-2 text-amber-300"></i>{{ r.kind === 'REFUSED' ? 'Refused parcel' : 'Return' }}
+              </h2>
+              @if (editingReturn() !== r.id && auth.hasAnyPermission(['RETURN_CREATE', 'ORDER_STATUS_UPDATE'])) {
+                <button type="button" class="cursor-pointer text-xs text-brand-light hover:underline" (click)="editReturn(r)"><i class="fas fa-pen mr-1"></i>Edit</button>
+              }
+            </div>
+            @if (editingReturn() === r.id) {
+              <div class="space-y-3 text-sm">
+                <label class="block">
+                  <span class="field-label">Reason</span>
+                  <select class="field" [(ngModel)]="returnEdit.reason" aria-label="Return reason">
+                    @for (rr of returnReasons; track rr.value) { <option [ngValue]="rr.value">{{ rr.label }}</option> }
+                  </select>
+                </label>
+                <div class="grid grid-cols-2 gap-3">
+                  <label class="block">
+                    <span class="field-label">Return charge (৳)</span>
+                    <input type="number" min="0" step="1" class="field" [(ngModel)]="returnEdit.returnCharge" aria-label="Return charge" />
+                  </label>
+                  <label class="block">
+                    <span class="field-label">Paid by</span>
+                    <select class="field" [(ngModel)]="returnEdit.paidBy" aria-label="Return charge paid by">
+                      <option ngValue="CUSTOMER">Customer</option>
+                      <option ngValue="EREZER">Erezer</option>
+                    </select>
+                  </label>
+                </div>
+                <label class="block">
+                  <span class="field-label">Note</span>
+                  <textarea rows="2" class="field" [(ngModel)]="returnEdit.note" maxlength="1000"></textarea>
+                </label>
+                <div class="flex justify-end gap-2">
+                  <button type="button" class="btn-secondary" (click)="editingReturn.set(null)">Cancel</button>
+                  <button type="button" class="btn-primary" [disabled]="savingReturn()" (click)="saveReturn(r)">
+                    @if (savingReturn()) { <i class="fas fa-circle-notch fa-spin"></i> } Save
+                  </button>
+                </div>
+              </div>
+            } @else {
+              <dl class="space-y-2 text-sm">
+                <div class="flex justify-between gap-3"><dt class="text-slate-400">Reason</dt><dd class="text-white">{{ r.reasonLabel }}</dd></div>
+                <div class="flex justify-between gap-3"><dt class="text-slate-400">Return charge</dt><dd class="text-white">{{ r.returnCharge | taka }}</dd></div>
+                <div class="flex justify-between gap-3"><dt class="text-slate-400">Paid by</dt>
+                  <dd [class]="r.paidBy === 'EREZER' ? 'text-rose-300' : 'text-emerald-300'">{{ r.paidBy === 'EREZER' ? 'Erezer' : 'Customer' }}</dd></div>
+                @if (r.kind === 'AFTER_DELIVERY') {
+                  <div class="flex justify-between gap-3"><dt class="text-slate-400">Products value</dt><dd class="text-white">{{ r.itemsValue | taka }}</dd></div>
+                }
+                <div class="flex justify-between gap-3 border-t border-line pt-2"><dt class="text-slate-400">Refund to customer</dt>
+                  <dd class="font-semibold text-amber-300">{{ r.refundAmount | taka }}</dd></div>
+                <div class="flex justify-between gap-3"><dt class="text-slate-400">Back in stock</dt><dd class="text-white">{{ r.restock ? 'Yes' : 'No (not resellable)' }}</dd></div>
+              </dl>
+              @if (r.items.length) {
+                <p class="mb-2 mt-4 text-xs font-semibold uppercase tracking-wider text-slate-400">Products returned</p>
+                <ul class="space-y-2 text-sm">
+                  @for (i of r.items; track $index) {
+                    <li class="flex justify-between gap-3 rounded-md bg-white/5 px-3 py-2">
+                      <span class="text-slate-200">{{ i.productName }}{{ i.color && i.size ? ' (' + i.color + ' / ' + i.size + ')' : i.color || i.size ? ' (' + (i.color || i.size) + ')' : '' }} ×{{ i.quantity }}</span>
+                      <span class="text-slate-400">{{ i.credit | taka }}</span>
+                    </li>
+                  }
+                </ul>
+              }
+              @if (r.note) { <p class="mt-3 text-xs text-slate-400"><i class="fas fa-sticky-note mr-1"></i>{{ r.note }}</p> }
+              <p class="mt-3 text-xs text-slate-500">Recorded {{ r.createdAt | bdDate: 'd MMM y, h:mm a' }}{{ r.createdBy ? ' by ' + r.createdBy.name : '' }}</p>
+            }
+          </section>
+        }
+        @if (o.exchanges.length) {
+          <section class="card p-5">
+            <h2 class="mb-3 font-semibold text-white"><i class="fas fa-exchange-alt mr-2 text-brand-light"></i>Exchanges</h2>
+            <ul class="space-y-2 text-sm">
+              @for (e of o.exchanges; track e.id) {
+                <li class="flex items-center justify-between gap-3">
+                  <a [routerLink]="['/orders', e.id]" class="font-mono text-brand-light hover:underline">{{ e.orderNumber }}</a>
+                  <span class="flex items-center gap-2"><span class="text-xs text-slate-500">{{ e.createdAt | bdDate: 'd MMM y' }}</span><app-status-badge [status]="e.status" /></span>
+                </li>
+              }
+            </ul>
+          </section>
+        }
         @if (shipment(); as sh) {
           <app-shipment-card [shipment]="sh" [canRefresh]="auth.hasAnyPermission(['COURIER_SEND', 'ORDER_STATUS_UPDATE'])"
                              [refreshing]="refreshingShipment()" (refresh)="refreshShipment()" />
@@ -263,9 +474,12 @@
         @if (o.allowedNextStatuses.length && auth.hasPermission('ORDER_STATUS_UPDATE')) {
           <section class="card p-5">
             <h2 class="mb-4 font-semibold text-white">Update Status</h2>
+            @if (o.freeStatusChange) {
+              <p class="-mt-2 mb-3 text-xs text-slate-400"><i class="fas fa-unlock mr-1"></i>You can move this order to any status, at any time.</p>
+            }
             <form [formGroup]="statusForm" (ngSubmit)="submitStatus()" class="space-y-4">
               <label class="block">
-                <span class="field-label">Next status</span>
+                <span class="field-label">{{ o.freeStatusChange ? 'New status' : 'Next status' }}</span>
                 <select formControlName="status" class="field">
                   @for (s of o.allowedNextStatuses; track s) {
                     <option [value]="s">{{ statusLabels[s] }}</option>
@@ -287,6 +501,25 @@
                   <span class="field-label">Return delivery charge</span>
                   <input type="number" min="0" step="0.01" formControlName="returnDeliveryCharge" class="field" placeholder="What the courier charged for the return" />
                 </label>
+                <div class="grid grid-cols-2 gap-3">
+                  <label class="block">
+                    <span class="field-label">Return charge paid by *</span>
+                    <select formControlName="returnPaidBy" class="field" [class.field-invalid]="!statusForm.controls.returnPaidBy.value">
+                      <option value="" disabled>Choose…</option>
+                      <option value="EREZER">Erezer</option>
+                      <option value="CUSTOMER">Customer</option>
+                    </select>
+                  </label>
+                  <label class="block">
+                    <span class="field-label">Reason</span>
+                    <select formControlName="returnReason" class="field">
+                      @for (rr of returnReasons; track rr.value) { <option [value]="rr.value">{{ rr.label }}</option> }
+                    </select>
+                  </label>
+                </div>
+                @if (statusForm.controls.returnPaidBy.value === 'CUSTOMER') {
+                  <p class="-mt-2 text-xs text-slate-400">The customer's share is taken off any refund (for a refused parcel: delivery + return charge, from the advance).</p>
+                }
               }
               <label class="block">
                 <span class="field-label">Note (optional)</span>

@@ -13,16 +13,24 @@ function order(status: OrderStatus, path: OrderStatus[]): OrderDetail {
 describe('buildTimeline', () => {
   it('marks earlier steps done, the current step current and later steps upcoming', () => {
     const steps = buildTimeline(order('PROCESSING', ['PLACED', 'ACCEPTED', 'IN_PRODUCTION', 'PROCESSING']));
+    // 'In production' is retired: an old history entry for it is simply not a step any more.
     expect(steps.map((s) => s.state)).toEqual([
-      'done', 'done', 'done', 'current', 'upcoming', 'upcoming', 'upcoming',
+      'done', 'done', 'current', 'upcoming', 'upcoming', 'upcoming',
     ]);
     expect(steps[0].at).toBe('2026-10-01T10:00:00Z');
   });
 
   it('treats skipped steps as done', () => {
     const steps = buildTimeline(order('SHIPPED', ['PLACED', 'SHIPPED']));
-    expect(steps.slice(0, 5).map((s) => s.state)).toEqual(['done', 'done', 'done', 'done', 'current']);
+    expect(steps.slice(0, 4).map((s) => s.state)).toEqual(['done', 'done', 'done', 'current']);
     expect(steps[1].at).toBeUndefined();
+  });
+
+  it('shows no date on steps still ahead after an order was moved back', () => {
+    const steps = buildTimeline(order('PROCESSING', ['PLACED', 'ACCEPTED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'PROCESSING']));
+    expect(steps.find((s) => s.status === 'PROCESSING')?.state).toBe('current');
+    expect(steps.find((s) => s.status === 'SHIPPED')?.at).toBeUndefined();
+    expect(steps.find((s) => s.status === 'DELIVERED')?.at).toBeUndefined();
   });
 
   it('shows delivered as fully done', () => {

@@ -21,6 +21,22 @@ final class OrderSpecifications {
         return method == null ? null : (root, query, cb) -> cb.equal(root.get("paymentMethod"), method);
     }
 
+    static Specification<Order> balance(OrderQueryService.Balance balance) {
+        if (balance == null) {
+            return null;
+        }
+        return switch (balance) {
+            case ADVANCE -> (root, query, cb) -> cb.greaterThan(root.get("advanceAmount"), java.math.BigDecimal.ZERO);
+            case DUE -> (root, query, cb) -> cb.greaterThan(
+                    cb.diff(root.<java.math.BigDecimal>get("total"), root.<java.math.BigDecimal>get("advanceAmount")),
+                    java.math.BigDecimal.ZERO);
+        };
+    }
+
+    static Specification<Order> type(OrderType type) {
+        return type == null ? null : (root, query, cb) -> cb.equal(root.get("orderType"), type);
+    }
+
     static Specification<Order> createdFrom(Instant from) {
         return from == null ? null : (root, query, cb) -> cb.greaterThanOrEqualTo(root.get("createdAt"), from);
     }

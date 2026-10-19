@@ -13,18 +13,22 @@ import { DATE_RANGES, dateBounds, DateRange } from '../../../shared/date-range';
 import { TakaPipe } from '../../../shared/ui/taka.pipe';
 import { OrderApi } from '../data/order.api';
 import { isEditableStatus, PAYMENT_LABELS, PAYMENT_METHODS, STATUS_LABELS, TAB_STATUSES } from '../data/order-labels';
-import { OrderQuery, OrderStatus, OrderSummary, OrderTab, PaymentMethod } from '../data/order.models';
+import { OrderQuery, OrderStatus, OrderSummary, OrderTab, OrderType, PaymentMethod } from '../data/order.models';
 import { StatusBadge } from '../status-badge';
-import { CourierApi } from '../../courier/courier.api';
+import { CourierApi, SENDABLE_STATUSES, SendResult } from '../../courier/courier.api';
+import { SendToCourierDialog } from '../../courier/send-to-courier-dialog';
+import { showBlobInTab } from '../../../core/http/file-download';
 import { BdDatePipe } from '../../../shared/ui/bd-date.pipe';
 
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 350;
 
 /** Order list. All filter state lives in the URL, so reload, back/forward and shared links keep it. */
+const BALANCE_FILTERS: readonly string[] = ['ADVANCE', 'DUE'];
+
 @Component({
   selector: 'app-order-list-page',
-  imports: [BdDatePipe, RouterLink, HasPermissionDirective, Pagination, StatusBadge, TakaPipe],
+  imports: [BdDatePipe, RouterLink, HasPermissionDirective, Pagination, StatusBadge, TakaPipe, SendToCourierDialog],
   host: { class: 'block pb-20' },
   templateUrl: './order-list-page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -51,19 +55,23 @@ export class OrderListPage {
   protected readonly tab = computed<OrderTab>(() => (this.params().get('tab') === 'history' ? 'history' : 'active'));
   protected readonly search = computed(() => this.params().get('q') ?? '');
   protected readonly status = computed(() => (this.params().get('status') as OrderStatus | null) ?? '');
-  protected readonly payment = computed(() => (this.params().get('payment') as PaymentMethod | null) ?? '');
+  protected readonly payment = computed(() => this.params().get('payment') ?? '');
+  protected readonly type = computed(() => (this.params().get('type') as OrderType | null) ?? '');
   protected readonly range = computed<DateRange>(() => (this.params().get('range') as DateRange | null) ?? 'all');
   protected readonly page = computed(() => Math.max(0, Number(this.params().get('page') ?? 0) || 0));
   protected readonly tabStatuses = computed(() => TAB_STATUSES[this.tab()]);
   protected readonly hasFilters = computed(
-    () => !!this.search() || !!this.status() || !!this.payment() || this.range() !== 'all',
+    () => !!this.search() || !!this.status() || !!this.payment() || !!this.type() || this.range() !== 'all',
   );
 
   private readonly query = computed<OrderQuery>(() => ({
     tab: this.tab(),
     q: this.search() || undefined,
     status: this.status() || undefined,
-    paymentMethod: this.payment() || undefined,
+    // "Advance paid" and "Due" share the payment dropdown but filter by balance.
+    paymentMethod: this.payment() && !BALANCE_FILTERS.includes(this.payment()) ? (this.payment() as PaymentMethod) : undefined,
+    balance: BALANCE_FILTERS.includes(this.payment()) ? (this.payment() as 'ADVANCE' | 'DUE') : undefined,
+    type: this.type() || undefined,
     ...dateBounds(this.range()),
     page: this.page(),
     size: PAGE_SIZE,
@@ -94,6 +102,39 @@ export class OrderListPage {
   private readonly courierAvailability = rxResource({ stream: () => this.courierApi.availability() });
   protected readonly canBulkSend = computed(() => this.auth.hasPermission('COURIER_SEND')
     && this.courierAvailability.hasValue() && this.courierAvailability.value().enabled);
+
+  // ---- Row actions: send one order to Steadfast, print its invoice ----
+  /** The order whose Send to Steadfast preview is open. */
+  protected readonly sendOrderId = signal<number | null>(null);
+  protected readonly printingId = signal<number | null>(null);
+
+  protected isSendable(order: OrderSummary): boolean {
+    return SENDABLE_STATUSES.includes(order.status);
+  }
+
+  protected onSendClosed(result: SendResult | null): void {
+    this.sendOrderId.set(null);
+    if (result) {
+      this.refresh();
+    }
+  }
+
+  protected printInvoice(order: OrderSummary): void {
+    // Open the tab inside the click so pop-up blockers allow it; fill it when the PDF arrives.
+    const tab = window.open('', '_blank');
+    this.printingId.set(order.id);
+    this.api.invoicePdf(order.id).subscribe({
+      next: (blob) => {
+        showBlobInTab(tab, blob, `Invoice_${order.orderNumber}.pdf`);
+        this.printingId.set(null);
+      },
+      error: (err: unknown) => {
+        tab?.close();
+        this.toast.error(errorMessage(err));
+        this.printingId.set(null);
+      },
+    });
+  }
   protected readonly selected = signal<ReadonlySet<number>>(new Set());
   protected readonly selectingAll = signal(false);
   protected readonly allPageSelected = computed(() =>
@@ -166,12 +207,12 @@ export class OrderListPage {
     this.searchTimer = setTimeout(() => this.updateParams({ q: value.trim() || null, page: null }), SEARCH_DEBOUNCE_MS);
   }
 
-  protected setFilter(key: 'status' | 'payment' | 'range', value: string): void {
+  protected setFilter(key: 'status' | 'payment' | 'type' | 'range', value: string): void {
     this.updateParams({ [key]: value && value !== 'all' ? value : null, page: null });
   }
 
   protected clearFilters(): void {
-    this.updateParams({ q: null, status: null, payment: null, range: null, page: null });
+    this.updateParams({ q: null, status: null, payment: null, type: null, range: null, page: null });
   }
 
   protected goToPage(page: number): void {

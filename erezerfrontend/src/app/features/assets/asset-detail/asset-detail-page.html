@@ -1,0 +1,197 @@
+<a routerLink="/assets" class="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white">
+  <i class="fas fa-arrow-left text-xs"></i> Assets
+</a>
+
+@if (resource.error()) {
+  <div class="card mt-6 flex flex-col items-center gap-3 px-6 py-16 text-center">
+    <i class="fas fa-exclamation-triangle text-3xl text-red-400"></i>
+    <p class="text-slate-300">Could not load this asset. It may have been deleted.</p>
+    <a routerLink="/assets" class="btn-secondary">Back to assets</a>
+  </div>
+} @else if (asset(); as a) {
+  <!-- Header -->
+  <div class="flex flex-wrap items-start justify-between gap-4">
+    <div>
+      <div class="flex flex-wrap items-center gap-3">
+        <h1 class="page-title">{{ a.name }}</h1>
+        <span class="rounded-full border px-2.5 py-0.5 text-xs font-medium" [class]="statusClasses[a.status]">{{ a.statusLabel }}</span>
+      </div>
+      <p class="page-subtitle">
+        {{ a.category.name }} · added {{ a.createdAt | bdDate: 'd MMM y' }}{{ a.createdBy ? ' by ' + a.createdBy.name : '' }}
+      </p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <a *appHasPermission="'ASSET_MANAGE'" [routerLink]="['/assets', a.id, 'edit']" class="btn-secondary"><i class="fas fa-pen"></i> Edit</a>
+      <button *appHasPermission="'ASSET_DELETE'" type="button" class="btn-secondary text-red-300" (click)="remove(a)">
+        <i class="fas fa-trash"></i> Delete
+      </button>
+    </div>
+  </div>
+
+  <div class="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
+    <!-- Left: details -->
+    <div class="space-y-6 xl:col-span-2">
+      <section class="card overflow-hidden">
+        <div class="flex flex-col gap-5 p-5 sm:flex-row">
+          @if (a.photo) {
+            <a [href]="a.photo.url" target="_blank" rel="noopener" class="shrink-0">
+              <img [src]="a.photo.url" [alt]="a.name" class="h-40 w-40 rounded-lg border border-line object-cover" />
+            </a>
+          } @else {
+            <div class="flex h-40 w-40 shrink-0 items-center justify-center rounded-lg border border-dashed border-line text-4xl text-slate-600"><i class="fas fa-chair"></i></div>
+          }
+          <dl class="grid flex-1 grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
+            <div><dt class="text-xs text-slate-400">Quantity</dt><dd class="text-white">{{ a.quantity }}</dd></div>
+            <div><dt class="text-xs text-slate-400">Unit cost</dt><dd class="text-white">{{ a.unitCost | taka }}</dd></div>
+            <div><dt class="text-xs text-slate-400">Total cost</dt><dd class="text-lg font-bold text-white">{{ a.totalCost | taka }}</dd></div>
+            <div><dt class="text-xs text-slate-400">Purchased</dt><dd class="text-white">{{ a.purchaseDate | bdDate: 'd MMM y' }}</dd></div>
+            <div><dt class="text-xs text-slate-400">Location</dt><dd class="text-white">{{ a.location ?? '—' }}</dd></div>
+            <div><dt class="text-xs text-slate-400">Serial / model</dt><dd class="font-mono text-white">{{ a.serialNumber ?? '—' }}</dd></div>
+            <div>
+              <dt class="text-xs text-slate-400">Warranty until</dt>
+              <dd>
+                @switch (warrantyState()) {
+                  @case ('expired') { <span class="text-slate-500">{{ a.warrantyUntil | bdDate: 'd MMM y' }} (expired)</span> }
+                  @case ('soon') { <span class="text-amber-300"><i class="fas fa-exclamation-circle mr-1"></i>{{ a.warrantyUntil | bdDate: 'd MMM y' }}</span> }
+                  @case ('valid') { <span class="text-emerald-300">{{ a.warrantyUntil | bdDate: 'd MMM y' }}</span> }
+                  @default { <span class="text-white">—</span> }
+                }
+              </dd>
+            </div>
+            <div><dt class="text-xs text-slate-400">Bought from</dt><dd class="text-white">{{ a.supplier ?? '—' }}</dd></div>
+            <div>
+              <dt class="text-xs text-slate-400">Payment</dt>
+              <dd class="text-white">{{ a.paymentMethod ? paymentLabels[a.paymentMethod] : '—' }}@if (a.reference) { <span class="block font-mono text-xs text-slate-400">{{ a.reference }}</span> }</dd>
+            </div>
+            <div><dt class="text-xs text-slate-400">Spent on repairs</dt><dd class="text-amber-300">{{ a.repairTotal | taka }}</dd></div>
+            @if (a.status === 'SOLD' || a.status === 'DISPOSED') {
+              <div><dt class="text-xs text-slate-400">{{ a.status === 'SOLD' ? 'Sold on' : 'Disposed on' }}</dt><dd class="text-white">{{ a.disposedOn | bdDate: 'd MMM y' }}</dd></div>
+              @if (a.status === 'SOLD') {
+                <div><dt class="text-xs text-slate-400">Sold for</dt><dd class="text-white">{{ a.salePrice | taka }}</dd></div>
+              }
+            }
+            @if (a.receipt; as r) {
+              <div>
+                <dt class="text-xs text-slate-400">Receipt</dt>
+                <dd><a [href]="r.url" target="_blank" rel="noopener" class="text-brand-light hover:underline">
+                  <i class="fas mr-1" [class.fa-file-pdf]="isPdf(r.contentType)" [class.fa-image]="!isPdf(r.contentType)"></i>Open</a></dd>
+              </div>
+            }
+          </dl>
+        </div>
+        @if (a.notes) {
+          <p class="border-t border-line px-5 py-3 text-sm text-slate-300"><i class="fas fa-sticky-note mr-1 text-slate-500"></i>{{ a.notes }}</p>
+        }
+      </section>
+
+      <!-- Repairs -->
+      <section class="card p-5">
+        <div class="mb-3 flex items-center justify-between gap-3">
+          <h2 class="font-semibold text-white"><i class="fas fa-tools mr-2 text-amber-300"></i>Repairs &amp; service</h2>
+          @if (auth.hasPermission('ASSET_MANAGE') && !showRepairForm()) {
+            <button type="button" class="btn-secondary" (click)="showRepairForm.set(true)"><i class="fas fa-plus"></i> Add repair</button>
+          }
+        </div>
+        @if (showRepairForm()) {
+          <div class="mb-4 grid grid-cols-1 gap-3 rounded-lg border border-line p-4 sm:grid-cols-6">
+            <label class="block sm:col-span-2">
+              <span class="field-label">Date</span>
+              <input type="date" class="field" [max]="today" [(ngModel)]="repairForm.date" aria-label="Repair date" />
+            </label>
+            <label class="block sm:col-span-2">
+              <span class="field-label">Cost (৳)</span>
+              <input type="number" min="0" step="1" class="field" [(ngModel)]="repairForm.cost" placeholder="0" aria-label="Repair cost" />
+            </label>
+            <label class="block sm:col-span-6">
+              <span class="field-label">What was done *</span>
+              <input class="field" maxlength="400" [(ngModel)]="repairForm.description" placeholder="e.g. Replaced the power adapter" aria-label="Repair description" />
+            </label>
+            <div class="flex justify-end gap-2 sm:col-span-6">
+              <button type="button" class="btn-secondary" (click)="showRepairForm.set(false)">Cancel</button>
+              <button type="button" class="btn-primary" [disabled]="savingRepair()" (click)="submitRepair(a)">
+                @if (savingRepair()) { <i class="fas fa-circle-notch fa-spin"></i> } Save repair
+              </button>
+            </div>
+            <p class="text-xs text-slate-500 sm:col-span-6">The cost stays with this asset. It is not added to Expenses.</p>
+          </div>
+        }
+        <ul class="space-y-2 text-sm">
+          @for (r of repairs(); track r.id) {
+            <li class="flex items-start justify-between gap-3 rounded-md bg-white/5 px-3 py-2">
+              <div>
+                <p class="text-slate-200">{{ r.description }}</p>
+                <p class="text-xs text-slate-500">{{ r.date | bdDate: 'd MMM y' }}{{ r.createdBy ? ' · ' + r.createdBy.name : '' }}</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="font-semibold text-white">{{ r.cost ?? 0 | taka }}</span>
+                @if (auth.hasPermission('ASSET_MANAGE')) {
+                  <button type="button" class="cursor-pointer rounded p-1.5 text-slate-500 hover:bg-red-500/10 hover:text-red-300" (click)="removeRepair(a, r)" aria-label="Remove repair"><i class="fas fa-times text-xs"></i></button>
+                }
+              </div>
+            </li>
+          } @empty {
+            <li class="text-slate-500">No repairs recorded.</li>
+          }
+        </ul>
+        @if (repairs().length) {
+          <p class="mt-3 flex justify-between border-t border-line pt-3 text-sm"><span class="text-slate-400">Total spent on repairs</span><span class="font-semibold text-amber-300">{{ a.repairTotal | taka }}</span></p>
+        }
+      </section>
+    </div>
+
+    <!-- Right: status + history -->
+    <div class="space-y-6">
+      @if (auth.hasPermission('ASSET_MANAGE')) {
+        <section class="card p-5">
+          <h2 class="mb-4 font-semibold text-white">Change status</h2>
+          <div class="space-y-3">
+            <label class="block">
+              <span class="field-label">New status</span>
+              <select class="field" [(ngModel)]="statusForm.status" aria-label="New status">
+                <option value="" disabled>Choose…</option>
+                @for (s of otherStatuses(); track s) { <option [value]="s">{{ statusLabels[s] }}</option> }
+              </select>
+            </label>
+            <label class="block">
+              <span class="field-label">Date</span>
+              <input type="date" class="field" [max]="today" [(ngModel)]="statusForm.date" aria-label="Status date" />
+            </label>
+            @if (statusForm.status === 'SOLD') {
+              <label class="block">
+                <span class="field-label">Sold for (৳) *</span>
+                <input type="number" min="0" step="1" class="field" [(ngModel)]="statusForm.salePrice" aria-label="Sale price" />
+              </label>
+            }
+            <label class="block">
+              <span class="field-label">Note (optional)</span>
+              <input class="field" maxlength="300" [(ngModel)]="statusForm.note" placeholder="e.g. sent to the repair shop" aria-label="Status note" />
+            </label>
+            @if (statusForm.status === 'SOLD' || statusForm.status === 'DISPOSED') {
+              <p class="text-xs text-slate-400">It leaves the asset value but stays on record (filter Status: All to see it).</p>
+            }
+            <button type="button" class="btn-primary w-full justify-center" [disabled]="savingStatus() || !statusForm.status" (click)="submitStatus(a)">
+              @if (savingStatus()) { <i class="fas fa-circle-notch fa-spin"></i> } Update status
+            </button>
+          </div>
+        </section>
+      }
+
+      <section class="card p-5">
+        <h2 class="mb-4 font-semibold text-white">History</h2>
+        <ol class="space-y-4">
+          @for (e of a.events; track e.id) {
+            <li class="flex gap-3">
+              <span class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/5"><i class="fas text-xs" [class]="eventIcons[e.kind]"></i></span>
+              <div class="min-w-0 text-sm">
+                <p class="text-slate-200">{{ e.description }}@if (e.cost !== undefined && e.cost !== null) { <span class="text-amber-300"> · {{ e.cost | taka }}</span> }</p>
+                <p class="text-xs text-slate-500">{{ e.date | bdDate: 'd MMM y' }}{{ e.createdBy ? ' · ' + e.createdBy.name : '' }}</p>
+              </div>
+            </li>
+          }
+        </ol>
+      </section>
+    </div>
+  </div>
+} @else {
+  <div class="flex justify-center py-24 text-slate-400"><i class="fas fa-circle-notch fa-spin text-2xl"></i></div>
+}

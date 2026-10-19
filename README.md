@@ -107,12 +107,13 @@ The schema is managed only by Flyway (`erezerbackend/src/main/resources/db/migra
 | Total Revenue | Σ order total of orders **delivered** in the period (what customers paid, incl. delivery charge) |
 | Product Revenue | Σ (total − delivery charge) of those orders: product sales after discounts |
 | Total Delivery Charge | Σ delivery charge of those orders. It is collected from the customer and paid to the courier, so it is not profit |
-| Return Revenue | Σ order total of orders **returned** in the period |
+| Return Revenue | Returns **recorded** in the period: the full total of parcels refused at the door, and the products' value of returns after delivery |
 | Return Product Revenue | Σ (total − delivery charge) of those returns |
 | Return Product Delivery Total | Courier cost of those returns: refused at the door → delivery + return charge; returned after delivery → return charge only |
 | Refunds | Product value paid back for returns of orders that had been delivered |
 | Total Expenses | Σ expenses dated in the period |
-| **Net Profit** | Product Revenue − Refunds − Return Product Delivery Total − Expenses |
+| Returned items | Total Returned Items, items whose return charge was **paid by Customer** and **paid by Erezer**, with the charges |
+| **Net Profit** (calculated, not shown as a card) | Product Revenue − Refunds − Return Product Delivery Total − Expenses + return charges recovered from customers on refused parcels |
 
 Rules:
 - A sale belongs to the day it was **delivered** and stays there. If the customer returns it later, the refund and return charge are booked on the return day, so past periods never change.
@@ -120,6 +121,19 @@ Rules:
 - Product cost is not tracked per item. It reaches profit through the expenses you record (fabric, printing, packaging…).
 - The courier's real fee is assumed to equal the delivery charge you set on the order.
 - Changes (▲▼) compare with the period of the same length immediately before. Return rate = returns ÷ (deliveries + parcels refused at the door).
+
+### Assets
+
+**Assets menu:** things the shop owns, such as CCTV, tables, chairs, computers and machines. It is kept **separate from expenses on purpose**: nothing here changes the expense totals, net profit, Sold Products or the dashboard.
+
+- **An asset:** name, category (its own list: Furniture, Electronics, CCTV & Security, Machines, Tools, Other; admins can add more), quantity × unit cost = total cost, purchase date, location, serial / model no., warranty until, bought from, payment and reference, notes, a photo and the receipt (photo or PDF). One row covers identical items ("Plastic chair × 6").
+- **Status:** In use · Under repair · In storage · Damaged · Sold (with the sale price) · Disposed. Sold and disposed assets leave the asset value but stay on record (filter *Status: All*).
+- **Repairs & service:** date, what was done and cost, on the asset's page. The cost stays with the asset ("Spent on repairs") and is **not** an expense. A repair record can be removed; the rest of the history can't.
+- **History:** every add, edit (which fields changed), move between locations, status change and repair, with who did it and when.
+- **List:** a summary strip for the whole shop (asset value, items, under repair, warranty ending within 30 days; the last two filter the list), plus search, status, category, location, warranty and purchase date filters, and Excel export with a total row.
+- **Delete** is a soft delete, like expenses. For things that left the shop, use Sold or Disposed instead.
+- **No depreciation:** value = what was paid.
+- **Permissions:** *View assets*, *Add and edit assets* (includes categories, status changes and repairs) and *Delete assets*. Admins always have all three.
 
 ### Staff management
 
@@ -129,6 +143,112 @@ Rules:
   - A moderator whose permissions changed is silently given a new token with the new permissions; they are not signed out.
 - **Safety rules:** you can't deactivate yourself or remove your own admin role, and the last active admin can't be removed.
 - Signing in updates last-login and lockout data with direct updates that leave the version unchanged, so a staff member signing in never makes an admin's open edit form "stale".
+
+### Sold Products
+
+**Delivered sales by category.** The category is the **product name** on the order, grouped ignoring capitals and extra spaces and shown with its most common spelling. Product name in Add Order suggests names already used, so a category isn't typed three ways.
+
+- **Filters:** delivery date (presets or custom), category and Order ID. **Export** produces an Excel file with a *By category* sheet and an *Orders* sheet.
+- **By category:** orders, pieces, total sale, delivery charge and courier cost, plus a totals row. Click a category to see its orders.
+- **Orders:** one row per order and category, showing Order ID, delivery date, category, pieces, sale, delivery charge and courier cost.
+- **Rules:**
+  - Only **delivered** sales count, the same rule as the dashboard. Returned orders and exchanges are left out, and pieces sent back from a partly returned order are taken off.
+  - Sale = the items' price − their share of the discount, without the delivery charge.
+  - The order's **discount, delivery charge and courier cost are shared by pieces**: 2 tees + 1 cap → the tees carry 2/3. The order's largest category takes the rounding leftover, so the shares add up to the order exactly.
+  - Courier cost = the courier's real charge, or the delivery charge when unknown.
+- **Permission:** *View sold products*.
+
+### Stock
+
+**Stock menu:** variants with how many are in stock. A variant is any name the admin chooses, e.g. *Black* or *Navy Blue - M*.
+- **Adding:** **Add Variant** adds one; **Add Bulk Variant** opens a table of rows to save in one go. Nothing is saved if a name is repeated or already exists, ignoring case.
+- **Updating:** **Update** renames a variant or sets its count, with an optional note. **Bulk Update** works on ticked variants: *Add*, *Remove* or *Set to* for each, and nothing changes if any would drop below 0.
+- **History:** every change, with who made it and the linked order.
+- **Low stock:** a card and a filter for 5 or fewer pieces (`app.stock.low-threshold`).
+
+**Order form:** **Variant** replaces Color. Typing suggests every variant whose name contains the text, with how many are left. Only a variant picked from the list is accepted.
+
+**Stock follows orders automatically:**
+
+| Event | Stock |
+|---|---|
+| Order placed | taken |
+| Quantity edited | moves by the difference |
+| Order cancelled, refused at the door or deleted | given back |
+| Return after delivery | the returned pieces go back, unless *Back in stock* was unticked (defective / damaged) |
+| Exchange created | replacement taken |
+| Exchange delivered | the returned item goes back, unless the reason was *Defective* |
+
+An order needing more than is in stock is refused as a whole ("Only 3 of Black left").
+
+**Implementation:** each order change re-checks how much stock the order should hold against what its history says it holds, and moves only the difference. Orders placed before stock existed never move stock.
+
+**Permissions:** *View stock* and *Add and update stock*. Order takers can search variants without either.
+
+### Order status, notes and courier cost permissions
+
+- **Flow:** Placed → Accepted → Processing → Shipped → Out for delivery → Delivered, plus Cancelled and Returned. *In production* is retired: its orders became Processing, and old timeline entries still show it.
+- **Change status freely** (`ORDER_STATUS_OVERRIDE`; admins always): move an order to **any** status at any time, backwards and after Cancelled or Delivered.
+  - The change is logged as "Status changed manually".
+  - The delivered/returned/cancelled dates follow the new status, so the dashboard and Sold Products stay right. Moving back before delivery removes the sale; undoing a mistaken return keeps the original delivery date.
+  - Stock follows too; reopening a cancelled order takes stock again, or is refused when there isn't enough.
+  - Before overriding an order booked with Steadfast, the panel warns that Steadfast's own updates may change it again.
+- **Without that permission,** staff with *Update order status* follow the normal forward flow.
+- **Add internal notes** (`ORDER_NOTE_ADD`) and **Record the courier cost** (`ORDER_COURIER_COST`) are separate permissions. Both work on any order, at any time; the courier cost can be entered before shipping. When these were introduced, staff who had *Edit orders* or *Update order status* were given both, so nobody lost access.
+
+### Advance and due
+
+- **On an order:** an optional **Advance** is what the customer paid before delivery (e.g. by bKash). **Due** = total − advance. You can type either one; the other is filled in, and the advance can't exceed the total.
+- **Steadfast:** on cash-on-delivery orders it collects only the **due**.
+- **Invoice:** shows *Advance paid* and *Due*.
+- **Orders list:** shows both under the total. The Payment dropdown filters by **Advance paid** or **Due** (something still to collect).
+- **Excel export:** includes both columns.
+- **Dashboard:** unchanged, because revenue is still booked at delivery for the full total.
+
+### Courier cost (internal)
+
+Every shipped order has a **Total courier cost** panel on its page. It's visible to staff only and never on the invoice.
+
+- **Value used:** the courier's real charge. Steadfast fills it in automatically; staff can enter or correct it, e.g. for other couriers.
+- **When unknown:** the delivery charge stands in, marked *estimate*.
+- **Returns:**
+  - Returned after delivery: the return charge is added.
+  - Refused at the door: the courier's charge covers both ways; when unknown, it's delivery + return.
+- **Dashboard card, Total Courier Cost:** everything paid to couriers in the period. That is the delivery cost of deliveries (exchanges included) plus the courier cost of returns, shown split into delivery and returns.
+
+### Exchanges
+
+An exchange swaps items of a **delivered** order. It is a new order of type *Exchange*, linked to the original. The original order, its invoice and its dashboard figures never change. The exchange goes through production, Send to Steadfast and tracking like any order.
+
+- **Start:** the **Exchange** button beside **Add Order** (find the order by number or phone), or the button on a delivered order's page.
+- **Time limit:** none. A delivered order can be exchanged at any time.
+- **Items:** each item is **Exchange** or **Not included**. Partial quantities are allowed (1 of 2). A unit can be exchanged (or returned) only once; a cancelled exchange, or one refused at the door, frees its units again.
+- **Replacement:** pre-filled with the original product, including its images, so a size change is one edit.
+- **Money:**
+  - **Credit** = what the customer paid for the returned items (the price, less its share of the original discount).
+  - **Price difference** = new items − credit. A positive difference is collected. If the replacement is cheaper, the admin chooses **Refund** or **No refund** each time.
+  - **Delivery paid by Customer / Erezer:** covers only the exchange delivery charge. The reason (Wrong size, Defective, …) suggests who pays.
+  - **Rider collects (COD)** = the positive difference + the delivery charge if the customer pays.
+- **Courier:** the Steadfast note always starts with "EXCHANGE - collect the old item(s): …".
+- **Exchange invoice:** a separate PDF showing the new items, returned items and the summary.
+- **Locking:** exchange orders can't be edited (cancel and recreate them). An order that has exchanges keeps its items locked.
+- **Dashboard:** booked on the exchange's delivery date.
+  - **Total Exchange Items**, plus the items **paid by Customer** and **paid by Erezer**.
+  - Product revenue grows only by the positive difference. Refunds on cheaper exchanges, and Erezer-paid delivery (the courier's real charge when known), reduce net profit.
+- **Permission:** *Create exchanges*, which can be given to moderators.
+
+### Returns
+
+Every return is a **record** on the order (reason, return charge, **Paid by Customer / Erezer**, refund, back in stock or not, items), shown as a *Return* card on the order page and editable afterwards. There is **no time limit**.
+
+- **Return after delivery:** the **Return** button beside **Add Order** (find the order by number or phone), or the button on a delivered order's page.
+  - Tick the products and how many pieces come back. Some products only → the order stays *Delivered* with a **Partly returned** badge; everything → it becomes *Returned*.
+  - The **reason** suggests who pays and whether the pieces can be resold (*Defective* and *Damaged in delivery* don't go back in stock); both stay editable.
+  - **Refund** = the products' value (price less its share of the discount) − the return charge **if the customer pays it**. The delivery charge is not refunded.
+- **Refused at the door:** mark the order **Returned** (or Steadfast does). When marking it by hand, the admin must choose **Return charge paid by** each time; there is no default. Steadfast's automatic updates record Erezer. If the customer pays, their share (delivery + return charge) is kept from any **advance** and the rest refunded.
+- **Undoing:** moving a Returned order to another status cancels its return records; the card disappears and stock follows.
+- **Dashboard:** booked on the day the return is recorded. **Total Returned Items**, plus items **paid by Customer** and **paid by Erezer** with their charges. Erezer-paid charges are a cost; customer-paid charges on refused parcels are recovered and added back to net profit.
+- **Permission:** *Create returns* (moderators can be given it). Correcting a return also works with *Update order status*.
 
 ### Customers
 

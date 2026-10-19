@@ -7,11 +7,13 @@ import java.util.Set;
 /**
  * Order lifecycle. The main flow runs PLACED → … → DELIVERED and may skip steps forward.
  * CANCELLED is possible until the parcel leaves (before SHIPPED); RETURNED only after it has.
+ * Staff with the "change status freely" permission may move an order to any status (see {@link #selectable()}).
  */
 public enum OrderStatus {
 
     PLACED,
     ACCEPTED,
+    /** No longer used (orders in it became PROCESSING); kept so old timeline entries can still be read. */
     IN_PRODUCTION,
     PROCESSING,
     SHIPPED,
@@ -22,12 +24,19 @@ public enum OrderStatus {
 
     /** The happy path, in order. */
     public static final List<OrderStatus> FLOW =
-            List.of(PLACED, ACCEPTED, IN_PRODUCTION, PROCESSING, SHIPPED, OUT_FOR_DELIVERY, DELIVERED);
+            List.of(PLACED, ACCEPTED, PROCESSING, SHIPPED, OUT_FOR_DELIVERY, DELIVERED);
 
     /** Statuses shown under the "History" tab; everything else is "Active". */
     public static final Set<OrderStatus> FINISHED = EnumSet.of(DELIVERED, CANCELLED, RETURNED);
 
     public static final Set<OrderStatus> PENDING = EnumSet.of(PLACED, ACCEPTED, IN_PRODUCTION, PROCESSING);
+
+    /** Every status an order can be put in (all but the retired IN_PRODUCTION). */
+    public static Set<OrderStatus> selectable() {
+        EnumSet<OrderStatus> all = EnumSet.allOf(OrderStatus.class);
+        all.remove(IN_PRODUCTION);
+        return all;
+    }
 
     public static final Set<OrderStatus> IN_TRANSIT = EnumSet.of(SHIPPED, OUT_FOR_DELIVERY);
 
@@ -57,6 +66,6 @@ public enum OrderStatus {
     }
 
     public boolean canMoveTo(OrderStatus target) {
-        return allowedNext().contains(target);
+        return target != IN_PRODUCTION && allowedNext().contains(target);
     }
 }

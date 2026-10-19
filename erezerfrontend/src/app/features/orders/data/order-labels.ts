@@ -1,10 +1,29 @@
 import { PAYMENT_LABELS as BASE_PAYMENT_LABELS, PaymentMethod } from '../../../shared/payment-methods';
-import { OrderStatus, OrderTab } from './order.models';
+import { DeliveryPaidBy, ExchangeReason, OrderStatus, OrderTab, ReturnReason } from './order.models';
 
+export const EXCHANGE_REASONS: { value: ExchangeReason; label: string; suggestedPayer: DeliveryPaidBy }[] = [
+  { value: 'WRONG_SIZE', label: 'Wrong size', suggestedPayer: 'CUSTOMER' },
+  { value: 'DEFECTIVE', label: 'Defective product', suggestedPayer: 'EREZER' },
+  { value: 'WRONG_ITEM_SENT', label: 'Wrong item sent', suggestedPayer: 'EREZER' },
+  { value: 'CHANGED_MIND', label: 'Customer changed mind', suggestedPayer: 'CUSTOMER' },
+  { value: 'OTHER', label: 'Other', suggestedPayer: 'CUSTOMER' },
+];
+
+/** Why products came back: who usually pays the return charge, and whether the pieces can be resold. */
+export const RETURN_REASONS: { value: ReturnReason; label: string; suggestedPayer: DeliveryPaidBy; resellable: boolean }[] = [
+  { value: 'DID_NOT_LIKE', label: "Didn't like it", suggestedPayer: 'CUSTOMER', resellable: true },
+  { value: 'WRONG_SIZE', label: 'Wrong size', suggestedPayer: 'CUSTOMER', resellable: true },
+  { value: 'DEFECTIVE', label: 'Defective product', suggestedPayer: 'EREZER', resellable: false },
+  { value: 'WRONG_ITEM_SENT', label: 'Wrong item sent', suggestedPayer: 'EREZER', resellable: true },
+  { value: 'DAMAGED_IN_DELIVERY', label: 'Damaged in delivery', suggestedPayer: 'EREZER', resellable: false },
+  { value: 'REFUSED', label: 'Refused at the door', suggestedPayer: 'EREZER', resellable: true },
+  { value: 'OTHER', label: 'Other', suggestedPayer: 'CUSTOMER', resellable: true },
+];
+
+/** The order timeline. ('In production' is retired; it only appears in old history entries.) */
 export const STATUS_FLOW: readonly OrderStatus[] = [
   'PLACED',
   'ACCEPTED',
-  'IN_PRODUCTION',
   'PROCESSING',
   'SHIPPED',
   'OUT_FOR_DELIVERY',

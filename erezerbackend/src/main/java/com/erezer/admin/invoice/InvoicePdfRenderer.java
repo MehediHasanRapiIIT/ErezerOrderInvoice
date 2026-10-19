@@ -93,8 +93,17 @@ class InvoicePdfRenderer {
         document.setMargins(MARGIN, MARGIN, MARGIN + ACCENT, FOOTER_SPACE);
 
         document.add(billingBlock(invoice));
+        if (invoice.exchange() != null) {
+            document.add(sectionLabel("NEW ITEMS (SENT TO THE CUSTOMER)"));
+        }
         document.add(itemsTable(invoice));
-        document.add(totalsBlock(invoice));
+        if (invoice.exchange() != null) {
+            document.add(sectionLabel("RETURNED ITEMS (COLLECTED FROM THE CUSTOMER)"));
+            document.add(returnedTable(invoice.exchange()));
+            document.add(exchangeTotals(invoice));
+        } else {
+            document.add(totalsBlock(invoice));
+        }
         if (invoice.courier() != null) {
             Paragraph shipment = new Paragraph(fonts.phrase(
                     "Shipped via " + invoice.courier() + " · Tracking " + invoice.trackingNumber(), 9, false, MUTED));
@@ -170,7 +179,7 @@ class InvoicePdfRenderer {
 
             PdfPCell description = itemCell(null, Element.ALIGN_LEFT, background);
             description.addElement(new Paragraph(fonts.phrase(line.productName(), 10, true, INK)));
-            String details = "Code: " + line.productCode() + (line.variant() == null ? "" : "  ·  " + line.variant());
+            String details = details(line);
             description.addElement(new Paragraph(fonts.phrase(details, 8.5f, false, MUTED)));
             if (line.description() != null) {
                 description.addElement(new Paragraph(fonts.phrase(line.description(), 8.5f, false, MUTED)));
@@ -208,6 +217,71 @@ class InvoicePdfRenderer {
         }
         totalRow(table, "Delivery charge", money(invoice.deliveryCharge()), false, INK);
         totalRow(table, "Grand Total", money(invoice.total()), true, INK);
+        if (invoice.advance() != null && invoice.advance().signum() > 0) {
+            totalRow(table, "Advance paid", "− " + money(invoice.advance()), false, INK);
+            totalRow(table, "Due", money(invoice.total().subtract(invoice.advance())), true, INK);
+        }
+        return table;
+    }
+
+    private Paragraph sectionLabel(String text) {
+        Paragraph p = new Paragraph(spaced(text, 8, true, MUTED, 1.2f));
+        p.setSpacingBefore(14);
+        p.setSpacingAfter(6);
+        return p;
+    }
+
+    private PdfPTable returnedTable(InvoiceData.Exchange exchange) {
+        PdfPTable table = new PdfPTable(new float[] {64, 12, 24});
+        table.setWidthPercentage(100);
+        table.setHeaderRows(1);
+        for (String heading : List.of("ITEM", "QTY", "CREDIT")) {
+            PdfPCell cell = new PdfPCell(fonts.phrase(heading, 8.5f, true, INK));
+            cell.setBackgroundColor(STRIPE);
+            cell.setBorder(Rectangle.BOTTOM);
+            cell.setBorderColor(LINE);
+            cell.setPadding(7);
+            cell.setHorizontalAlignment(heading.equals("ITEM") ? Element.ALIGN_LEFT
+                    : heading.equals("QTY") ? Element.ALIGN_CENTER : Element.ALIGN_RIGHT);
+            table.addCell(cell);
+        }
+        for (InvoiceData.Returned r : exchange.returned()) {
+            PdfPCell item = itemCell(null, Element.ALIGN_LEFT, Color.WHITE);
+            item.addElement(new Paragraph(fonts.phrase(r.description(), 9.5f, true, INK)));
+            if (r.productCode() != null) {
+                item.addElement(new Paragraph(fonts.phrase("Code: " + r.productCode(), 8.5f, false, MUTED)));
+            }
+            table.addCell(item);
+            table.addCell(itemCell(fonts.phrase(String.valueOf(r.quantity()), 9.5f, false, INK), Element.ALIGN_CENTER, Color.WHITE));
+            table.addCell(itemCell(fonts.phrase(money(r.credit()), 9.5f, false, INK), Element.ALIGN_RIGHT, Color.WHITE));
+        }
+        return table;
+    }
+
+    /** New items − returned credit = price difference; delivery by whoever pays it; what the rider collects. */
+    private PdfPTable exchangeTotals(InvoiceData invoice) {
+        InvoiceData.Exchange ex = invoice.exchange();
+        PdfPTable table = new PdfPTable(new float[] {58, 42});
+        table.setWidthPercentage(52);
+        table.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        table.setSpacingBefore(12);
+        table.setKeepTogether(true);
+        totalRow(table, "New items", money(invoice.subtotal()), false, INK);
+        totalRow(table, "Returned items credit", "− " + money(ex.credit()), false, INK);
+        BigDecimal difference = ex.priceDifference();
+        if (difference.signum() >= 0) {
+            totalRow(table, "Price difference", money(difference), false, INK);
+        } else if (ex.refund()) {
+            totalRow(table, "Refund to customer", money(difference.negate()), false, DISCOUNT);
+        } else {
+            totalRow(table, "Price difference (no refund)", money(difference.negate()), false, MUTED);
+        }
+        if (ex.paidByErezer()) {
+            totalRow(table, "Exchange delivery", "Paid by Erezer", false, MUTED);
+        } else {
+            totalRow(table, "Exchange delivery", money(invoice.deliveryCharge()), false, INK);
+        }
+        totalRow(table, "Amount to collect", money(invoice.total()), true, INK);
         return table;
     }
 
@@ -278,7 +352,7 @@ class InvoicePdfRenderer {
         Line line = slot.line();
         String heading = line.number() + ". " + line.productName() + (slot.continued() ? " (continued)" : "");
         ColumnText.showTextAligned(canvas, Element.ALIGN_LEFT, fonts.phrase(heading, 11.5f, true, INK), left, top - 12, 0);
-        String details = "Code: " + line.productCode() + (line.variant() == null ? "" : "  ·  " + line.variant());
+        String details = details(line);
         ColumnText.showTextAligned(canvas, Element.ALIGN_LEFT, fonts.phrase(details, 8.5f, false, MUTED), left, top - 25, 0);
 
         float boxTop = top - 34;
@@ -384,7 +458,8 @@ class InvoicePdfRenderer {
             canvas.addImage(wordmarkImage, markWidth, 0, 0, markHeight, left, top - 30 - markHeight);
             ColumnText.showTextAligned(canvas, Element.ALIGN_LEFT, italic(TAGLINE, 9.5f, SOFT), left, top - 64, 0);
 
-            ColumnText.showTextAligned(canvas, Element.ALIGN_RIGHT, spaced("INVOICE", 24, true, INK, 4),
+            String title = invoice.exchange() == null ? "INVOICE" : "EXCHANGE";
+            ColumnText.showTextAligned(canvas, Element.ALIGN_RIGHT, spaced(title, 24, true, INK, 4),
                     right, top - 48, 0);
             ColumnText.showTextAligned(canvas, Element.ALIGN_RIGHT, fonts.phrase(invoice.orderNumber(), 10, false, SOFT),
                     right, top - 63, 0);
@@ -400,7 +475,9 @@ class InvoicePdfRenderer {
             String[][] cells = {
                     {"ACCEPTED DATE", invoice.acceptedAt() == null ? "Not accepted yet" : DATE.format(invoice.acceptedAt())},
                     {"ORDER DATE", DATE.format(invoice.orderedAt())},
-                    {"PAYMENT", invoice.paymentMethod().toUpperCase(Locale.ENGLISH)}};
+                    invoice.exchange() == null
+                            ? new String[] {"PAYMENT", invoice.paymentMethod().toUpperCase(Locale.ENGLISH)}
+                            : new String[] {"EXCHANGE OF", invoice.exchange().ofOrderNumber()}};
             float x = left;
             canvas.setColorStroke(BAND_RULE);
             canvas.setLineWidth(0.8f);
@@ -472,6 +549,11 @@ class InvoicePdfRenderer {
         cell.setBorder(Rectangle.NO_BORDER);
         cell.setPadding(0);
         return cell;
+    }
+
+    /** "Code: TS-1  ·  Black / M", leaving out whatever the item does not have. */
+    private static String details(Line line) {
+        return String.join("  ·  ", nonBlank(line.productCode() == null ? null : "Code: " + line.productCode(), line.variant()));
     }
 
     static String money(BigDecimal amount) {
