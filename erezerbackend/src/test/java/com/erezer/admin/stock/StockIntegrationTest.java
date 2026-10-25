@@ -148,7 +148,36 @@ class StockIntegrationTest extends IntegrationTest {
     }
 
     @Test
-    void exchangesTakeTheReplacementAndRestockTheReturnedItemUnlessDefective() throws Exception {
+    void cancellingOrDeletingAReturnedOrderDoesNotPutTheReturnedPiecesBack() throws Exception {
+        long v = variant("Navy " + tag, 10);
+        long refused = order(v, 2);
+        setStatus(refused, "{\"status\":\"SHIPPED\",\"courier\":\"X\",\"trackingNumber\":\"T-1\"}");
+        setStatus(refused, "{\"status\":\"RETURNED\",\"returnPaidBy\":\"EREZER\"}");
+        assertThat(quantity(v)).isEqualTo(8);
+        setStatus(refused, "{\"status\":\"CANCELLED\"}");
+        assertThat(quantity(v)).isEqualTo(8);
+
+        long returned = order(v, 1);
+        setStatus(returned, "{\"status\":\"DELIVERED\"}");
+        setStatus(returned, "{\"status\":\"RETURNED\",\"returnPaidBy\":\"CUSTOMER\"}");
+        mvc.perform(delete("/api/orders/" + returned).header("Authorization", admin)).andExpect(status().isNoContent());
+        assertThat(quantity(v)).isEqualTo(7);
+
+        // Partly returned, then cancelled: the piece the customer kept is freed, the one they sent back stays out.
+        long partly = order(v, 2);
+        assertThat(quantity(v)).isEqualTo(5);
+        setStatus(partly, "{\"status\":\"DELIVERED\"}");
+        long itemId = jdbc.sql("select id from order_items where order_id = :id").param("id", partly).query(Long.class).single();
+        mvc.perform(post("/api/orders/" + partly + "/returns").header("Authorization", admin).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"items\":[{\"orderItemId\":%d,\"quantity\":1}],\"reason\":\"WRONG_SIZE\",\"paidBy\":\"CUSTOMER\",\"returnCharge\":60}".formatted(itemId)))
+                .andExpect(status().isCreated());
+        assertThat(quantity(v)).isEqualTo(5);
+        setStatus(partly, "{\"status\":\"CANCELLED\"}");
+        assertThat(quantity(v)).isEqualTo(6);
+    }
+
+    @Test
+    void exchangesTakeTheReplacementButTheReturnedItemDoesNotGoBackIntoStock() throws Exception {
         long black = variant("Black " + tag, 10);
         long white = variant("White " + tag, 10);
         long original = order(black, 2);
@@ -160,16 +189,16 @@ class StockIntegrationTest extends IntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON).content(exchangeJson(itemId, white, "WRONG_SIZE")))
                 .andExpect(status().isCreated()).andReturn());
         assertThat(quantity(white)).isEqualTo(9);       // replacement taken
-        assertThat(quantity(black)).isEqualTo(8);       // old item not back until the rider brings it
+        assertThat(quantity(black)).isEqualTo(8);
         setStatus(ex, "{\"status\":\"DELIVERED\"}");
-        assertThat(quantity(black)).isEqualTo(9);       // back on the shelf
+        assertThat(quantity(black)).isEqualTo(8);       // what the customer sent back isn't restocked by itself
 
         long defective = id(mvc.perform(post("/api/orders/" + original + "/exchanges").header("Authorization", admin)
                         .contentType(MediaType.APPLICATION_JSON).content(exchangeJson(itemId, white, "DEFECTIVE")))
                 .andExpect(status().isCreated()).andReturn());
         setStatus(defective, "{\"status\":\"DELIVERED\"}");
         assertThat(quantity(white)).isEqualTo(8);
-        assertThat(quantity(black)).isEqualTo(9);       // a defective piece is not restocked
+        assertThat(quantity(black)).isEqualTo(8);
     }
 
     @Test

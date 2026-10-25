@@ -113,8 +113,10 @@ public class OrderService {
         } else {
             order.changeStatus(target, blankToNull(request.note()), userId, clock.instant());
         }
-        if (before == OrderStatus.RETURNED && target != OrderStatus.RETURNED) {
-            returns.cancelActiveReturns(order); // moved out of Returned again: the return no longer stands
+        // Moved out of Returned (e.g. back to Delivered): the return no longer stands. Cancelling a returned order
+        // keeps its return, so the pieces that came back stay out of stock.
+        if (before == OrderStatus.RETURNED && target != OrderStatus.RETURNED && target != OrderStatus.CANCELLED) {
+            returns.cancelActiveReturns(order);
         }
         if (target == OrderStatus.RETURNED) {
             returns.recordWholeReturn(order, request.returnReason(), request.returnDeliveryCharge(), request.returnPaidBy(), userId);

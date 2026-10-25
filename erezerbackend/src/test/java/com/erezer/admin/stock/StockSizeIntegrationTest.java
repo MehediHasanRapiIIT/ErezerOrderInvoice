@@ -184,7 +184,7 @@ class StockSizeIntegrationTest extends IntegrationTest {
     }
 
     @Test
-    void anExchangeForAnotherSizeSwapsTheSizes() throws Exception {
+    void anExchangeForAnotherSizeTakesTheNewSize() throws Exception {
         long white = createVariant("White " + tag, "[{\"sizeId\":%d,\"quantity\":5},{\"sizeId\":%d,\"quantity\":5}]".formatted(m, l));
         long whiteM = item(white, m);
         long whiteL = item(white, l);
@@ -201,7 +201,7 @@ class StockSizeIntegrationTest extends IntegrationTest {
                 .andExpect(status().isCreated()).andReturn());
         assertThat(qty(whiteL)).isEqualTo(4);
         setStatus(ex, "{\"status\":\"DELIVERED\"}");
-        assertThat(qty(whiteM)).isEqualTo(5); // the M came back with the rider
+        assertThat(qty(whiteM)).isEqualTo(4); // the M the customer sent back isn't restocked by itself
     }
 
     // ---- helpers ----

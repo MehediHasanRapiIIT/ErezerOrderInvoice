@@ -127,6 +127,10 @@ public class Order extends AuditableEntity {
     @Column(name = "exchange_reason", length = 30, updatable = false)
     private ExchangeReason exchangeReason;
 
+    /** Delivered before old items stopped going back to stock: those pieces were put back then (see V18). */
+    @Column(name = "exchange_restocked", nullable = false, updatable = false)
+    private boolean exchangeRestocked;
+
     @Column(name = "exchange_returned_summary", length = 500, updatable = false)
     private String exchangeReturnedSummary;
 
@@ -451,6 +455,10 @@ public class Order extends AuditableEntity {
 
     public DeliveryPaidBy getExchangeDeliveryPaidBy() {
         return exchangeDeliveryPaidBy;
+    }
+
+    public boolean isExchangeRestocked() {
+        return exchangeRestocked;
     }
 
     public ExchangeReason getExchangeReason() {

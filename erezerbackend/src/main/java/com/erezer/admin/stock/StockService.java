@@ -51,11 +51,12 @@ import org.springframework.transaction.annotation.Transactional;
  * compares that with what its recorded movements say it holds, then moves only the difference. One rule therefore
  * covers placing, editing, cancelling, returning, deleting and exchanging, and running it twice changes nothing.
  * <ul>
- *   <li>An order holds its items' quantities unless it is cancelled or deleted. Returns (refused parcels and
- *       returns after delivery) do not change stock; staff add resellable pieces back on the Stock page. Returns
- *       recorded before that rule, with {@code restock} set, still count as given back.</li>
- *   <li>An exchange also gives the returned items back once it is delivered (the rider brings them), except for
- *       defective products, which cannot be sold again.</li>
+ *   <li>An order holds its items' quantities unless it is cancelled or deleted.</li>
+ *   <li>Products that come back from a customer never go back into stock by themselves: returns (refused parcels
+ *       and returns after delivery) and the old items of an exchange. Staff add resellable pieces back on the Stock
+ *       page. So a cancelled or deleted order still holds the pieces its returns took back.</li>
+ *   <li>History from before that rule stays as it was: returns recorded with {@code restock}, and exchanges
+ *       delivered with {@code exchange_restocked}, count as given back.</li>
  *   <li>Orders placed before stock existed ({@code stock_tracked = false}) never move stock.</li>
  * </ul>
  * Taking more than is in stock is refused, so the whole order change is rolled back.
@@ -163,6 +164,10 @@ public class StockService {
         boolean wholeBack = restockingItemCounts.stream().anyMatch(n -> n == 0)
                 || (order.getStatus() == OrderStatus.RETURNED && !anyReturn);
         boolean holds = !order.isDeleted() && order.getStatus() != OrderStatus.CANCELLED && !wholeBack;
+        if (!holds && !wholeBack) {
+            // Cancelled or deleted: pieces the customer sent back (returns that still stand) aren't on the shelf.
+            consumedByReturns(order).forEach((itemId, qty) -> desired.merge(itemId, qty, Integer::sum));
+        }
         if (holds) {
             for (OrderItem item : order.getItems()) {
                 if (item.getStockItemId() != null) {
@@ -180,9 +185,9 @@ public class StockService {
                     .query((rs, i) -> Map.entry(rs.getLong(1), rs.getInt(2))).list()
                     .forEach(e -> desired.merge(e.getKey(), -e.getValue(), Integer::sum));
         }
-        if (order.isExchange() && !order.isDeleted() && order.getDeliveredAt() != null
+        if (order.isExchange() && order.isExchangeRestocked() && !order.isDeleted() && order.getDeliveredAt() != null
                 && order.getExchangeReason() != ExchangeReason.DEFECTIVE) {
-            // The old items came back with the rider: they are back on the shelf (a negative holding).
+            // Exchanges delivered before old items stopped being restocked put them back then (a negative holding).
             jdbc.sql("""
                             select oi.stock_item_id, ei.quantity from order_exchange_items ei
                             join order_items oi on oi.id = ei.original_item_id
@@ -231,6 +236,37 @@ public class StockService {
                 apply(e.getKey(), -e.getValue(), reason, order.getId(), order.getOrderNumber(), userId);
             }
         }
+    }
+
+    /** Pieces taken back by the order's returns that still stand and didn't restock, per stock item. */
+    private Map<Long, Integer> consumedByReturns(Order order) {
+        Map<Long, Integer> consumed = new HashMap<>();
+        List<Long> wholeReturns = jdbc.sql("""
+                        select r.id from order_returns r
+                        where r.order_id = :id and r.cancelled_at is null and not r.restock
+                          and not exists (select 1 from order_return_items i where i.return_id = r.id)
+                        """)
+                .param("id", order.getId()).query(Long.class).list();
+        if (!wholeReturns.isEmpty()) {
+            // A whole-order return (refused parcel, or everything sent back): all of the order's pieces.
+            for (OrderItem item : order.getItems()) {
+                if (item.getStockItemId() != null) {
+                    consumed.merge(item.getStockItemId(), item.getQuantity(), Integer::sum);
+                }
+            }
+            return consumed;
+        }
+        jdbc.sql("""
+                        select oi.stock_item_id, sum(ri.quantity) from order_return_items ri
+                        join order_returns r on r.id = ri.return_id
+                        join order_items oi on oi.id = ri.order_item_id
+                        where r.order_id = :id and r.cancelled_at is null and not r.restock and oi.stock_item_id is not null
+                        group by oi.stock_item_id
+                        """)
+                .param("id", order.getId())
+                .query((rs, i) -> Map.entry(rs.getLong(1), rs.getInt(2))).list()
+                .forEach(e -> consumed.merge(e.getKey(), e.getValue(), Integer::sum));
+        return consumed;
     }
 
     // ---- Variants -----------------------------------------------------------------------------------------------

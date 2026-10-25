@@ -184,7 +184,8 @@ Rules:
 | Order cancelled or deleted | given back |
 | Returned (refused at the door or after delivery) | **no change**: add resellable pieces back yourself with Update |
 | Exchange created | replacement taken |
-| Exchange delivered | the returned item goes back, unless the reason was *Defective* |
+| Exchange delivered | **no change**: the item the customer sent back isn't restocked by itself |
+| Returned order later cancelled or deleted | **no change** for the returned pieces (pieces never sent back are freed as usual) |
 
 An order needing more than is in stock is refused as a whole ("Only 3 of Black / M left").
 
