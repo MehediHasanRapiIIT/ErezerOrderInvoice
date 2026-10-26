@@ -43,6 +43,7 @@ export class AssetDetailPage {
   protected readonly paymentLabels = PAYMENT_LABELS;
   protected readonly eventIcons = EVENT_ICONS;
   protected readonly today = isoDate(bdToday());
+  protected readonly canSeeCosts = this.auth.hasPermission('ASSET_COSTS_VIEW');
 
   protected readonly resource = rxResource({ params: () => Number(this.id()), stream: ({ params }) => this.api.get(params) });
   protected readonly asset = computed(() => (this.resource.hasValue() ? this.resource.value() : undefined));
@@ -86,7 +87,7 @@ export class AssetDetailPage {
       this.toast.error('Choose the new status');
       return;
     }
-    if (f.status === 'SOLD' && (f.salePrice === null || `${f.salePrice}` === '' || Number(f.salePrice) < 0)) {
+    if (this.canSeeCosts && f.status === 'SOLD' && (f.salePrice === null || `${f.salePrice}` === '' || Number(f.salePrice) < 0)) {
       this.toast.error('Enter what it was sold for (0 if given away)');
       return;
     }
@@ -95,7 +96,7 @@ export class AssetDetailPage {
       .changeStatus(a.id, {
         status: f.status,
         date: f.date,
-        salePrice: f.status === 'SOLD' ? Number(f.salePrice) : null,
+        salePrice: f.status === 'SOLD' && this.canSeeCosts ? Number(f.salePrice) : null,
         note: f.note.trim() || null,
       })
       .subscribe({

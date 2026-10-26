@@ -40,20 +40,26 @@ public class AssetService {
         this.clock = clock;
     }
 
+    /** @param costs the user may see costs (otherwise the cost is left at 0) */
     @Transactional
-    public long create(AssetRequest request, long userId) {
+    public long create(AssetRequest request, long userId, boolean costs) {
         AssetStatus status = request.status() == null ? AssetStatus.IN_USE : request.status();
         if (!status.owned()) {
             throw ApiException.badRequest("INVALID_STATUS", "Add the asset first, then mark it sold or disposed");
         }
-        Asset asset = assets.save(new Asset(details(request, activeCategory(request.categoryId())), status));
+        if (costs && request.unitCost() == null) {
+            throw ApiException.badRequest("COST_REQUIRED", "Enter what one piece cost (0 if it was a gift)");
+        }
+        BigDecimal unitCost = costs ? request.unitCost() : BigDecimal.ZERO;
+        Asset asset = assets.save(new Asset(details(request, activeCategory(request.categoryId()), unitCost), status));
         log(asset, AssetEventKind.CREATED, request.purchaseDate(), "Added · " + asset.getQuantity() + " × "
                 + taka(asset.getUnitCost()) + " = " + taka(asset.getTotalCost()) + " · " + status.label(), null, userId);
         return asset.getId();
     }
 
+    /** @param costs the user may see costs (otherwise the cost stays as it is) */
     @Transactional
-    public void update(long id, AssetRequest request, long userId) {
+    public void update(long id, AssetRequest request, long userId, boolean costs) {
         Asset asset = load(id);
         if (request.version() == null || request.version() != asset.getVersion()) {
             throw ApiException.conflict("STALE_DATA", "This asset was changed by someone else. Reload and try again.");
@@ -62,7 +68,14 @@ public class AssetService {
         AssetCategory category = asset.getCategory().getId().equals(request.categoryId())
                 ? asset.getCategory()
                 : activeCategory(request.categoryId());
-        Asset.Details next = details(request, category);
+        BigDecimal unitCost = costs && request.unitCost() != null ? request.unitCost() : asset.getUnitCost();
+        Asset.Details next = details(request, category, unitCost);
+        if (!costs) {
+            // The receipt shows prices, so these users never see it: keep whatever is attached.
+            next = new Asset.Details(next.name(), next.category(), next.quantity(), next.unitCost(), next.purchaseDate(),
+                    next.supplier(), next.paymentMethod(), next.reference(), next.location(), next.serialNumber(),
+                    next.warrantyUntil(), next.notes(), next.photo(), asset.getReceipt());
+        }
         String oldLocation = asset.getLocation();
         List<String> changed = changes(asset, next);
         asset.update(next);
@@ -76,21 +89,23 @@ public class AssetService {
         }
     }
 
+    /** @param costs the user may see prices (otherwise no sale price is asked or kept) */
     @Transactional
-    public void changeStatus(long id, StatusRequest request, long userId) {
+    public void changeStatus(long id, StatusRequest request, long userId, boolean costs) {
         Asset asset = load(id);
         notInFuture(request.date(), "The date");
-        if (request.status() == AssetStatus.SOLD && request.salePrice() == null) {
+        BigDecimal salePrice = costs ? request.salePrice() : null;
+        if (costs && request.status() == AssetStatus.SOLD && salePrice == null) {
             throw ApiException.badRequest("SALE_PRICE_REQUIRED", "Enter what it was sold for (0 if given away)");
         }
         AssetStatus before = asset.getStatus();
         if (before == request.status()) {
             throw ApiException.badRequest("SAME_STATUS", "The asset is already " + before.label().toLowerCase(Locale.ROOT));
         }
-        asset.changeStatus(request.status(), request.date(), request.salePrice());
+        asset.changeStatus(request.status(), request.date(), salePrice);
         asset.touch(clock.instant());
         String text = before.label() + " → " + request.status().label()
-                + (request.status() == AssetStatus.SOLD ? " for " + taka(request.salePrice()) : "")
+                + (request.status() == AssetStatus.SOLD && salePrice != null ? " for " + taka(salePrice) : "")
                 + (blankToNull(request.note()) == null ? "" : " · " + request.note().trim());
         log(asset, AssetEventKind.STATUS, request.date(), text, null, userId);
     }
@@ -122,12 +137,12 @@ public class AssetService {
         load(id).markDeleted(clock.instant());
     }
 
-    private Asset.Details details(AssetRequest r, AssetCategory category) {
+    private Asset.Details details(AssetRequest r, AssetCategory category, BigDecimal unitCost) {
         notInFuture(r.purchaseDate(), "The purchase date");
         if (r.warrantyUntil() != null && r.warrantyUntil().isBefore(r.purchaseDate())) {
             throw ApiException.badRequest("INVALID_WARRANTY", "The warranty can't end before the purchase date");
         }
-        return new Asset.Details(r.name().trim().replaceAll("\\s+", " "), category, r.quantity(), r.unitCost(),
+        return new Asset.Details(r.name().trim().replaceAll("\\s+", " "), category, r.quantity(), unitCost,
                 r.purchaseDate(), blankToNull(r.supplier()), r.paymentMethod(), blankToNull(r.reference()),
                 blankToNull(r.location()) == null ? null : r.location().trim().replaceAll("\\s+", " "),
                 blankToNull(r.serialNumber()), r.warrantyUntil(), blankToNull(r.notes()), photo(r.photoFileId()),

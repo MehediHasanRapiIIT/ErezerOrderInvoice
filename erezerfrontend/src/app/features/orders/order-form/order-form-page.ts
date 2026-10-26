@@ -11,6 +11,8 @@ import {
 import { Router, RouterLink } from '@angular/router';
 import { catchError, debounceTime, distinctUntilChanged, map, of, startWith, switchMap, tap } from 'rxjs';
 import { AuthService } from '../../../core/auth/auth.service';
+import { fromBdInputValue, toBdInputValue } from '../../../shared/bd-datetime-input';
+import { DateTimePicker } from '../../../shared/ui/date-time-picker';
 import { errorMessage, toProblem } from '../../../core/http/api-error';
 import { ToastService } from '../../../core/notify/toast.service';
 import { COMPLETE_PHONE_DIGITS, phoneKey } from '../../../shared/phone';
@@ -52,7 +54,7 @@ let nextKey = 1;
 /** Create (/orders/new) and edit (/orders/:id/edit) form. */
 @Component({
   selector: 'app-order-form-page',
-  imports: [BdDatePipe, ReactiveFormsModule, RouterLink, TakaPipe, VariantPicker, SizeField],
+  imports: [BdDatePipe, ReactiveFormsModule, RouterLink, TakaPipe, VariantPicker, SizeField, DateTimePicker],
   templateUrl: './order-form-page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -67,6 +69,8 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
   /** Names already used, suggested in Product name so the same category is not typed differently. */
   protected readonly productNames = toSignal(this.soldProducts.productNames().pipe(catchError(() => of([] as string[]))), { initialValue: [] as string[] });
   private readonly auth = inject(AuthService);
+  /** May choose the order date (admins always). */
+  protected readonly canSetDate = this.auth.hasPermission('ORDER_DATE_EDIT');
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly customers = inject(CustomerApi);
 
@@ -88,6 +92,8 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
 
   protected readonly form = this.fb.group({
     orderNumber: ['', [Validators.maxLength(30), Validators.pattern(ORDER_NUMBER_PATTERN)]],
+    /** Bangladesh date and time of the order; only users allowed to choose it see the field. */
+    orderedAt: [toBdInputValue()],
     paymentMethod: this.fb.control<PaymentMethod>('CASH', Validators.required),
     customer: this.fb.group({
       name: ['', [Validators.required, Validators.maxLength(120)]],
@@ -371,6 +377,7 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
     );
     this.form.patchValue({
       orderNumber: order.orderNumber,
+      orderedAt: toBdInputValue(order.createdAt),
       paymentMethod: order.paymentMethod,
       customer: { ...order.customer, email: order.customer.email ?? '' },
       deliveryCharge: order.deliveryCharge,
@@ -441,6 +448,8 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
     const v = this.form.getRawValue();
     return {
       orderNumber: v.orderNumber.trim() || null,
+      // Only a date the user picked; otherwise a new order is dated when saved and an edited one keeps its date.
+      orderedAt: this.canSetDate && this.form.controls.orderedAt.dirty ? fromBdInputValue(v.orderedAt) : null,
       paymentMethod: v.paymentMethod,
       customer: {
         name: v.customer.name.trim(),

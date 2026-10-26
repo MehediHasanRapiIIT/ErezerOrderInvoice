@@ -43,7 +43,8 @@ public class AssetExportService {
     }
 
     @Transactional(readOnly = true)
-    public byte[] export(AssetFilter filter, Sort sort) {
+    /** @param costs include amounts (otherwise those columns stay empty) */
+    public byte[] export(AssetFilter filter, Sort sort, boolean costs) {
         Page<Asset> page = assets.findAll(filter.toSpecification(), PageRequest.of(0, MAX_ROWS, sort));
         if (page.getTotalElements() > MAX_ROWS) {
             throw ApiException.badRequest("EXPORT_TOO_LARGE", "More than " + MAX_ROWS
@@ -83,8 +84,8 @@ public class AssetExportService {
                 row.createCell(1).setCellValue(a.getName());
                 row.createCell(2).setCellValue(a.getCategory().getName());
                 row.createCell(3).setCellValue(a.getQuantity());
-                moneyCell(row, 4, a.getUnitCost(), money);
-                moneyCell(row, 5, a.getTotalCost(), money);
+                moneyCell(row, 4, costs ? a.getUnitCost() : null, money);
+                moneyCell(row, 5, costs ? a.getTotalCost() : null, money);
                 row.createCell(6).setCellValue(a.getStatus().label());
                 text(row, 7, a.getLocation());
                 text(row, 8, a.getSerialNumber());
@@ -92,9 +93,9 @@ public class AssetExportService {
                 text(row, 10, a.getSupplier());
                 text(row, 11, a.getPaymentMethod() == null ? null : a.getPaymentMethod().label());
                 text(row, 12, a.getReference());
-                moneyCell(row, 13, repairs.getOrDefault(a.getId(), BigDecimal.ZERO), money);
+                moneyCell(row, 13, costs ? repairs.getOrDefault(a.getId(), BigDecimal.ZERO) : null, money);
                 dateCell(row, 14, a.getDisposedOn(), date);
-                moneyCell(row, 15, a.getSalePrice(), money);
+                moneyCell(row, 15, costs ? a.getSalePrice() : null, money);
                 text(row, 16, a.getNotes());
                 total = total.add(a.getTotalCost());
                 pieces += a.getQuantity();
@@ -108,7 +109,9 @@ public class AssetExportService {
             qty.setCellValue(pieces);
             qty.setCellStyle(header);
             Cell sum = totalRow.createCell(5);
-            sum.setCellValue(total.doubleValue());
+            if (costs) {
+                sum.setCellValue(total.doubleValue());
+            }
             CellStyle totalStyle = workbook.createCellStyle();
             totalStyle.cloneStyleFrom(header);
             totalStyle.setDataFormat(money.getDataFormat());

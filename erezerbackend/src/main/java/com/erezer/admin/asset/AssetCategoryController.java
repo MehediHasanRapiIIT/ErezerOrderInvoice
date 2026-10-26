@@ -29,28 +29,28 @@ class AssetCategoryController {
 
     /** All categories (active and inactive) with how many assets use each. */
     @GetMapping
-    @PreAuthorize("hasAnyAuthority('ASSET_VIEW', 'ASSET_MANAGE')")
+    @PreAuthorize("hasAnyAuthority('ASSET_VIEW', 'ASSET_CREATE', 'ASSET_MANAGE', 'ASSET_CATEGORIES')")
     List<CategoryResponse> list() {
         return categoryService.list();
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAuthority('ASSET_MANAGE')")
+    @PreAuthorize("hasAuthority('ASSET_CATEGORIES')")
     CategoryResponse create(@Valid @RequestBody CategoryRequest request) {
         return categoryService.create(request);
     }
 
     /** Rename and/or activate/deactivate. */
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('ASSET_MANAGE')")
+    @PreAuthorize("hasAuthority('ASSET_CATEGORIES')")
     ResponseEntity<Void> update(@PathVariable long id, @Valid @RequestBody CategoryRequest request) {
         categoryService.update(id, request);
         return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('ASSET_DELETE')")
+    @PreAuthorize("hasAuthority('ASSET_CATEGORIES')")
     ResponseEntity<Void> delete(@PathVariable long id) {
         categoryService.delete(id);
         return ResponseEntity.noContent().build();

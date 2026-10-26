@@ -56,7 +56,7 @@ class StaffController {
 
     @PostMapping
     ResponseEntity<StaffResponse> create(@Valid @RequestBody CreateStaffRequest request) {
-        StaffResponse created = staffService.create(request);
+        StaffResponse created = staffService.create(request, CurrentUser.id());
         return ResponseEntity.created(URI.create("/api/staff/" + created.id())).body(created);
     }
 
@@ -94,6 +94,6 @@ class StaffController {
 
     @PostMapping("/{id}/unlock")
     StaffResponse unlock(@PathVariable long id) {
-        return staffService.unlock(id);
+        return staffService.unlock(id, CurrentUser.id());
     }
 }

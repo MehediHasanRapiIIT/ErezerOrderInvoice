@@ -18,10 +18,12 @@ class PermissionController {
     @PreAuthorize("hasAuthority('STAFF_MANAGE')")
     List<PermissionResponse> list() {
         return Arrays.stream(Permission.values())
-                .map(p -> new PermissionResponse(p.name(), p.group(), p.label(), p.adminOnly()))
+                .map(p -> new PermissionResponse(p.name(), p.group(), p.label(), p.adminOnly(),
+                        p.includes().stream().map(Permission::name).toList()))
                 .toList();
     }
 
-    record PermissionResponse(String name, String group, String label, boolean adminOnly) {
+    /** @param includes permissions that come with this one (e.g. "Add and edit assets" includes "View assets") */
+    record PermissionResponse(String name, String group, String label, boolean adminOnly, List<String> includes) {
     }
 }

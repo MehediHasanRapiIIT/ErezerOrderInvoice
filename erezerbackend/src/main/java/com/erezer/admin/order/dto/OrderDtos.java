@@ -46,7 +46,12 @@ public final class OrderDtos {
             @NotEmpty(message = "Add at least one product") @Size(max = 50) List<@Valid OrderItemRequest> items,
             Long version,
             /** Optional: paid before delivery; the due (total − advance) is collected on delivery. */
-            @DecimalMin("0") @DecimalMax("9999999") @Digits(integer = 10, fraction = 2) BigDecimal advance) {
+            @DecimalMin("0") @DecimalMax("9999999") @Digits(integer = 10, fraction = 2) BigDecimal advance,
+            /**
+             * Optional order date (needs "Choose or change the order date"); when missing, a new order is dated now
+             * and an edited one keeps its date.
+             */
+            Instant orderedAt) {
     }
 
     public record CustomerRequest(
@@ -228,7 +233,34 @@ public final class OrderDtos {
             /** Returns of this order, newest first (cancelled ones included, marked inactive). */
             List<ReturnView> returns,
             /** Delivered, with some products sent back. */
-            boolean partlyReturned) {
+            boolean partlyReturned,
+            /** When it was delivered (the day its sale counts on); null if never delivered. */
+            Instant deliveredAt) {
+    }
+
+    /** Set the delivered date by hand. */
+    public record DeliveredDateRequest(@NotNull Instant deliveredAt) {
+    }
+
+    public enum DateField {
+        ORDER,
+        DELIVERED
+    }
+
+    /**
+     * Move several orders to one day (Bangladesh time).
+     *
+     * @param time when missing, each order keeps its own time of day
+     */
+    public record BulkDateRequest(
+            @NotEmpty @Size(max = 500) List<@NotNull Long> ids,
+            @NotNull DateField field,
+            @NotNull java.time.LocalDate date,
+            java.time.LocalTime time) {
+    }
+
+    /** @param skipped orders left as they were, with why ("EZ-1: not delivered yet") */
+    public record BulkDateResult(int changed, List<String> skipped) {
     }
 
     /** On an exchange order: what it replaces and how the money works out. */

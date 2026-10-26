@@ -60,7 +60,7 @@ export class AssetCategoriesDialog {
   private readonly toast = inject(ToastService);
   private readonly auth = inject(AuthService);
 
-  protected readonly canDelete = this.auth.hasPermission('ASSET_DELETE');
+  protected readonly canDelete = this.auth.hasPermission('ASSET_CATEGORIES');
   protected readonly categories = rxResource({ stream: () => this.api.categories() });
   protected readonly editingId = signal<number | null>(null);
   protected readonly busy = signal(false);

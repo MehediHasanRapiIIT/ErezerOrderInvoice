@@ -89,7 +89,7 @@ public class User extends AuditableEntity {
         }
         EnumSet<Permission> result = EnumSet.noneOf(Permission.class);
         permissions.stream().filter(p -> !p.adminOnly()).forEach(result::add);
-        return result;
+        return Permission.withIncluded(result);
     }
 
     public void replacePermissions(Collection<Permission> newPermissions) {

@@ -54,7 +54,7 @@
   <section class="card mt-6 overflow-hidden">
     <h2 class="border-b border-line px-5 py-4 font-semibold text-white">By category <span class="text-sm font-normal text-slate-400">· click a category to see its orders</span></h2>
     <div class="overflow-x-auto">
-      <table class="w-full min-w-[760px] text-left text-sm">
+      <table class="phone-cards w-full min-w-[760px] text-left text-sm">
         <thead class="bg-app/60 text-xs uppercase tracking-wider text-slate-400">
           <tr><th class="px-5 py-3">Category</th><th class="px-4 py-3 text-right">Orders</th><th class="px-4 py-3 text-right">Pieces</th>
             <th class="px-4 py-3 text-right">Total sale</th><th class="px-4 py-3 text-right">Delivery charge</th><th class="px-5 py-3 text-right">Courier cost</th></tr>
@@ -66,11 +66,11 @@
                 <p class="font-semibold text-white">{{ c.category }}</p>
                 <div class="mt-1 h-1 w-40 rounded-full bg-white/5"><div class="h-1 rounded-full bg-brand" [style.width.%]="share(c.sale)"></div></div>
               </td>
-              <td class="px-4 py-3 text-right text-slate-300">{{ c.orders }}</td>
-              <td class="px-4 py-3 text-right text-slate-300">{{ c.pieces }}</td>
-              <td class="px-4 py-3 text-right font-semibold text-white">{{ c.sale | taka }}</td>
-              <td class="px-4 py-3 text-right text-slate-300">{{ c.deliveryCharge | taka }}</td>
-              <td class="px-5 py-3 text-right text-slate-300">{{ c.courierCost | taka }}</td>
+              <td class="cell-inline px-4 py-3 text-right text-slate-300" data-label="Orders">{{ c.orders }}</td>
+              <td class="cell-inline px-4 py-3 text-right text-slate-300" data-label="Pieces">{{ c.pieces }}</td>
+              <td class="cell-inline px-4 py-3 text-right font-semibold text-white" data-label="Total sale">{{ c.sale | taka }}</td>
+              <td class="cell-inline px-4 py-3 text-right text-slate-300" data-label="Delivery">{{ c.deliveryCharge | taka }}</td>
+              <td class="cell-inline px-5 py-3 text-right text-slate-300" data-label="Courier cost">{{ c.courierCost | taka }}</td>
             </tr>
           } @empty {
             <tr><td colspan="6" class="px-5 py-12 text-center text-slate-400">
@@ -80,8 +80,8 @@
         </tbody>
         @if (categories().length > 1 && totals(); as t) {
           <tfoot class="border-t-2 border-line bg-app/40 font-semibold text-white">
-            <tr><td class="px-5 py-3">Total</td><td class="px-4 py-3 text-right">{{ t.orders }}</td><td class="px-4 py-3 text-right">{{ t.pieces }}</td>
-              <td class="px-4 py-3 text-right">{{ t.sale | taka }}</td><td class="px-4 py-3 text-right">{{ t.deliveryCharge | taka }}</td><td class="px-5 py-3 text-right">{{ t.courierCost | taka }}</td></tr>
+            <tr><td class="px-5 py-3">Total</td><td class="cell-inline px-4 py-3 text-right" data-label="Orders">{{ t.orders }}</td><td class="cell-inline px-4 py-3 text-right" data-label="Pieces">{{ t.pieces }}</td>
+              <td class="cell-inline px-4 py-3 text-right" data-label="Total sale">{{ t.sale | taka }}</td><td class="cell-inline px-4 py-3 text-right" data-label="Delivery">{{ t.deliveryCharge | taka }}</td><td class="cell-inline px-5 py-3 text-right" data-label="Courier cost">{{ t.courierCost | taka }}</td></tr>
           </tfoot>
         }
       </table>
@@ -93,7 +93,7 @@
 <section class="card mt-6 overflow-hidden">
   <h2 class="border-b border-line px-5 py-4 font-semibold text-white">{{ category() ? selectedName() + ': orders' : 'Orders' }}</h2>
   <div class="overflow-x-auto">
-    <table class="w-full min-w-[820px] text-left text-sm">
+    <table class="phone-cards w-full min-w-[820px] text-left text-sm">
       <thead class="bg-app/60 text-xs uppercase tracking-wider text-slate-400">
         <tr><th class="px-5 py-3">Order ID</th><th class="px-4 py-3">Delivered</th><th class="px-4 py-3">Category</th><th class="px-4 py-3 text-right">Pieces</th>
           <th class="px-4 py-3 text-right">Total sale</th><th class="px-4 py-3 text-right">Delivery charge</th><th class="px-5 py-3 text-right">Courier cost</th></tr>
@@ -102,14 +102,14 @@
         @for (r of rows.hasValue() ? rows.value().content : []; track r.orderId + r.categoryKey) {
           <tr class="hover:bg-white/[0.03]">
             <td class="px-5 py-3"><a [routerLink]="['/orders', r.orderId]" class="font-mono text-xs font-semibold text-brand-light hover:underline">{{ r.orderNumber }}</a></td>
-            <td class="px-4 py-3 text-slate-300">{{ r.deliveredAt | bdDate: 'd MMM y' }}</td>
-            <td class="px-4 py-3">
+            <td class="cell-inline px-4 py-3 text-slate-300" data-label="Delivered">{{ r.deliveredAt | bdDate: 'd MMM y' }}</td>
+            <td class="cell-inline px-4 py-3" data-label="Category">
               <button type="button" class="cursor-pointer text-left text-slate-100 hover:text-brand-light" (click)="setCategory(r.categoryKey)">{{ r.category }}</button>
             </td>
-            <td class="px-4 py-3 text-right text-slate-300">{{ r.pieces }}</td>
-            <td class="px-4 py-3 text-right font-semibold text-white">{{ r.sale | taka }}</td>
-            <td class="px-4 py-3 text-right text-slate-300">{{ r.deliveryCharge | taka }}</td>
-            <td class="px-5 py-3 text-right text-slate-300">{{ r.courierCost | taka }}</td>
+            <td class="cell-inline px-4 py-3 text-right text-slate-300" data-label="Pieces">{{ r.pieces }}</td>
+            <td class="cell-inline px-4 py-3 text-right font-semibold text-white" data-label="Total sale">{{ r.sale | taka }}</td>
+            <td class="cell-inline px-4 py-3 text-right text-slate-300" data-label="Delivery">{{ r.deliveryCharge | taka }}</td>
+            <td class="cell-inline px-5 py-3 text-right text-slate-300" data-label="Courier cost">{{ r.courierCost | taka }}</td>
           </tr>
         } @empty {
           <tr><td colspan="7" class="px-5 py-12 text-center text-slate-400">

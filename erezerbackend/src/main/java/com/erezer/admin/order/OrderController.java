@@ -146,14 +146,14 @@ class OrderController {
     @PostMapping
     @PreAuthorize("hasAuthority('ORDER_CREATE')")
     ResponseEntity<CreatedResponse> create(@Valid @RequestBody OrderRequest request) {
-        long id = orderService.create(request, CurrentUser.id());
+        long id = orderService.create(request, CurrentUser.id(), CurrentUser.has(Permission.ORDER_DATE_EDIT));
         return ResponseEntity.created(URI.create("/api/orders/" + id)).body(new CreatedResponse(id));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('ORDER_EDIT')")
     OrderDetail update(@PathVariable long id, @Valid @RequestBody OrderRequest request) {
-        orderService.update(id, request, CurrentUser.id());
+        orderService.update(id, request, CurrentUser.id(), CurrentUser.has(Permission.ORDER_DATE_EDIT));
         return queryService.detail(id);
     }
 
@@ -165,6 +165,23 @@ class OrderController {
     }
 
     /** Internal courier cost of the order (never on the invoice). */
+    /** Moves the ticked orders (or one, from the list) to a day: their order date or their delivered date. */
+    @PostMapping("/bulk-date")
+    @PreAuthorize("hasAuthority('ORDER_DATE_EDIT')")
+    com.erezer.admin.order.dto.OrderDtos.BulkDateResult bulkDate(
+            @Valid @RequestBody com.erezer.admin.order.dto.OrderDtos.BulkDateRequest request) {
+        return orderService.bulkSetDate(request, CurrentUser.id());
+    }
+
+    /** Sets the delivered date by hand; the sale then counts on that day (dashboard, Sold Products). */
+    @PutMapping("/{id}/delivered-date")
+    @PreAuthorize("hasAuthority('ORDER_DATE_EDIT')")
+    OrderDetail setDeliveredDate(@PathVariable long id,
+            @Valid @RequestBody com.erezer.admin.order.dto.OrderDtos.DeliveredDateRequest request) {
+        orderService.setDeliveredDate(id, request.deliveredAt(), CurrentUser.id());
+        return queryService.detail(id);
+    }
+
     @PutMapping("/{id}/courier-cost")
     @PreAuthorize("hasAuthority('ORDER_COURIER_COST')")
     OrderDetail recordCourierCost(@PathVariable long id,

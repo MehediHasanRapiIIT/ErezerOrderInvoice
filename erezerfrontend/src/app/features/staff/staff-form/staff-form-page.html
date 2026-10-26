@@ -51,6 +51,7 @@
             { value: 'MODERATOR', title: 'Moderator', text: 'Can only do what you tick below.', icon: 'fa-user' },
             { value: 'ADMIN', title: 'Admin', text: 'Can do everything, including managing staff.', icon: 'fa-user-shield' }
           ]; track option.value) {
+            @if (option.value === 'MODERATOR' || actingAsAdmin() || role() === 'ADMIN') {
             <label class="flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition"
                    [class]="role() === option.value ? 'border-brand bg-brand/10' : 'border-line hover:bg-white/5'"
                    [class.cursor-not-allowed]="isSelf()" [class.opacity-60]="isSelf() && role() !== option.value">
@@ -60,6 +61,7 @@
                 <span class="block text-sm text-slate-400">{{ option.text }}</span>
               </span>
             </label>
+            }
           }
         </div>
         @if (isSelf()) {
@@ -75,7 +77,8 @@
             <i class="fas fa-info-circle mr-1"></i> Admins automatically have every permission, including staff management.
           </p>
         } @else {
-          <p class="mt-1 text-sm text-slate-400">Changes apply on the moderator's next action; they don't need to sign in again.</p>
+          <p class="mt-1 text-sm text-slate-400">Changes apply on the moderator's next action; they don't need to sign in again.
+            Permissions to add, edit or delete include seeing that section.</p>
           <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             @for (group of groups(); track group.name) {
               <fieldset class="rounded-lg border border-line p-4">
@@ -87,9 +90,14 @@
                 </legend>
                 <div class="mt-2 space-y-2">
                   @for (p of group.permissions; track p.name) {
-                    <label class="flex cursor-pointer items-center gap-2 text-sm text-slate-300">
-                      <input type="checkbox" class="accent-blue-600" [checked]="isChecked(p.name)" (change)="toggle(p.name)" />
-                      {{ p.label }}
+                    <label class="flex items-center gap-2 text-sm text-slate-300"
+                           [class.cursor-pointer]="!isIncluded(p.name) && canGive(p.name)" [class.opacity-50]="!canGive(p.name) && !isChecked(p.name)"
+                           [title]="!canGive(p.name) ? 'Only permissions you have yourself can be given' : ''">
+                      <input type="checkbox" class="accent-blue-600" [checked]="isChecked(p.name)" (change)="toggle(p.name)"
+                             [disabled]="isIncluded(p.name) || !canGive(p.name)" />
+                      <span>{{ p.label }}
+                        @if (isIncluded(p.name)) { <span class="text-xs text-slate-500">(included)</span> }
+                      </span>
                     </label>
                   }
                 </div>

@@ -206,13 +206,58 @@ class AssetApiIntegrationTest extends IntegrationTest {
         String expensesOnly = bearer(Role.MODERATOR, Permission.EXPENSE_VIEW);
         mvc.perform(get("/api/assets").header("Authorization", expensesOnly)).andExpect(status().isForbidden());
 
-        String manager = bearer(Role.MODERATOR, Permission.ASSET_VIEW, Permission.ASSET_MANAGE);
-        MvcResult created = mvc.perform(post("/api/assets").header("Authorization", manager).contentType(MediaType.APPLICATION_JSON)
+        // One permission per action: adding doesn't allow editing, status changes, repairs, export or deleting.
+        String adder = bearer(Role.MODERATOR, Permission.ASSET_CREATE, Permission.ASSET_COSTS_VIEW);
+        MvcResult created = mvc.perform(post("/api/assets").header("Authorization", adder).contentType(MediaType.APPLICATION_JSON)
                         .content(json("Chair", 1, "500", null, null, null)))
                 .andExpect(status().isCreated())
                 .andReturn();
         Number id = read(created, "$.id");
-        mvc.perform(delete("/api/assets/" + id).header("Authorization", manager)).andExpect(status().isForbidden());
+        mvc.perform(get("/api/assets/" + id).header("Authorization", adder)).andExpect(status().isOk()); // view comes with it
+        mvc.perform(put("/api/assets/" + id).header("Authorization", adder).contentType(MediaType.APPLICATION_JSON)
+                .content(json("Chair", 2, "500", null, null, 0L))).andExpect(status().isForbidden());
+        mvc.perform(post("/api/assets/" + id + "/status").header("Authorization", adder).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\":\"IN_STORAGE\",\"date\":\"" + TODAY + "\"}")).andExpect(status().isForbidden());
+        mvc.perform(post("/api/assets/" + id + "/repairs").header("Authorization", adder).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"date\":\"" + TODAY + "\",\"description\":\"Fix\",\"cost\":10}")).andExpect(status().isForbidden());
+        mvc.perform(get("/api/assets/export.xlsx").header("Authorization", adder)).andExpect(status().isForbidden());
+        mvc.perform(delete("/api/assets/" + id).header("Authorization", adder)).andExpect(status().isForbidden());
+        mvc.perform(post("/api/asset-categories").header("Authorization", adder).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Nope\"}")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void withoutCostsAndHistoryThoseStayHidden() throws Exception {
+        long id = createAsset("Printer", 2, "7500", "Office", null);
+        repair(id, "Toner", "1200");
+        mvc.perform(post("/api/assets/" + id + "/status").header("Authorization", admin).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\":\"SOLD\",\"date\":\"" + TODAY + "\",\"salePrice\":4000}")).andExpect(status().isOk());
+
+        String viewer = bearer(Role.MODERATOR, Permission.ASSET_VIEW);
+        mvc.perform(get("/api/assets/" + id).header("Authorization", viewer))
+                .andExpect(jsonPath("$.unitCost").doesNotExist())
+                .andExpect(jsonPath("$.totalCost").doesNotExist())
+                .andExpect(jsonPath("$.salePrice").doesNotExist())
+                .andExpect(jsonPath("$.repairTotal").doesNotExist())
+                .andExpect(jsonPath("$.events.length()").value(1))               // only the repair record, no history
+                .andExpect(jsonPath("$.events[0].kind").value("REPAIR"))
+                .andExpect(jsonPath("$.events[0].cost").doesNotExist());
+        mvc.perform(get("/api/assets").header("Authorization", viewer).param("status", "ALL").param("categoryId", String.valueOf(categoryId)))
+                .andExpect(jsonPath("$.filteredValue").doesNotExist())
+                .andExpect(jsonPath("$.summary.ownedValue").doesNotExist());
+
+        // History without costs: the lines are there, the amounts aren't.
+        String historian = bearer(Role.MODERATOR, Permission.ASSET_HISTORY_VIEW);
+        mvc.perform(get("/api/assets/" + id).header("Authorization", historian))
+                .andExpect(jsonPath("$.events.length()").value(3))
+                .andExpect(jsonPath("$.events[?(@.kind == 'STATUS')].description").value("In use → Sold for ৳ •••"));
+
+        // Adding without seeing costs: the cost stays 0 until someone who can fills it in.
+        String clerk = bearer(Role.MODERATOR, Permission.ASSET_CREATE);
+        MvcResult created = mvc.perform(post("/api/assets").header("Authorization", clerk).contentType(MediaType.APPLICATION_JSON)
+                        .content(json("Fan", 1, "999", null, null, null)))
+                .andExpect(status().isCreated()).andReturn();
+        mvc.perform(get("/api/assets/" + read(created, "$.id")).header("Authorization", admin)).andExpect(jsonPath("$.unitCost").value(0.0));
     }
 
     private long createCategory(String name) throws Exception {

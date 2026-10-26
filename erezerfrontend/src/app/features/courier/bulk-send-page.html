@@ -25,7 +25,7 @@
 
   <section class="card mt-6 overflow-hidden">
     <div class="overflow-x-auto">
-      <table class="w-full min-w-[720px] text-left text-sm">
+      <table class="phone-cards w-full min-w-[720px] text-left text-sm">
         <thead class="bg-app/60 text-xs uppercase tracking-wider text-slate-400">
           <tr><th class="px-4 py-3">Order</th><th class="px-4 py-3">Customer</th><th class="px-4 py-3 text-right">COD</th><th class="px-4 py-3">Result</th></tr>
         </thead>
@@ -33,9 +33,9 @@
           @for (i of b.items; track i.orderId) {
             <tr>
               <td class="px-4 py-3 font-mono text-xs"><a [routerLink]="['/orders', i.orderId]" class="text-slate-200 hover:text-white">{{ i.orderNumber }}</a></td>
-              <td class="px-4 py-3 text-slate-200">{{ i.customerName }}</td>
-              <td class="px-4 py-3 text-right text-white">{{ i.codAmount | taka }}</td>
-              <td class="px-4 py-3">
+              <td class="cell-inline px-4 py-3 text-slate-200" data-label="Customer">{{ i.customerName }}</td>
+              <td class="cell-inline px-4 py-3 text-right text-white" data-label="COD">{{ i.codAmount | taka }}</td>
+              <td class="px-4 py-3" data-label="Result">
                 @switch (i.status) {
                   @case ('PENDING') { <span class="text-slate-400"><i class="fas fa-clock mr-1"></i>Waiting</span> }
                   @case ('SUCCESS') {
@@ -75,7 +75,7 @@
       </div>
     </div>
     <div class="overflow-x-auto">
-      <table class="w-full min-w-[980px] text-left text-sm">
+      <table class="phone-cards w-full min-w-[980px] text-left text-sm">
         <thead class="bg-app/60 text-xs uppercase tracking-wider text-slate-400">
           <tr>
             <th class="w-10 px-4 py-3"><span class="sr-only">Include</span></th>
@@ -91,7 +91,7 @@
           @for (r of rows(); track r.parcel.orderId) {
             @let p = r.parcel;
             <tr [class.opacity-60]="!p.ready">
-              <td class="px-4 py-3">
+              <td class="cell-check px-4 py-3">
                 <input type="checkbox" class="h-4 w-4 cursor-pointer accent-blue-600" [checked]="r.include" [disabled]="!p.ready"
                        (change)="setInclude(r, $any($event.target).checked)" [attr.aria-label]="'Include ' + p.orderNumber" />
               </td>
@@ -99,20 +99,20 @@
                 <a [routerLink]="['/orders', p.orderId]" class="font-mono text-xs text-slate-200 hover:text-white">{{ p.orderNumber }}</a>
                 <p class="text-xs text-slate-500">{{ paymentLabels[p.paymentMethod] }} · {{ p.orderTotal | taka }}</p>
               </td>
-              <td class="px-4 py-3">
+              <td class="px-4 py-3" data-label="Recipient">
                 <p class="font-semibold text-white">{{ p.recipientName }}</p>
                 <p class="font-mono text-xs text-slate-400">{{ p.recipientPhone }}</p>
                 @if (p.customerHistory && p.customerHistory.returned > 0) {
                   <p class="text-xs text-amber-300"><i class="fas fa-exclamation-triangle mr-1"></i>{{ p.customerHistory.returned }} past return{{ p.customerHistory.returned === 1 ? '' : 's' }}</p>
                 }
               </td>
-              <td class="max-w-xs px-4 py-3 text-xs text-slate-300"><p class="line-clamp-2">{{ p.recipientAddress }}</p></td>
-              <td class="max-w-[14rem] px-4 py-3 text-xs text-slate-400"><p class="line-clamp-2">{{ p.itemDescription }}</p></td>
-              <td class="px-4 py-3 text-right">
+              <td class="max-w-xs px-4 py-3 text-xs text-slate-300" data-label="Address"><p class="line-clamp-2">{{ p.recipientAddress }}</p></td>
+              <td class="max-w-[14rem] px-4 py-3 text-xs text-slate-400" data-label="Items"><p class="line-clamp-2">{{ p.itemDescription }}</p></td>
+              <td class="cell-inline px-4 py-3 text-right" data-label="COD (৳)">
                 <input type="number" min="0" step="0.01" class="field w-28 text-right" [ngModel]="r.cod" (ngModelChange)="setCod(r, $event)"
                        [disabled]="!p.ready" [class.field-invalid]="!validCod(r.cod)" [attr.aria-label]="'COD for ' + p.orderNumber" />
               </td>
-              <td class="px-4 py-3 text-xs">
+              <td class="cell-inline px-4 py-3 text-xs" data-label="Check">
                 @if (p.blockedReason) {
                   <span class="text-slate-400"><i class="fas fa-ban mr-1"></i>{{ p.blockedReason }}{{ p.existingTrackingCode ? ' (' + p.existingTrackingCode + ')' : '' }}</span>
                 } @else if (p.problems.length) {

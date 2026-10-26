@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, signal } from '@angular/core';
+import { CLOSED_MENU, MenuPosition, placeMenu } from '../../../shared/ui/floating-menu';
 import { rxResource, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Params, Router, RouterLink } from '@angular/router';
 import { map } from 'rxjs';
@@ -19,6 +20,10 @@ import { CourierApi, SENDABLE_STATUSES, SendResult } from '../../courier/courier
 import { SendToCourierDialog } from '../../courier/send-to-courier-dialog';
 import { showBlobInTab } from '../../../core/http/file-download';
 import { BdDatePipe } from '../../../shared/ui/bd-date.pipe';
+import { FormsModule } from '@angular/forms';
+import { NgTemplateOutlet } from '@angular/common';
+import { DateTimePicker } from '../../../shared/ui/date-time-picker';
+import { toBdInputValue } from '../../../shared/bd-datetime-input';
 
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 350;
@@ -28,7 +33,7 @@ const BALANCE_FILTERS: readonly string[] = ['ADVANCE', 'DUE'];
 
 @Component({
   selector: 'app-order-list-page',
-  imports: [BdDatePipe, RouterLink, HasPermissionDirective, Pagination, StatusBadge, TakaPipe, SendToCourierDialog],
+  imports: [BdDatePipe, FormsModule, NgTemplateOutlet, RouterLink, HasPermissionDirective, Pagination, StatusBadge, TakaPipe, SendToCourierDialog, DateTimePicker],
   host: { class: 'block pb-20' },
   templateUrl: './order-list-page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -46,6 +51,8 @@ export class OrderListPage {
   protected readonly paymentLabels = PAYMENT_LABELS;
   protected readonly statusLabels = STATUS_LABELS;
   protected readonly openMenuId = signal<number | null>(null);
+  /** Where the open row menu sits on screen (fixed, so the table's scroll box can't cut it off). */
+  protected readonly menuPosition = signal<MenuPosition>(CLOSED_MENU);
   protected readonly exporting = signal(false);
 
   private readonly params = toSignal(this.route.queryParamMap.pipe(map((p) => p)), {
@@ -135,6 +142,69 @@ export class OrderListPage {
       },
     });
   }
+  // ---- Dates: change one from the list, or many at once ----
+  protected readonly canEditDates = this.auth.hasPermission('ORDER_DATE_EDIT');
+  /** Ticking orders is offered for sending to the courier and for changing dates. */
+  protected readonly canSelect = computed(() => this.canBulkSend() || this.canEditDates);
+  protected readonly editingDateId = signal<number | null>(null);
+  protected inlineDate = '';
+  protected readonly savingDate = signal(false);
+  protected readonly bulkDateOpen = signal(false);
+  protected bulkField: 'ORDER' | 'DELIVERED' = 'ORDER';
+  protected bulkDate = '';
+  protected bulkKeepTime = true;
+
+  protected startDateEdit(order: OrderSummary, event: Event): void {
+    event.stopPropagation();
+    this.inlineDate = toBdInputValue(order.createdAt);
+    this.editingDateId.set(order.id);
+  }
+
+  protected saveInlineDate(order: OrderSummary): void {
+    this.applyDate([order.id], 'ORDER', this.inlineDate, false, () => this.editingDateId.set(null));
+  }
+
+  protected openBulkDate(): void {
+    this.bulkField = 'ORDER';
+    this.bulkDate = toBdInputValue();
+    this.bulkKeepTime = true;
+    this.bulkDateOpen.set(true);
+  }
+
+  protected saveBulkDate(): void {
+    this.applyDate([...this.selected()], this.bulkField, this.bulkDate, this.bulkKeepTime, () => {
+      this.bulkDateOpen.set(false);
+      this.clearSelection();
+    });
+  }
+
+  /** @param value "YYYY-MM-DDTHH:mm" (Bangladesh time) */
+  private applyDate(ids: number[], field: 'ORDER' | 'DELIVERED', value: string, keepTime: boolean, done: () => void): void {
+    if (!value) {
+      this.toast.error('Choose the date');
+      return;
+    }
+    this.savingDate.set(true);
+    this.api.bulkDate(ids, field, value.slice(0, 10), keepTime ? null : value.slice(11, 16)).subscribe({
+      next: ({ changed, skipped }) => {
+        this.savingDate.set(false);
+        done();
+        const what = field === 'ORDER' ? 'order date' : 'delivered date';
+        if (changed) this.toast.success(`${changed} ${what}${changed === 1 ? '' : 's'} changed`);
+        if (skipped.length) {
+          this.toast.error(`${skipped.length} left as they were: ${skipped.slice(0, 3).join('; ')}${skipped.length > 3 ? '…' : ''}`);
+        } else if (!changed) {
+          this.toast.info('Nothing to change: the date is the same');
+        }
+        this.refresh();
+      },
+      error: (err: unknown) => {
+        this.savingDate.set(false);
+        this.toast.error(errorMessage(err));
+      },
+    });
+  }
+
   protected readonly selected = signal<ReadonlySet<number>>(new Set());
   protected readonly selectingAll = signal(false);
   protected readonly allPageSelected = computed(() =>
@@ -246,7 +316,12 @@ export class OrderListPage {
 
   protected toggleMenu(id: number, event: Event): void {
     event.stopPropagation();
-    this.openMenuId.set(this.openMenuId() === id ? null : id);
+    if (this.openMenuId() === id) {
+      this.openMenuId.set(null);
+      return;
+    }
+    this.menuPosition.set(placeMenu(event, () => this.openMenuId.set(null), 170));
+    this.openMenuId.set(id);
   }
 
   protected canEdit(order: OrderSummary): boolean {

@@ -72,12 +72,15 @@ class AssetController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "purchaseDate,desc") String sort) {
-        return queryService.search(filter(q, categoryId, status, location, from, to, warranty),
-                PageRequest.of(Math.max(page, 0), Math.clamp(size, 1, MAX_PAGE_SIZE), parseSort(sort)));
+        if ("totalCost".equals(sort.split(",")[0]) && !AssetVisibility.costs()) {
+            sort = "purchaseDate,desc"; // sorting by an amount you can't see would give it away
+        }
+        return AssetVisibility.trim(queryService.search(filter(q, categoryId, status, location, from, to, warranty),
+                PageRequest.of(Math.max(page, 0), Math.clamp(size, 1, MAX_PAGE_SIZE), parseSort(sort))));
     }
 
     @GetMapping("/export.xlsx")
-    @PreAuthorize("hasAuthority('ASSET_VIEW')")
+    @PreAuthorize("hasAuthority('ASSET_EXPORT')")
     ResponseEntity<byte[]> export(
             @RequestParam(required = false) String q,
             @RequestParam(required = false) Long categoryId,
@@ -87,7 +90,8 @@ class AssetController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) String warranty,
             @RequestParam(defaultValue = "purchaseDate,desc") String sort) {
-        byte[] workbook = exportService.export(filter(q, categoryId, status, location, from, to, warranty), parseSort(sort));
+        byte[] workbook = exportService.export(filter(q, categoryId, status, location, from, to, warranty), parseSort(sort),
+                AssetVisibility.costs());
         String fileName = "assets-" + LocalDate.now(appProperties.zoneId()) + ".xlsx";
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
@@ -97,7 +101,7 @@ class AssetController {
 
     /** Locations already used, for the form's suggestions and the filter. */
     @GetMapping("/locations")
-    @PreAuthorize("hasAnyAuthority('ASSET_VIEW', 'ASSET_MANAGE')")
+    @PreAuthorize("hasAnyAuthority('ASSET_VIEW', 'ASSET_CREATE', 'ASSET_MANAGE')")
     List<String> locations() {
         return queryService.locations();
     }
@@ -105,43 +109,43 @@ class AssetController {
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('ASSET_VIEW')")
     AssetResponse get(@PathVariable long id) {
-        return queryService.get(id);
+        return AssetVisibility.trim(queryService.get(id));
     }
 
     @PostMapping
-    @PreAuthorize("hasAuthority('ASSET_MANAGE')")
+    @PreAuthorize("hasAuthority('ASSET_CREATE')")
     ResponseEntity<AssetResponse> create(@Valid @RequestBody AssetRequest request) {
-        long id = assetService.create(request, CurrentUser.id());
-        return ResponseEntity.created(URI.create("/api/assets/" + id)).body(queryService.get(id));
+        long id = assetService.create(request, CurrentUser.id(), AssetVisibility.costs());
+        return ResponseEntity.created(URI.create("/api/assets/" + id)).body(AssetVisibility.trim(queryService.get(id)));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('ASSET_MANAGE')")
     AssetResponse update(@PathVariable long id, @Valid @RequestBody AssetRequest request) {
-        assetService.update(id, request, CurrentUser.id());
-        return queryService.get(id);
+        assetService.update(id, request, CurrentUser.id(), AssetVisibility.costs());
+        return AssetVisibility.trim(queryService.get(id));
     }
 
     /** In use, under repair, in storage, damaged, sold (with the price) or disposed. */
     @PostMapping("/{id}/status")
-    @PreAuthorize("hasAuthority('ASSET_MANAGE')")
+    @PreAuthorize("hasAuthority('ASSET_STATUS')")
     AssetResponse changeStatus(@PathVariable long id, @Valid @RequestBody StatusRequest request) {
-        assetService.changeStatus(id, request, CurrentUser.id());
-        return queryService.get(id);
+        assetService.changeStatus(id, request, CurrentUser.id(), AssetVisibility.costs());
+        return AssetVisibility.trim(queryService.get(id));
     }
 
     @PostMapping("/{id}/repairs")
-    @PreAuthorize("hasAuthority('ASSET_MANAGE')")
+    @PreAuthorize("hasAuthority('ASSET_REPAIRS')")
     AssetResponse addRepair(@PathVariable long id, @Valid @RequestBody RepairRequest request) {
         assetService.addRepair(id, request, CurrentUser.id());
-        return queryService.get(id);
+        return AssetVisibility.trim(queryService.get(id));
     }
 
     @DeleteMapping("/{id}/repairs/{eventId}")
-    @PreAuthorize("hasAuthority('ASSET_MANAGE')")
+    @PreAuthorize("hasAuthority('ASSET_REPAIRS')")
     AssetResponse deleteRepair(@PathVariable long id, @PathVariable long eventId) {
         assetService.deleteRepair(id, eventId);
-        return queryService.get(id);
+        return AssetVisibility.trim(queryService.get(id));
     }
 
     @DeleteMapping("/{id}")

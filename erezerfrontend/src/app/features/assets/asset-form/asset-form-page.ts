@@ -4,6 +4,7 @@ import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angula
 import { Router, RouterLink } from '@angular/router';
 import { catchError, of } from 'rxjs';
 import { errorMessage, toProblem } from '../../../core/http/api-error';
+import { AuthService } from '../../../core/auth/auth.service';
 import { ToastService } from '../../../core/notify/toast.service';
 import { isoDate } from '../../../shared/date-range';
 import { PAYMENT_LABELS, PAYMENT_METHODS, PaymentMethod } from '../../../shared/payment-methods';
@@ -60,11 +61,14 @@ export class AssetFormPage implements OnInit, HasUnsavedChanges {
     initialValue: [] as string[],
   });
 
+  protected readonly canSeeCosts = inject(AuthService).hasPermission('ASSET_COSTS_VIEW');
+
   protected readonly form = this.fb.group({
     name: ['', [Validators.required, Validators.maxLength(120)]],
     categoryId: this.fb.control<number | null>(null, Validators.required),
     quantity: this.fb.control<number | null>(1, [Validators.required, Validators.min(1), Validators.max(100000)]),
-    unitCost: this.fb.control<number | null>(null, [Validators.required, Validators.min(0)]),
+    // Only people who can see costs enter (and must enter) the cost.
+    unitCost: this.fb.control<number | null>(null, this.canSeeCosts ? [Validators.required, Validators.min(0)] : []),
     purchaseDate: [this.today, Validators.required],
     status: this.fb.control<AssetStatus>('IN_USE'),
     location: ['', Validators.maxLength(80)],
@@ -153,7 +157,7 @@ export class AssetFormPage implements OnInit, HasUnsavedChanges {
       name: v.name.trim(),
       categoryId: v.categoryId!,
       quantity: Number(v.quantity),
-      unitCost: Number(v.unitCost),
+      unitCost: this.canSeeCosts ? Number(v.unitCost) : null,
       purchaseDate: v.purchaseDate,
       supplier: v.supplier.trim() || null,
       paymentMethod: v.paymentMethod || null,
@@ -195,7 +199,7 @@ export class AssetFormPage implements OnInit, HasUnsavedChanges {
       name: asset.name,
       categoryId: asset.category.id,
       quantity: asset.quantity,
-      unitCost: asset.unitCost,
+      unitCost: asset.unitCost ?? null,
       purchaseDate: asset.purchaseDate,
       status: asset.status,
       location: asset.location ?? '',

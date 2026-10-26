@@ -36,6 +36,7 @@
         <input type="number" min="1" step="1" formControlName="quantity" class="field" [class.field-invalid]="form.controls.quantity.invalid && form.controls.quantity.touched" />
       </label>
 
+      @if (canSeeCosts) {
       <label class="block sm:col-span-2">
         <span class="field-label">Unit cost (৳) *</span>
         <input type="number" min="0" step="0.01" formControlName="unitCost" class="field font-semibold" placeholder="0.00" [class.field-invalid]="form.controls.unitCost.invalid && form.controls.unitCost.touched" />
@@ -48,6 +49,7 @@
         <span class="field-label">Total cost</span>
         <p class="flex h-10 items-center rounded-md bg-white/5 px-3 text-lg font-bold text-white">{{ total() | taka }}</p>
       </div>
+      }
 
       <label class="block sm:col-span-3">
         <span class="field-label">Purchase date *</span>
@@ -114,7 +116,7 @@
       </label>
 
       <!-- Photo and receipt -->
-      @for (kind of ['photo', 'receipt']; track kind) {
+      @for (kind of (canSeeCosts || !isEdit() ? ['photo', 'receipt'] : ['photo']); track kind) {
         @let file = kind === 'photo' ? photo() : receipt();
         <div class="sm:col-span-3">
           <span class="field-label">{{ kind === 'photo' ? 'Photo' : 'Receipt' }}</span>

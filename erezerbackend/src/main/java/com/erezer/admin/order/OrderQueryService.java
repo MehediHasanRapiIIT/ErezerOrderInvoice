@@ -139,7 +139,8 @@ public class OrderQueryService {
                         order.getStatus() == OrderStatus.RETURNED && order.getDeliveredAt() == null),
                 com.erezer.admin.security.CurrentUser.has(com.erezer.admin.security.Permission.ORDER_STATUS_OVERRIDE),
                 returns, order.getStatus() == OrderStatus.DELIVERED
-                        && returns.stream().anyMatch(r -> r.active() && r.kind() == ReturnKind.AFTER_DELIVERY));
+                        && returns.stream().anyMatch(r -> r.active() && r.kind() == ReturnKind.AFTER_DELIVERY),
+                order.getDeliveredAt());
     }
 
     /** The normal next steps, or every other status for users who may change it freely. */

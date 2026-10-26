@@ -25,7 +25,28 @@
           @if (o.createdBy) {
             by {{ o.createdBy.name }}
           }
+          @if (o.deliveredAt) {
+            · Delivered {{ o.deliveredAt | bdDate: 'd MMM y, h:mm a' }}
+            @if (auth.hasPermission('ORDER_DATE_EDIT') && !editingDelivered()) {
+              <button type="button" class="ml-1 cursor-pointer text-xs text-brand-light hover:underline" (click)="startDeliveredEdit(o.deliveredAt)">
+                <i class="fas fa-pen mr-0.5"></i>Change
+              </button>
+            }
+          }
         </p>
+        @if (editingDelivered() && o.deliveredAt) {
+          <div class="mt-2 flex max-w-xl flex-wrap items-end gap-2 rounded-lg border border-line bg-panel p-3">
+            <div class="min-w-64 flex-1">
+              <span class="field-label">Delivered on</span>
+              <app-date-time-picker [(ngModel)]="deliveredInput" label="Delivered date" />
+            </div>
+            <button type="button" class="btn-primary" [disabled]="savingDelivered()" (click)="saveDelivered(o.id)">
+              @if (savingDelivered()) { <i class="fas fa-circle-notch fa-spin"></i> } Save
+            </button>
+            <button type="button" class="btn-secondary" (click)="editingDelivered.set(false)">Cancel</button>
+            <p class="w-full text-xs text-slate-500">The sale counts on this day in the dashboard and Sold Products.</p>
+          </div>
+        }
       </div>
       <div class="flex flex-wrap gap-2">
         @if (courierActionVisible()) {
@@ -72,31 +93,31 @@
     <!-- Summary cards -->
     <div class="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
       <div class="card flex items-center gap-3 p-4">
-        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-500/15 text-indigo-300 font-bold">৳</span>
+        <span class="hidden h-10 w-10 shrink-0 items-center justify-center rounded-full sm:flex bg-indigo-500/15 text-indigo-300 font-bold">৳</span>
         <div class="min-w-0">
           <p class="text-xs text-slate-400">Total Amount</p>
-          <p class="truncate text-lg font-bold text-white">{{ o.total | taka }}</p>
+          <p class="truncate text-base font-bold text-white sm:text-lg">{{ o.total | taka }}</p>
         </div>
       </div>
       <div class="card flex items-center gap-3 p-4">
-        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-500/15 text-violet-300"><i class="fas fa-credit-card"></i></span>
+        <span class="hidden h-10 w-10 shrink-0 items-center justify-center rounded-full sm:flex bg-violet-500/15 text-violet-300"><i class="fas fa-credit-card"></i></span>
         <div class="min-w-0">
           <p class="text-xs text-slate-400">Payment Method</p>
-          <p class="truncate text-lg font-bold text-white">{{ paymentLabels[o.paymentMethod] }}</p>
+          <p class="truncate text-base font-bold text-white sm:text-lg">{{ paymentLabels[o.paymentMethod] }}</p>
         </div>
       </div>
       <div class="card flex items-center gap-3 p-4">
-        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-orange-500/15 text-orange-300"><i class="fas fa-truck"></i></span>
+        <span class="hidden h-10 w-10 shrink-0 items-center justify-center rounded-full sm:flex bg-orange-500/15 text-orange-300"><i class="fas fa-truck"></i></span>
         <div class="min-w-0">
           <p class="text-xs text-slate-400">Delivery Charge</p>
-          <p class="truncate text-lg font-bold text-white">{{ o.deliveryCharge | taka }}</p>
+          <p class="truncate text-base font-bold text-white sm:text-lg">{{ o.deliveryCharge | taka }}</p>
         </div>
       </div>
       <div class="card flex items-center gap-3 p-4">
-        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300"><i class="fas fa-shopping-bag"></i></span>
+        <span class="hidden h-10 w-10 shrink-0 items-center justify-center rounded-full sm:flex bg-emerald-500/15 text-emerald-300"><i class="fas fa-shopping-bag"></i></span>
         <div class="min-w-0">
           <p class="text-xs text-slate-400">Items</p>
-          <p class="text-lg font-bold text-white">{{ itemCount() }}</p>
+          <p class="text-base font-bold text-white sm:text-lg">{{ itemCount() }}</p>
         </div>
       </div>
     </div>
@@ -108,13 +129,13 @@
         <section class="card overflow-hidden">
           <h2 class="border-b border-line px-5 py-4 font-semibold text-white">{{ o.orderType === 'EXCHANGE' ? 'New items (sent to the customer)' : 'Items Ordered' }}</h2>
           <div class="overflow-x-auto">
-            <table class="w-full min-w-[560px] text-sm">
-              <thead class="bg-app/60 text-xs uppercase tracking-wider text-slate-400">
+            <table class="w-full text-sm md:min-w-[560px]">
+              <thead class="hidden bg-app/60 text-xs uppercase tracking-wider text-slate-400 md:table-header-group">
                 <tr>
                   <th class="px-5 py-3 text-left font-semibold">Product</th>
-                  <th class="px-5 py-3 text-right font-semibold">Unit Price</th>
-                  <th class="px-5 py-3 text-center font-semibold">Qty</th>
-                  <th class="px-5 py-3 text-right font-semibold">Total</th>
+                  <th class="hidden px-5 py-3 text-right font-semibold md:table-cell">Unit Price</th>
+                  <th class="hidden px-5 py-3 text-center font-semibold md:table-cell">Qty</th>
+                  <th class="hidden px-5 py-3 text-right font-semibold md:table-cell">Total</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-line">
@@ -149,12 +170,17 @@
                           @if (item.description) {
                             <p class="mt-1 text-xs text-slate-500">{{ item.description }}</p>
                           }
+                          <!-- Phones: price, quantity and total under the name instead of in their own columns -->
+                          <p class="mt-1 text-sm md:hidden">
+                            <span class="text-slate-400">{{ item.quantity }} × {{ item.unitPrice | taka }} =</span>
+                            <span class="font-semibold text-white">{{ item.lineTotal | taka }}</span>
+                          </p>
                         </div>
                       </div>
                     </td>
-                    <td class="px-5 py-4 text-right text-slate-300">{{ item.unitPrice | taka }}</td>
-                    <td class="px-5 py-4 text-center text-slate-300">{{ item.quantity }}</td>
-                    <td class="px-5 py-4 text-right font-semibold text-white">{{ item.lineTotal | taka }}</td>
+                    <td class="hidden px-5 py-4 text-right text-slate-300 md:table-cell">{{ item.unitPrice | taka }}</td>
+                    <td class="hidden px-5 py-4 text-center text-slate-300 md:table-cell">{{ item.quantity }}</td>
+                    <td class="hidden px-5 py-4 text-right font-semibold text-white md:table-cell">{{ item.lineTotal | taka }}</td>
                   </tr>
                 }
               </tbody>

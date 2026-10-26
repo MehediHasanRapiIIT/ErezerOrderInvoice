@@ -17,6 +17,8 @@ import { CourierApi, SENDABLE_STATUSES, SendResult } from '../../courier/courier
 import { SendToCourierDialog } from '../../courier/send-to-courier-dialog';
 import { ShipmentCard } from '../../courier/shipment-card';
 import { BdDatePipe } from '../../../shared/ui/bd-date.pipe';
+import { DateTimePicker } from '../../../shared/ui/date-time-picker';
+import { fromBdInputValue, toBdInputValue } from '../../../shared/bd-datetime-input';
 
 export interface TimelineStep {
   status: OrderStatus;
@@ -27,7 +29,7 @@ export interface TimelineStep {
 
 @Component({
   selector: 'app-order-detail-page',
-  imports: [BdDatePipe, FormsModule, ReactiveFormsModule, RouterLink, HasPermissionDirective, StatusBadge, TakaPipe, SendToCourierDialog, ShipmentCard],
+  imports: [BdDatePipe, FormsModule, ReactiveFormsModule, RouterLink, HasPermissionDirective, StatusBadge, TakaPipe, SendToCourierDialog, ShipmentCard, DateTimePicker],
   templateUrl: './order-detail-page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -229,6 +231,37 @@ export class OrderDetailPage {
           this.toast.error(errorMessage(err));
         },
       });
+  }
+
+  // Delivered date by hand
+  protected readonly editingDelivered = signal(false);
+  protected readonly savingDelivered = signal(false);
+  protected deliveredInput = '';
+
+  protected startDeliveredEdit(deliveredAt: string): void {
+    this.deliveredInput = toBdInputValue(deliveredAt);
+    this.editingDelivered.set(true);
+  }
+
+  protected saveDelivered(orderId: number): void {
+    const at = fromBdInputValue(this.deliveredInput);
+    if (!at) {
+      this.toast.error('Choose the delivered date');
+      return;
+    }
+    this.savingDelivered.set(true);
+    this.api.setDeliveredDate(orderId, at).subscribe({
+      next: (updated) => {
+        this.resource.set(updated);
+        this.savingDelivered.set(false);
+        this.editingDelivered.set(false);
+        this.toast.success('Delivered date changed');
+      },
+      error: (err: unknown) => {
+        this.savingDelivered.set(false);
+        this.toast.error(errorMessage(err));
+      },
+    });
   }
 
   protected courierChargeInput: number | null = null;

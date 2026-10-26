@@ -5,13 +5,13 @@
     <p class="page-subtitle">Everything the shop owns: CCTV, furniture, machines… Kept apart from expenses and profit.</p>
   </div>
   <div class="flex flex-wrap gap-2">
-    <button *appHasPermission="'ASSET_MANAGE'" type="button" class="btn-secondary" (click)="showCategories.set(true)">
+    <button *appHasPermission="'ASSET_CATEGORIES'" type="button" class="btn-secondary" (click)="showCategories.set(true)">
       <i class="fas fa-tags"></i> Categories
     </button>
-    <button type="button" class="btn-secondary" (click)="exportExcel()" [disabled]="exporting()">
+    <button *appHasPermission="'ASSET_EXPORT'" type="button" class="btn-secondary" (click)="exportExcel()" [disabled]="exporting()">
       <i class="fas" [class.fa-file-excel]="!exporting()" [class.text-emerald-400]="!exporting()" [class.fa-circle-notch]="exporting()" [class.fa-spin]="exporting()"></i> Export
     </button>
-    <a *appHasPermission="'ASSET_MANAGE'" routerLink="/assets/new" class="btn-primary">
+    <a *appHasPermission="'ASSET_CREATE'" routerLink="/assets/new" class="btn-primary">
       <i class="fas fa-plus"></i> Add Asset
     </a>
   </div>
@@ -19,11 +19,13 @@
 
 <!-- Summary (shop-wide, not filtered) -->
 <div class="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-  <div class="card p-5">
-    <p class="text-sm text-slate-400"><i class="fas fa-coins mr-1 text-brand-light"></i>Asset value</p>
-    <p class="mt-1 text-2xl font-bold text-white">{{ summary()?.ownedValue ?? null | taka }}</p>
-    <p class="mt-1 text-xs text-slate-500">What was paid for everything still owned</p>
-  </div>
+  @if (canSeeCosts) {
+    <div class="card p-5">
+      <p class="text-sm text-slate-400"><i class="fas fa-coins mr-1 text-brand-light"></i>Asset value</p>
+      <p class="mt-1 text-2xl font-bold text-white">{{ summary()?.ownedValue ?? null | taka }}</p>
+      <p class="mt-1 text-xs text-slate-500">What was paid for everything still owned</p>
+    </div>
+  }
   <div class="card p-5">
     <p class="text-sm text-slate-400"><i class="fas fa-cubes mr-1 text-sky-300"></i>Items</p>
     <p class="mt-1 text-2xl font-bold text-white">{{ summary()?.ownedItems ?? '–' }}</p>
@@ -32,7 +34,9 @@
   <button type="button" class="card cursor-pointer p-5 text-left transition hover:border-brand/60" (click)="quick('repair')" title="Show assets under repair">
     <p class="text-sm text-slate-400"><i class="fas fa-tools mr-1 text-amber-300"></i>Under repair</p>
     <p class="mt-1 text-2xl font-bold text-white">{{ summary()?.underRepair ?? '–' }}</p>
-    <p class="mt-1 text-xs text-slate-500">{{ summary()?.repairSpent ?? 0 | taka }} spent on repairs</p>
+    @if (canSeeCosts) {
+      <p class="mt-1 text-xs text-slate-500">{{ summary()?.repairSpent ?? 0 | taka }} spent on repairs</p>
+    }
   </button>
   <button type="button" class="card cursor-pointer p-5 text-left transition hover:border-brand/60" (click)="quick('warranty')" title="Show warranties ending within 30 days">
     <p class="text-sm text-slate-400"><i class="fas fa-shield-alt mr-1 text-rose-300"></i>Warranty ending soon</p>
@@ -93,8 +97,8 @@
     </div>
     @if (result(); as r) {
       <p class="text-xs text-slate-400">
-        {{ r.totalElements }} entr{{ r.totalElements === 1 ? 'y' : 'ies' }} · {{ r.filteredItems }} item{{ r.filteredItems === 1 ? '' : 's' }} ·
-        <span class="font-semibold text-slate-200">{{ r.filteredValue | taka }}</span>{{ hasFilters() ? ' (filtered)' : '' }}
+        {{ r.totalElements }} entr{{ r.totalElements === 1 ? 'y' : 'ies' }} · {{ r.filteredItems }} item{{ r.filteredItems === 1 ? '' : 's' }}
+        @if (canSeeCosts) { · <span class="font-semibold text-slate-200">{{ r.filteredValue | taka }}</span> }{{ hasFilters() ? ' (filtered)' : '' }}
       </p>
     }
   </div>
@@ -107,13 +111,13 @@
     </div>
   } @else {
     <div class="overflow-x-auto">
-      <table class="w-full min-w-[900px] text-left text-sm">
+      <table class="phone-cards w-full min-w-[900px] text-left text-sm">
         <thead class="bg-app/60 text-xs uppercase tracking-wider text-slate-400">
           <tr>
             <th class="px-4 py-3 font-semibold">Asset</th>
             <th class="px-4 py-3 font-semibold">Category</th>
             <th class="px-4 py-3 text-right font-semibold">Qty</th>
-            <th class="px-4 py-3 text-right font-semibold">Cost</th>
+            @if (canSeeCosts) { <th class="px-4 py-3 text-right font-semibold">Cost</th> }
             <th class="px-4 py-3 font-semibold">Bought</th>
             <th class="px-4 py-3 font-semibold">Status</th>
             <th class="px-4 py-3 font-semibold">Warranty</th>
@@ -140,19 +144,21 @@
                   </div>
                 </div>
               </td>
-              <td class="px-4 py-3">
+              <td class="cell-inline px-4 py-3" data-label="Category">
                 <span class="rounded-full border border-line bg-white/5 px-2.5 py-0.5 text-xs text-slate-300">{{ a.category.name }}</span>
               </td>
-              <td class="px-4 py-3 text-right text-slate-200">{{ a.quantity }}</td>
-              <td class="px-4 py-3 text-right">
-                <p class="font-semibold text-white">{{ a.totalCost | taka }}</p>
-                @if (a.quantity > 1) { <p class="text-xs text-slate-500">{{ a.unitCost | taka }} each</p> }
-              </td>
-              <td class="whitespace-nowrap px-4 py-3 text-slate-200">{{ a.purchaseDate | bdDate: 'd MMM y' }}</td>
-              <td class="px-4 py-3">
+              <td class="cell-inline px-4 py-3 text-right text-slate-200" data-label="Qty">{{ a.quantity }}</td>
+              @if (canSeeCosts) {
+                <td class="cell-inline px-4 py-3 text-right" data-label="Cost">
+                  <p class="font-semibold text-white">{{ a.totalCost | taka }}</p>
+                  @if (a.quantity > 1) { <p class="text-xs text-slate-500">{{ a.unitCost | taka }} each</p> }
+                </td>
+              }
+              <td class="cell-inline whitespace-nowrap px-4 py-3 text-slate-200" data-label="Bought">{{ a.purchaseDate | bdDate: 'd MMM y' }}</td>
+              <td class="cell-inline px-4 py-3" data-label="Status">
                 <span class="whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-medium" [class]="statusClasses[a.status]">{{ a.statusLabel }}</span>
               </td>
-              <td class="whitespace-nowrap px-4 py-3 text-xs">
+              <td class="cell-inline whitespace-nowrap px-4 py-3 text-xs" data-label="Warranty">
                 @switch (warrantyState(a)) {
                   @case ('expired') { <span class="text-slate-500 line-through">{{ a.warrantyUntil | bdDate: 'd MMM y' }}</span> }
                   @case ('soon') { <span class="text-amber-300"><i class="fas fa-exclamation-circle mr-1"></i>{{ a.warrantyUntil | bdDate: 'd MMM y' }}</span> }
@@ -161,7 +167,7 @@
                   }
                 }
               </td>
-              <td class="relative px-4 py-3 text-right">
+              <td class="cell-actions relative px-4 py-3 text-right">
                 @if (auth.hasAnyPermission(['ASSET_MANAGE', 'ASSET_DELETE'])) {
                   <button type="button" class="cursor-pointer rounded p-2 text-slate-400 hover:bg-white/5 hover:text-white" (click)="toggleMenu(a.id, $event)" aria-haspopup="menu" [attr.aria-expanded]="openMenuId() === a.id" aria-label="Actions">
                     <i class="fas fa-ellipsis-v"></i>
@@ -169,7 +175,8 @@
                 }
                 @if (openMenuId() === a.id) {
                   <div class="fixed inset-0 z-10" (click)="$event.stopPropagation(); openMenuId.set(null)"></div>
-                  <div role="menu" class="absolute right-4 top-11 z-20 w-36 rounded-md border border-line bg-panel py-1 text-left shadow-xl" (click)="$event.stopPropagation()">
+                  <div role="menu" class="fixed z-30 w-36 rounded-md border border-line bg-panel py-1 text-left shadow-xl" (click)="$event.stopPropagation()"
+                       [style.top.px]="menuPosition().top" [style.bottom.px]="menuPosition().bottom" [style.right.px]="menuPosition().right">
                     <a *appHasPermission="'ASSET_MANAGE'" role="menuitem" [routerLink]="['/assets', a.id, 'edit']" class="block px-4 py-2 text-slate-300 hover:bg-white/5">
                       <i class="fas fa-pen mr-2 w-4"></i>Edit
                     </a>
@@ -183,16 +190,16 @@
           } @empty {
             @if (assets.isLoading()) {
               @for (row of [1, 2, 3, 4, 5]; track row) {
-                <tr><td colspan="8" class="px-4 py-4"><div class="h-5 animate-pulse rounded bg-white/5"></div></td></tr>
+                <tr><td [attr.colspan]="canSeeCosts ? 8 : 7" class="px-4 py-4"><div class="h-5 animate-pulse rounded bg-white/5"></div></td></tr>
               }
             } @else {
               <tr>
-                <td colspan="8" class="px-6 py-16 text-center">
+                <td [attr.colspan]="canSeeCosts ? 8 : 7" class="px-6 py-16 text-center">
                   <i class="fas fa-chair mb-3 text-3xl text-slate-600"></i>
                   <p class="font-medium text-slate-300">{{ hasFilters() ? 'No assets match these filters' : 'No assets yet' }}</p>
                   @if (hasFilters()) {
                     <button type="button" class="mt-2 cursor-pointer text-sm text-brand-light hover:underline" (click)="clearFilters()">Clear filters</button>
-                  } @else if (auth.hasPermission('ASSET_MANAGE')) {
+                  } @else if (auth.hasPermission('ASSET_CREATE')) {
                     <a routerLink="/assets/new" class="mt-2 inline-block text-sm text-brand-light hover:underline">Add the first one</a>
                   }
                 </td>

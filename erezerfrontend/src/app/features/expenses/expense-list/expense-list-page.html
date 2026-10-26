@@ -95,7 +95,7 @@
     </div>
   } @else {
     <div class="overflow-x-auto">
-      <table class="w-full min-w-[820px] text-left text-sm">
+      <table class="phone-cards w-full min-w-[820px] text-left text-sm">
         <thead class="bg-app/60 text-xs uppercase tracking-wider text-slate-400">
           <tr>
             <th class="px-4 py-3 font-semibold">Date</th>
@@ -110,7 +110,7 @@
         <tbody class="divide-y divide-line" [class.opacity-50]="expenses.isLoading()">
           @for (e of rows(); track e.id) {
             <tr class="transition hover:bg-white/[0.03]" [class.cursor-pointer]="auth.hasPermission('EXPENSE_EDIT')" (click)="open(e)">
-              <td class="whitespace-nowrap px-4 py-3 text-slate-200">{{ e.expenseDate | bdDate: 'd MMM y' }}</td>
+              <td class="cell-inline whitespace-nowrap px-4 py-3 text-slate-200" data-label="Date">{{ e.expenseDate | bdDate: 'd MMM y' }}</td>
               <td class="px-4 py-3">
                 <p class="font-semibold text-white">{{ e.description }}</p>
                 @if (e.reference || e.createdBy) {
@@ -120,12 +120,12 @@
                   </p>
                 }
               </td>
-              <td class="px-4 py-3">
+              <td class="cell-inline px-4 py-3" data-label="Category">
                 <span class="rounded-full border border-line bg-white/5 px-2.5 py-0.5 text-xs text-slate-300">{{ e.category.name }}</span>
               </td>
-              <td class="px-4 py-3 text-xs uppercase text-slate-300">{{ paymentLabels[e.paymentMethod] }}</td>
-              <td class="px-4 py-3 text-right font-semibold text-white">{{ e.amount | taka }}</td>
-              <td class="px-4 py-3 text-center">
+              <td class="cell-inline px-4 py-3 text-xs uppercase text-slate-300" data-label="Payment">{{ paymentLabels[e.paymentMethod] }}</td>
+              <td class="cell-inline px-4 py-3 text-right font-semibold text-white" data-label="Amount">{{ e.amount | taka }}</td>
+              <td class="cell-inline px-4 py-3 text-center" data-label="Receipt">
                 @if (e.receipt) {
                   <a [href]="e.receipt.url" target="_blank" rel="noopener" class="text-brand-light hover:text-white" (click)="$event.stopPropagation()" [title]="e.receipt.fileName ?? 'Receipt'">
                     <i class="fas" [class.fa-file-pdf]="e.receipt.contentType === 'application/pdf'" [class.fa-image]="e.receipt.contentType !== 'application/pdf'"></i>
@@ -134,7 +134,7 @@
                   <span class="text-slate-600">—</span>
                 }
               </td>
-              <td class="relative px-4 py-3 text-right">
+              <td class="cell-actions relative px-4 py-3 text-right">
                 @if (auth.hasAnyPermission(['EXPENSE_EDIT', 'EXPENSE_DELETE'])) {
                   <button type="button" class="cursor-pointer rounded p-2 text-slate-400 hover:bg-white/5 hover:text-white" (click)="toggleMenu(e.id, $event)" aria-haspopup="menu" [attr.aria-expanded]="openMenuId() === e.id" aria-label="Actions">
                     <i class="fas fa-ellipsis-v"></i>
@@ -142,7 +142,8 @@
                 }
                 @if (openMenuId() === e.id) {
                   <div class="fixed inset-0 z-10" (click)="$event.stopPropagation(); openMenuId.set(null)"></div>
-                  <div role="menu" class="absolute right-4 top-11 z-20 w-36 rounded-md border border-line bg-panel py-1 text-left shadow-xl" (click)="$event.stopPropagation()">
+                  <div role="menu" class="fixed z-30 w-36 rounded-md border border-line bg-panel py-1 text-left shadow-xl" (click)="$event.stopPropagation()"
+                       [style.top.px]="menuPosition().top" [style.bottom.px]="menuPosition().bottom" [style.right.px]="menuPosition().right">
                     <a *appHasPermission="'EXPENSE_EDIT'" role="menuitem" [routerLink]="['/expenses', e.id, 'edit']" class="block px-4 py-2 text-slate-300 hover:bg-white/5">
                       <i class="fas fa-pen mr-2 w-4"></i>Edit
                     </a>

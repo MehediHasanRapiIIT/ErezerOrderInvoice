@@ -325,6 +325,11 @@ public class Order extends AuditableEntity {
         return status != OrderStatus.CANCELLED && status != OrderStatus.RETURNED;
     }
 
+    /** A hand-set delivered date (only for an order that has been delivered). */
+    void correctDeliveredAt(Instant when) {
+        this.deliveredAt = when;
+    }
+
     public boolean isDeleted() {
         return deletedAt != null;
     }

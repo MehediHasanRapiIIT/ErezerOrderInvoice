@@ -53,7 +53,7 @@
     </div>
   } @else {
     <div class="overflow-x-auto">
-      <table class="w-full min-w-[900px] text-left text-sm">
+      <table class="phone-cards w-full min-w-[900px] text-left text-sm">
         <thead class="bg-app/60 text-xs uppercase tracking-wider text-slate-400">
           <tr>
             <th class="px-4 py-3 font-semibold">Staff member</th>
@@ -78,12 +78,12 @@
                   </div>
                 </div>
               </td>
-              <td class="px-4 py-3">
+              <td class="cell-inline px-4 py-3" data-label="Role">
                 <span class="rounded-full border px-2.5 py-0.5 text-xs font-semibold" [class]="m.role === 'ADMIN' ? 'border-blue-500/40 bg-blue-500/10 text-blue-300' : 'border-line bg-white/5 text-slate-300'">
                   {{ m.role === 'ADMIN' ? 'Admin' : 'Moderator' }}
                 </span>
               </td>
-              <td class="max-w-sm px-4 py-3 text-xs text-slate-300">
+              <td class="max-w-sm px-4 py-3 text-xs text-slate-300" data-label="Permissions">
                 @if (m.role === 'ADMIN') {
                   <span class="text-slate-400">Everything, including staff management</span>
                 } @else {
@@ -94,7 +94,7 @@
                   }
                 }
               </td>
-              <td class="px-4 py-3">
+              <td class="cell-inline px-4 py-3" data-label="Status">
                 @if (!m.active) {
                   <span class="inline-flex items-center gap-1.5 text-xs text-slate-400"><i class="fas fa-ban"></i> Inactive</span>
                 } @else if (m.locked) {
@@ -103,16 +103,17 @@
                   <span class="inline-flex items-center gap-1.5 text-xs text-emerald-300"><i class="fas fa-check-circle"></i> Active</span>
                 }
               </td>
-              <td class="px-4 py-3 text-xs text-slate-400">
+              <td class="cell-inline px-4 py-3 text-xs text-slate-400" data-label="Last sign-in">
                 {{ m.lastLoginAt ? (m.lastLoginAt | bdDate: 'd MMM y, h:mm a') : 'Never' }}
               </td>
-              <td class="relative px-4 py-3 text-right">
+              <td class="cell-actions relative px-4 py-3 text-right">
                 <button type="button" class="cursor-pointer rounded p-2 text-slate-400 hover:bg-white/5 hover:text-white" (click)="toggleMenu(m.id, $event)" aria-haspopup="menu" [attr.aria-expanded]="openMenuId() === m.id" [attr.aria-label]="'Actions for ' + m.fullName">
                   <i class="fas fa-ellipsis-v"></i>
                 </button>
                 @if (openMenuId() === m.id) {
                   <div class="fixed inset-0 z-10" (click)="$event.stopPropagation(); openMenuId.set(null)"></div>
-                  <div role="menu" class="absolute right-4 top-11 z-20 w-48 rounded-md border border-line bg-panel py-1 text-left shadow-xl" (click)="$event.stopPropagation()">
+                  <div role="menu" class="fixed z-30 w-48 rounded-md border border-line bg-panel py-1 text-left shadow-xl" (click)="$event.stopPropagation()"
+                       [style.top.px]="menuPosition().top" [style.bottom.px]="menuPosition().bottom" [style.right.px]="menuPosition().right">
                     <a role="menuitem" [routerLink]="['/staff', m.id, 'edit']" class="block px-4 py-2 text-slate-300 hover:bg-white/5"><i class="fas fa-pen mr-2 w-4"></i>Edit</a>
                     <button type="button" role="menuitem" class="block w-full cursor-pointer px-4 py-2 text-left text-slate-300 hover:bg-white/5" (click)="startReset(m)"><i class="fas fa-key mr-2 w-4"></i>Reset password</button>
                     @if (m.locked) {

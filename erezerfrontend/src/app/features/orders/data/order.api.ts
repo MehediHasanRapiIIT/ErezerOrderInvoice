@@ -71,6 +71,16 @@ export class OrderApi {
     return this.http.post<OrderDetail>(`${this.baseUrl}/${id}/status`, request);
   }
 
+  /** Moves orders to a day: their order date or delivered date. Without a time each keeps its own time of day. */
+  bulkDate(ids: number[], field: 'ORDER' | 'DELIVERED', date: string, time: string | null): Observable<{ changed: number; skipped: string[] }> {
+    return this.http.post<{ changed: number; skipped: string[] }>(`${this.baseUrl}/bulk-date`, { ids, field, date, time });
+  }
+
+  /** Sets the delivered date by hand (the day the sale counts on). */
+  setDeliveredDate(id: number, deliveredAt: string): Observable<OrderDetail> {
+    return this.http.put<OrderDetail>(`${this.baseUrl}/${id}/delivered-date`, { deliveredAt });
+  }
+
   recordCourierCost(id: number, courierCharge: number | null, returnDeliveryCharge?: number | null): Observable<OrderDetail> {
     return this.http.put<OrderDetail>(`${this.baseUrl}/${id}/courier-cost`, { courierCharge, returnDeliveryCharge: returnDeliveryCharge ?? null });
   }

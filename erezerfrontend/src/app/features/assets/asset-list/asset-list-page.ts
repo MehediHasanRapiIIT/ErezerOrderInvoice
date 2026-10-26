@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, signal } from '@angular/core';
+import { CLOSED_MENU, MenuPosition, placeMenu } from '../../../shared/ui/floating-menu';
 import { rxResource, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Params, Router, RouterLink } from '@angular/router';
 import { catchError, of } from 'rxjs';
@@ -41,7 +42,10 @@ export class AssetListPage {
   protected readonly statusClasses = ASSET_STATUS_CLASSES;
   protected readonly today = isoDate(bdToday());
   protected readonly soonLimit = isoDate(new Date(bdToday().getTime() + SOON_DAYS * 86_400_000));
+  protected readonly canSeeCosts = this.auth.hasPermission('ASSET_COSTS_VIEW');
   protected readonly openMenuId = signal<number | null>(null);
+  /** Where the open row menu sits on screen (fixed, so the table's scroll box can't cut it off). */
+  protected readonly menuPosition = signal<MenuPosition>(CLOSED_MENU);
   protected readonly exporting = signal(false);
   protected readonly showCategories = signal(false);
 
@@ -131,7 +135,12 @@ export class AssetListPage {
 
   protected toggleMenu(id: number, event: Event): void {
     event.stopPropagation();
-    this.openMenuId.set(this.openMenuId() === id ? null : id);
+    if (this.openMenuId() === id) {
+      this.openMenuId.set(null);
+      return;
+    }
+    this.menuPosition.set(placeMenu(event, () => this.openMenuId.set(null), 110));
+    this.openMenuId.set(id);
   }
 
   protected open(asset: Asset): void {

@@ -56,8 +56,9 @@ export interface Asset {
   name: string;
   category: { id: number; name: string };
   quantity: number;
-  unitCost: number;
-  totalCost: number;
+  /** Absent for people who can't see costs (also totalCost, salePrice, repairTotal and the receipt). */
+  unitCost?: number;
+  totalCost?: number;
   purchaseDate: string;
   supplier?: string;
   paymentMethod?: PaymentMethod;
@@ -72,7 +73,7 @@ export interface Asset {
   notes?: string;
   photo?: AssetFile;
   receipt?: AssetFile;
-  repairTotal: number;
+  repairTotal?: number;
   createdBy?: { id: number; name: string };
   createdAt: string;
   updatedAt: string;
@@ -81,12 +82,13 @@ export interface Asset {
 }
 
 export interface AssetSummary {
-  ownedValue: number;
+  /** Absent without "See costs and prices" (also repairSpent). */
+  ownedValue?: number;
   ownedItems: number;
   ownedEntries: number;
   underRepair: number;
   warrantyEndingSoon: number;
-  repairSpent: number;
+  repairSpent?: number;
 }
 
 export interface AssetPage {
@@ -95,7 +97,7 @@ export interface AssetPage {
   size: number;
   totalElements: number;
   totalPages: number;
-  filteredValue: number;
+  filteredValue?: number;
   filteredItems: number;
   summary: AssetSummary;
 }
@@ -117,7 +119,8 @@ export interface AssetRequest {
   name: string;
   categoryId: number;
   quantity: number;
-  unitCost: number;
+  /** Null for people who can't see costs (the server keeps or defaults it). */
+  unitCost: number | null;
   purchaseDate: string;
   supplier: string | null;
   paymentMethod: PaymentMethod | null;

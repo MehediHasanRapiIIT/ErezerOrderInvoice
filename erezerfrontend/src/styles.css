@@ -18,6 +18,80 @@
   body {
     @apply bg-app font-sans text-slate-200 antialiased;
   }
+
+  /* Absolutely placed bits inside a scrolling table (screen-reader labels, menus) must stay inside its scroll box;
+     otherwise they stretch the whole page sideways on a phone. */
+  .overflow-x-auto {
+    position: relative;
+  }
+}
+
+/*
+ * Tables marked "phone-cards" show each row as a card on phones: header row hidden, each cell on its own line under
+ * a small label taken from its data-label. Extra cell classes:
+ *   cell-actions  the row's buttons, pinned to the card's top-right corner
+ *   cell-check    the row's tick box, pinned to the card's top-left corner
+ *   cell-inline   sits beside its neighbours instead of on its own line (e.g. stock sizes)
+ *   cell-phone-hide  not shown on phones (e.g. an empty size)
+ */
+@media (max-width: 767.98px) {
+  table.phone-cards {
+    min-width: 0 !important;
+  }
+  table.phone-cards thead {
+    display: none;
+  }
+  table.phone-cards > tbody,
+  table.phone-cards > tfoot,
+  table.phone-cards > :is(tbody, tfoot) > tr {
+    display: block;
+  }
+  table.phone-cards > :is(tbody, tfoot) > tr {
+    position: relative;
+    padding: 0.75rem 1rem;
+  }
+  table.phone-cards > :is(tbody, tfoot) > tr:has(> td.cell-actions) {
+    padding-right: 3.25rem;
+  }
+  table.phone-cards > :is(tbody, tfoot) > tr:has(> td.cell-check) {
+    padding-left: 2.75rem;
+  }
+  table.phone-cards > :is(tbody, tfoot) > tr > td {
+    display: block;
+    max-width: none;
+    padding: 0.15rem 0 !important;
+    text-align: left !important;
+  }
+  table.phone-cards > :is(tbody, tfoot) > tr > td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-top: 0.35rem;
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--color-slate-500);
+  }
+  table.phone-cards > :is(tbody, tfoot) > tr > td.cell-inline {
+    display: inline-block;
+    margin-right: 0.9rem;
+    vertical-align: top;
+  }
+  table.phone-cards > :is(tbody, tfoot) > tr > td.cell-actions {
+    position: absolute;
+    top: 0.45rem;
+    right: 0.35rem;
+    padding: 0 !important;
+    white-space: nowrap;
+  }
+  table.phone-cards > :is(tbody, tfoot) > tr > td.cell-check {
+    position: absolute;
+    top: 0.85rem;
+    left: 1rem;
+    padding: 0 !important;
+  }
+  table.phone-cards > :is(tbody, tfoot) > tr > td.cell-phone-hide {
+    display: none;
+  }
 }
 
 @layer components {

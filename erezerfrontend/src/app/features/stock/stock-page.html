@@ -18,13 +18,13 @@
 
 <!-- Summary -->
 @let s = summary.hasValue() ? summary.value() : null;
-<div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-  <div class="card p-5"><p class="text-sm text-slate-400">Variants</p><p class="mt-1 text-2xl font-bold text-white">{{ s?.variants ?? '—' }}</p></div>
-  <div class="card p-5"><p class="text-sm text-slate-400">Pieces in stock</p><p class="mt-1 text-2xl font-bold text-white">{{ s?.units ?? '—' }}</p></div>
-  <button type="button" class="card cursor-pointer p-5 text-left transition hover:border-amber-500/60" (click)="setLow(!lowOnly())"
+<div class="mt-6 grid grid-cols-3 gap-3 sm:gap-4">
+  <div class="card p-3 sm:p-5"><p class="text-xs text-slate-400 sm:text-sm">Variants</p><p class="mt-1 text-xl font-bold text-white sm:text-2xl">{{ s?.variants ?? '—' }}</p></div>
+  <div class="card p-3 sm:p-5"><p class="text-xs text-slate-400 sm:text-sm">Pieces in stock</p><p class="mt-1 text-xl font-bold text-white sm:text-2xl">{{ s?.units ?? '—' }}</p></div>
+  <button type="button" class="card cursor-pointer p-3 text-left transition hover:border-amber-500/60 sm:p-5" (click)="setLow(!lowOnly())"
           [class.border-amber-500]="lowOnly()" title="Show only variants with a size running low">
-    <p class="text-sm text-slate-400"><i class="fas fa-exclamation-triangle mr-1 text-amber-400"></i>Sizes low (≤ {{ s?.lowStockThreshold ?? 5 }})</p>
-    <p class="mt-1 text-2xl font-bold" [class]="(s?.lowStock ?? 0) > 0 ? 'text-amber-300' : 'text-white'">{{ s?.lowStock ?? '—' }}</p>
+    <p class="text-xs text-slate-400 sm:text-sm"><i class="fas fa-exclamation-triangle mr-1 text-amber-400"></i>Sizes low (≤ {{ s?.lowStockThreshold ?? 5 }})</p>
+    <p class="mt-1 text-xl font-bold sm:text-2xl" [class]="(s?.lowStock ?? 0) > 0 ? 'text-amber-300' : 'text-white'">{{ s?.lowStock ?? '—' }}</p>
   </button>
 </div>
 
@@ -43,7 +43,7 @@
     }
   </div>
   <div class="overflow-x-auto">
-    <table class="w-full text-left text-sm" [style.min-width.px]="420 + columns().length * 64">
+    <table class="phone-cards w-full text-left text-sm" [style.min-width.px]="420 + columns().length * 64">
       <thead class="bg-app/60 text-xs uppercase tracking-wider text-slate-400">
         <tr>
           @if (auth.hasPermission('STOCK_MANAGE')) {
@@ -63,13 +63,13 @@
         @for (v of rows(); track v.id) {
           <tr class="hover:bg-white/[0.03]" [style.background]="selected().has(v.id) ? 'rgb(37 99 235 / 0.10)' : null">
             @if (auth.hasPermission('STOCK_MANAGE')) {
-              <td class="px-4 py-3"><input type="checkbox" class="h-4 w-4 cursor-pointer accent-blue-600" [checked]="selected().has(v.id)"
+              <td class="cell-check px-4 py-3"><input type="checkbox" class="h-4 w-4 cursor-pointer accent-blue-600" [checked]="selected().has(v.id)"
                      (change)="toggle(v, $any($event.target).checked)" [attr.aria-label]="'Select ' + v.name" /></td>
             }
             <td class="px-4 py-3 font-semibold text-white">{{ v.name }}</td>
             @for (c of columns(); track c.sizeId) {
               @let item = cell(v, c.sizeId);
-              <td class="px-2 py-3 text-center">
+              <td class="cell-inline px-2 py-3 text-center" [class.cell-phone-hide]="!item" [attr.data-label]="c.name">
                 @if (item) {
                   <span class="inline-block min-w-9 rounded-md px-1.5 py-0.5 font-semibold" [class]="qtyClass(item.quantity, item.low)"
                         [title]="v.name + ' / ' + c.name + ': ' + item.quantity">{{ item.quantity }}</span>
@@ -78,8 +78,8 @@
                 }
               </td>
             }
-            <td class="px-4 py-3 text-right font-bold text-white">{{ v.quantity }}</td>
-            <td class="px-4 py-3 text-slate-400">{{ v.updatedAt | bdDate }}</td>
+            <td class="cell-inline px-4 py-3 text-right font-bold text-white" data-label="Total">{{ v.quantity }}</td>
+            <td class="px-4 py-3 text-slate-400" data-label="Last change">{{ v.updatedAt | bdDate }}</td>
             <td class="whitespace-nowrap px-4 py-3 text-right">
               <button type="button" class="cursor-pointer rounded px-2 py-1 text-xs text-slate-300 hover:bg-white/5" (click)="openHistory(v)"><i class="fas fa-history mr-1"></i>History</button>
               @if (auth.hasPermission('STOCK_MANAGE')) {

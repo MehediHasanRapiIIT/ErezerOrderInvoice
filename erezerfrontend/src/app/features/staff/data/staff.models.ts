@@ -20,6 +20,8 @@ export interface PermissionInfo {
   group: string;
   label: string;
   adminOnly: boolean;
+  /** Permissions that come with this one (e.g. "Add and edit assets" includes "View assets"). */
+  includes: Permission[];
 }
 
 export interface CreateStaffRequest {

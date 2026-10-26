@@ -6,9 +6,15 @@ import com.erezer.admin.file.StoredFile;
 import com.erezer.admin.order.dto.OrderDtos.OrderItemRequest;
 import com.erezer.admin.order.dto.OrderDtos.OrderRequest;
 import com.erezer.admin.order.dto.OrderDtos.StatusChangeRequest;
+import com.erezer.admin.config.AppProperties;
 import java.math.BigDecimal;
 import java.security.SecureRandom;
+import java.sql.Timestamp;
 import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -16,6 +22,8 @@ import java.util.Objects;
 import java.util.stream.Stream;
 import com.erezer.admin.stock.StockReason;
 import com.erezer.admin.stock.StockService;
+import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,12 +39,16 @@ public class OrderService {
     private final FileService files;
     private final StockService stock;
     private final ReturnService returns;
+    private final JdbcClient jdbc;
+    private final AppProperties appProperties;
     private final Clock clock;
     private final SecureRandom random = new SecureRandom();
 
     OrderService(OrderRepository orders, OrderNoteRepository notes, FileService files, StockService stock,
-            ReturnService returns, Clock clock) {
+            ReturnService returns, JdbcClient jdbc, AppProperties appProperties, Clock clock) {
         this.returns = returns;
+        this.jdbc = jdbc;
+        this.appProperties = appProperties;
         this.stock = stock;
         this.orders = orders;
         this.notes = notes;
@@ -44,18 +56,23 @@ public class OrderService {
         this.clock = clock;
     }
 
+    /** @param canSetDate the user may choose the order date (otherwise it is now) */
     @Transactional
-    public long create(OrderRequest request, long userId) {
+    public long create(OrderRequest request, long userId, boolean canSetDate) {
         String number = resolveOrderNumber(request.orderNumber(), 0L);
         Order order = new Order(number, clock.instant(), userId);
         apply(order, number, request);
         long id = orders.save(order).getId();
+        if (request.orderedAt() != null) {
+            requireDateAllowed(canSetDate);
+            setOrderDate(id, checkedDate(request.orderedAt()));
+        }
         stock.syncOrder(order, StockReason.ORDER_PLACED, userId);
         return id;
     }
 
     @Transactional
-    public void update(long id, OrderRequest request, long userId) {
+    public void update(long id, OrderRequest request, long userId, boolean canSetDate) {
         Order order = load(id);
         if (request.version() == null || request.version() != order.getVersion()) {
             throw ApiException.conflict("STALE_DATA", "This order was changed by someone else. Reload and try again.");
@@ -79,6 +96,134 @@ public class OrderService {
         // bump its version, so concurrent edits of line items are still detected.
         order.touch(clock.instant());
         stock.syncOrder(order, StockReason.ORDER_CHANGED, userId);
+        changeDate(order, request.orderedAt(), userId, canSetDate);
+    }
+
+    /**
+     * Sets when the order was delivered, so its sale counts on that day. Only for an order that has a delivered date
+     * (delivered, or returned after delivery); the "Delivered" step of the timeline moves with it.
+     */
+    @Transactional
+    public void setDeliveredDate(long id, Instant requested, long userId) {
+        moveDeliveredDate(load(id), requested, userId);
+    }
+
+    /**
+     * Moves several orders to one day. Without a time each keeps its own time of day. An order that can't take the
+     * date (not delivered yet, delivered before its order date…) is skipped and listed; the rest are changed.
+     */
+    @Transactional
+    public com.erezer.admin.order.dto.OrderDtos.BulkDateResult bulkSetDate(
+            com.erezer.admin.order.dto.OrderDtos.BulkDateRequest request, long userId) {
+        var zone = appProperties.zoneId();
+        int changed = 0;
+        List<String> skipped = new java.util.ArrayList<>();
+        for (Long id : new java.util.LinkedHashSet<>(request.ids())) {
+            Order order = orders.findById(id).orElse(null);
+            if (order == null) {
+                skipped.add("Order " + id + ": not found");
+                continue;
+            }
+            boolean delivered = request.field() == com.erezer.admin.order.dto.OrderDtos.DateField.DELIVERED;
+            Instant current = delivered ? order.getDeliveredAt() : order.getCreatedAt();
+            if (current == null) {
+                skipped.add(order.getOrderNumber() + ": not delivered yet");
+                continue;
+            }
+            java.time.LocalTime time = request.time() != null ? request.time()
+                    : current.atZone(zone).toLocalTime().truncatedTo(ChronoUnit.MINUTES);
+            Instant when = request.date().atTime(time).atZone(zone).toInstant();
+            try {
+                boolean moved = delivered ? moveDeliveredDate(order, when, userId) : changeDate(order, when, userId, true);
+                if (moved) {
+                    changed++;
+                }
+            } catch (ApiException ex) {
+                skipped.add(order.getOrderNumber() + ": " + ex.getMessage());
+            }
+        }
+        return new com.erezer.admin.order.dto.OrderDtos.BulkDateResult(changed, skipped);
+    }
+
+    /** @return whether the date changed */
+    private boolean moveDeliveredDate(Order order, Instant requested, long userId) {
+        long id = order.getId();
+        if (order.getDeliveredAt() == null) {
+            throw ApiException.conflict("NOT_DELIVERED", "This order hasn't been delivered, so it has no delivered date yet");
+        }
+        Instant date = checkedDate(requested);
+        if (date.isBefore(order.getCreatedAt().truncatedTo(ChronoUnit.MINUTES))) {
+            throw ApiException.badRequest("DELIVERED_BEFORE_ORDER", "The delivered date can't be before the order date ("
+                    + format(order.getCreatedAt()) + ")");
+        }
+        Instant before = order.getDeliveredAt();
+        if (date.truncatedTo(ChronoUnit.MINUTES).equals(before.truncatedTo(ChronoUnit.MINUTES))) {
+            return false;
+        }
+        order.correctDeliveredAt(date);
+        order.touch(clock.instant());
+        orders.flush();
+        // The latest "Delivered" step of the timeline shows the same time.
+        jdbc.sql("""
+                        update order_status_history set changed_at = :at
+                        where id = (select id from order_status_history where order_id = :id and to_status = 'DELIVERED'
+                                    order by changed_at desc, id desc limit 1)
+                        """)
+                .param("at", Timestamp.from(date)).param("id", id).update();
+        notes.save(new OrderNote(id, "Delivered date changed from " + format(before) + " to " + format(date), userId, clock.instant()));
+        return true;
+    }
+
+    /**
+     * Moves an order to another date (and time), noted on the order. Nothing happens when the date is the same.
+     *
+     * @return whether the date changed
+     */
+    private boolean changeDate(Order order, Instant requested, long userId, boolean canSetDate) {
+        if (requested == null) {
+            return false;
+        }
+        Instant date = checkedDate(requested);
+        Instant current = order.getCreatedAt().truncatedTo(ChronoUnit.MINUTES);
+        if (date.truncatedTo(ChronoUnit.MINUTES).equals(current)) {
+            return false;
+        }
+        requireDateAllowed(canSetDate);
+        orders.flush();
+        setOrderDate(order.getId(), date);
+        notes.save(new OrderNote(order.getId(), "Order date changed from " + format(order.getCreatedAt())
+                + " to " + format(date), userId, clock.instant()));
+        return true;
+    }
+
+    /**
+     * The order date is the order's creation time, used everywhere (list, filters, invoice, export, dashboard), so it
+     * is moved in place; the "Placed" step of the timeline moves with it.
+     */
+    private void setOrderDate(long orderId, Instant date) {
+        orders.flush();
+        Timestamp at = Timestamp.from(date);
+        jdbc.sql("update orders set created_at = :at where id = :id").param("at", at).param("id", orderId).update();
+        jdbc.sql("update order_status_history set changed_at = :at where order_id = :id and to_status = 'PLACED' and from_status is null")
+                .param("at", at).param("id", orderId).update();
+    }
+
+    /** Any day, earlier or later; only clearly mistyped years are refused. */
+    private Instant checkedDate(Instant date) {
+        if (date.isBefore(Instant.parse("2020-01-01T00:00:00Z")) || date.isAfter(clock.instant().plus(Duration.ofDays(3650)))) {
+            throw ApiException.badRequest("INVALID_DATE", "Check the order date");
+        }
+        return date;
+    }
+
+    private String format(Instant instant) {
+        return DateTimeFormatter.ofPattern("d MMM y, h:mm a", Locale.ENGLISH).withZone(appProperties.zoneId()).format(instant);
+    }
+
+    private static void requireDateAllowed(boolean canSetDate) {
+        if (!canSetDate) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "DATE_NOT_ALLOWED", "You don't have permission to change the order date");
+        }
     }
 
     /**

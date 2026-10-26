@@ -14,6 +14,7 @@ import com.erezer.admin.user.UserRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
@@ -60,7 +61,14 @@ public class StaffService {
     }
 
     @Transactional
-    public StaffResponse create(CreateStaffRequest request) {
+    public StaffResponse create(CreateStaffRequest request, long actingUserId) {
+        User actor = load(actingUserId);
+        if (!isAdmin(actor)) {
+            if (request.role() == Role.ADMIN) {
+                throw forbidden("Only an admin can add admins");
+            }
+            requireCanGive(actor, permissionsFor(request.role(), request.permissions()), EnumSet.noneOf(Permission.class));
+        }
         String email = User.normalizeEmail(request.email());
         if (users.existsByEmail(email)) {
             throw ApiException.conflict("EMAIL_TAKEN", "A staff member with this email already exists");
@@ -77,6 +85,14 @@ public class StaffService {
         User user = load(id);
         if (request.version() != user.getVersion()) {
             throw ApiException.conflict("STALE_DATA", "This account was changed by someone else. Reload and try again.");
+        }
+        User actor = load(actingUserId);
+        if (!isAdmin(actor)) {
+            requireNotAdminOrSelf(actor, user);
+            if (request.role() == Role.ADMIN) {
+                throw forbidden("Only an admin can make someone an admin");
+            }
+            requireCanGive(actor, permissionsFor(request.role(), request.permissions()), user.getPermissions());
         }
         boolean demoting = user.getRole() == Role.ADMIN && request.role() != Role.ADMIN;
         if (demoting && id == actingUserId) {
@@ -102,6 +118,7 @@ public class StaffService {
     @Transactional
     public StaffResponse setActive(long id, boolean active, long actingUserId) {
         User user = load(id);
+        requireMayManage(actingUserId, user);
         if (!active) {
             if (id == actingUserId) {
                 throw ApiException.conflict("CANNOT_DEACTIVATE_SELF", "You cannot deactivate your own account");
@@ -122,6 +139,7 @@ public class StaffService {
     @Transactional
     public StaffResponse resetPassword(long id, String newPassword, long adminId) {
         User user = load(id);
+        requireMayManage(adminId, user);
         PasswordPolicy.validate(newPassword);
         user.changePasswordHash(passwordEncoder.encode(newPassword));
         user.unlock();
@@ -132,10 +150,50 @@ public class StaffService {
     }
 
     @Transactional
-    public StaffResponse unlock(long id) {
+    public StaffResponse unlock(long id, long actingUserId) {
         User user = load(id);
+        requireMayManage(actingUserId, user);
         user.unlock();
         return toResponse(user, clock.instant());
+    }
+
+    // ---- Staff managers who aren't admins ----
+    // They may look after moderators, but never admins or their own account, and may only give permissions they
+    // hold themselves; otherwise "Manage staff" would be a way to get every permission.
+
+    private static boolean isAdmin(User user) {
+        return user.getRole() == Role.ADMIN;
+    }
+
+    private void requireMayManage(long actingUserId, User target) {
+        User actor = load(actingUserId);
+        if (!isAdmin(actor)) {
+            requireNotAdminOrSelf(actor, target);
+        }
+    }
+
+    private static void requireNotAdminOrSelf(User actor, User target) {
+        if (isAdmin(target)) {
+            throw forbidden("Only an admin can change an admin's account");
+        }
+        if (target.getId().equals(actor.getId())) {
+            throw forbidden("Ask an admin to change your own access");
+        }
+    }
+
+    /** Newly given permissions (beyond what the account already had) must be ones the giver holds. */
+    private static void requireCanGive(User actor, Set<Permission> requested, Set<Permission> already) {
+        Set<Permission> held = actor.effectivePermissions();
+        List<String> missing = requested.stream()
+                .filter(p -> !already.contains(p) && !held.contains(p))
+                .map(Permission::label).toList();
+        if (!missing.isEmpty()) {
+            throw forbidden("You can only give permissions you have yourself. Not yours: " + String.join(", ", missing));
+        }
+    }
+
+    private static ApiException forbidden(String message) {
+        return new ApiException(org.springframework.http.HttpStatus.FORBIDDEN, "NOT_ALLOWED", message);
     }
 
     private void requireAnotherActiveAdmin() {

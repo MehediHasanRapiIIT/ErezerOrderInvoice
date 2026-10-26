@@ -32,6 +32,8 @@ export class StaffFormPage implements OnInit, HasUnsavedChanges {
 
   protected readonly isEdit = computed(() => !!this.id());
   protected readonly isSelf = computed(() => !!this.id() && Number(this.id()) === this.auth.user()?.id);
+  /** Admins give anything; other staff managers only what they hold themselves, and never the admin role. */
+  protected readonly actingAsAdmin = computed(() => this.auth.user()?.role === 'ADMIN');
   protected readonly loading = signal(false);
   protected readonly saving = signal(false);
   protected readonly serverError = signal<string | null>(null);
@@ -94,8 +96,25 @@ export class StaffFormPage implements OnInit, HasUnsavedChanges {
     return !this.saved && (this.form.dirty || this.permissionsTouched);
   }
 
+  /** Permissions that come automatically with the ticked ones. */
+  private readonly included = computed(() => {
+    const list: PermissionInfo[] = this.catalog.hasValue() ? this.catalog.value() : [];
+    const result = new Set<Permission>();
+    list.filter((p) => this.selected().has(p.name)).forEach((p) => p.includes.forEach((i) => result.add(i)));
+    return result;
+  });
+
   protected isChecked(permission: Permission): boolean {
-    return this.selected().has(permission);
+    return this.selected().has(permission) || this.included().has(permission);
+  }
+
+  /** Ticked only because another ticked permission includes it. */
+  protected isIncluded(permission: Permission): boolean {
+    return !this.selected().has(permission) && this.included().has(permission);
+  }
+
+  protected canGive(permission: Permission): boolean {
+    return this.actingAsAdmin() || this.auth.hasPermission(permission) || this.selected().has(permission);
   }
 
   protected toggle(permission: Permission): void {
@@ -117,7 +136,9 @@ export class StaffFormPage implements OnInit, HasUnsavedChanges {
   protected toggleGroup(group: { permissions: PermissionInfo[] }): void {
     const next = new Set(this.selected());
     const selectAll = this.groupState(group) !== 'all';
-    group.permissions.forEach((p) => (selectAll ? next.add(p.name) : next.delete(p.name)));
+    group.permissions
+      .filter((p) => !selectAll || this.canGive(p.name))
+      .forEach((p) => (selectAll ? next.add(p.name) : next.delete(p.name)));
     this.selected.set(next);
     this.permissionsTouched = true;
   }

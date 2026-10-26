@@ -31,7 +31,7 @@ class FileController {
 
     /** Uploads an expense receipt, or an asset's photo or receipt (image or PDF), before the record is saved. */
     @PostMapping(path = "/receipts", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyAuthority('EXPENSE_CREATE', 'EXPENSE_EDIT', 'ASSET_MANAGE')")
+    @PreAuthorize("hasAnyAuthority('EXPENSE_CREATE', 'EXPENSE_EDIT', 'ASSET_CREATE', 'ASSET_MANAGE')")
     UploadedFileResponse uploadReceipt(@RequestPart("file") MultipartFile file) {
         StoredFile f = fileService.uploadReceipt(file, CurrentUser.id());
         return new UploadedFileResponse(f.getId(), fileService.url(f), f.getContentType(), f.getSizeBytes());

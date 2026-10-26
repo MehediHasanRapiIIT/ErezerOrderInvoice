@@ -92,14 +92,15 @@ class AuthFlowIntegrationTest {
 
     @Test
     void meReturnsOnlyGrantedPermissionsForModerator() throws Exception {
-        // STAFF_MANAGE is admin-only and must be dropped even if requested.
-        String email = moderator(List.of(Permission.ORDER_VIEW, Permission.STAFF_MANAGE));
+        // Only what was given, plus what it includes (expense changes include seeing expenses).
+        String email = moderator(List.of(Permission.ORDER_VIEW, Permission.EXPENSE_CREATE));
         String token = accessToken(login(email));
 
         mvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value(email))
                 .andExpect(jsonPath("$.permissions").value(hasItem("ORDER_VIEW")))
+                .andExpect(jsonPath("$.permissions").value(hasItem("EXPENSE_VIEW")))
                 .andExpect(jsonPath("$.permissions").value(not(hasItem("STAFF_MANAGE"))));
     }
 

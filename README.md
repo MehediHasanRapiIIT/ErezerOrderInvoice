@@ -73,7 +73,9 @@ cd erezerfrontend && npm test -- --watch=false
 ### Permissions
 
 - `ADMIN` has every permission. A `MODERATOR` has only what an admin grants, from the catalog in [Permission.java](erezerbackend/src/main/java/com/erezer/admin/security/Permission.java).
-- `STAFF_MANAGE` can never be granted to a moderator.
+- An admin can give a moderator **every** permission, including courier settings, the size list and *Manage staff and permissions*.
+- **Changing a section includes seeing it:** e.g. *Add and edit assets* also gives *View assets*, and order actions (edit, status, notes, dates, exchanges, returns, sending to courier…) give *View orders*. The staff form shows these as "(included)". This applies to existing accounts too, from their next request.
+- **A moderator who manages staff** looks after moderators only: they can't add or change admins, can't change their own account, and can only give permissions they have themselves.
 - Every endpoint is protected with `@PreAuthorize("hasAuthority('...')")`. The frontend's route guards and `*appHasPermission` only hide UI the user cannot use.
 - Permissions travel inside the access token, so a change takes effect within one token lifetime (at most 15 minutes).
 
@@ -138,7 +140,10 @@ Rules:
 - **List:** a summary strip for the whole shop (asset value, items, under repair, warranty ending within 30 days; the last two filter the list), plus search, status, category, location, warranty and purchase date filters, and Excel export with a total row.
 - **Delete** is a soft delete, like expenses. For things that left the shop, use Sold or Disposed instead.
 - **No depreciation:** value = what was paid.
-- **Permissions:** *View assets*, *Add and edit assets* (includes categories, status changes and repairs) and *Delete assets*. Admins always have all three.
+- **Permissions (one per action):** *View assets*, *See costs and prices*, *View history*, *Add assets*, *Edit asset details*, *Change status*, *Add and remove repairs*, *Manage categories*, *Export to Excel*, *Delete assets*. Each includes *View assets*; admins always have all.
+  - Without *See costs and prices* every amount is hidden: unit and total cost, asset value, repair costs, sale price, the receipt, amounts inside history lines, and the money columns of the export. Such a user adds assets without a cost (it stays 0 until someone who can see costs fills it in), and editing never changes the cost or the receipt.
+  - Without *View history* the History panel is hidden (the repair list stays).
+  - When this was introduced, staff who had *Add and edit assets* kept adding, status changes, repairs and categories, and everyone who could view assets kept seeing costs, history and the export.
 
 ### Staff management
 
@@ -193,7 +198,7 @@ An order needing more than is in stock is refused as a whole ("Only 3 of Black /
 
 **Permissions:** *View stock* and *Add and update stock*. Order takers can search variants without either.
 
-### Order status, notes and courier cost permissions
+### Order status, order date, notes and courier cost permissions
 
 - **Flow:** Placed → Accepted → Processing → Shipped → Out for delivery → Delivered, plus Cancelled and Returned. *In production* is retired: its orders became Processing, and old timeline entries still show it.
 - **Change status freely** (`ORDER_STATUS_OVERRIDE`; admins always): move an order to **any** status at any time, backwards and after Cancelled or Delivered.
@@ -202,6 +207,9 @@ An order needing more than is in stock is refused as a whole ("Only 3 of Black /
   - Stock follows too; reopening a cancelled order takes stock again, or is refused when there isn't enough.
   - Before overriding an order booked with Steadfast, the panel warns that Steadfast's own updates may change it again.
 - **Without that permission,** staff with *Update order status* follow the normal forward flow.
+- **Order and delivered dates** (`ORDER_DATE_EDIT`, *Choose or change the order and delivered dates*; admins always). Order date: an **Order date** calendar (date and time, Bangladesh time) in Add Order and Edit Order. It starts at today; pick any day, earlier or later (one click on a day, with Yesterday / Today / Tomorrow shortcuts and a time box). The order date is the date used everywhere: order list and filters, invoice, export, customers and the dashboard's placed orders. The timeline's *Placed* step moves with it, and a change on an existing order is noted on it ("Order date changed from … to …"). Without the permission the field isn't shown, and new orders are dated when saved.
+  - **In the orders list:** click an order's date to change it right there. Tick orders and use **Change date** in the bar at the bottom to move them all to one day, either their **order date** or their **delivered date**, keeping each order's own time of day unless you set one. Orders that can't take it (e.g. not delivered yet) are skipped and listed. Ticking orders is offered to anyone with this permission or *Send orders to courier*.
+  - **Delivered date:** on a delivered order's page, **Change** next to "Delivered …" sets it by hand with the same calendar; the sale then counts on that day in the dashboard and Sold Products. It can't be before the order date; the timeline's *Delivered* step moves with it and the change is noted on the order.
 - **Add internal notes** (`ORDER_NOTE_ADD`) and **Record the courier cost** (`ORDER_COURIER_COST`) are separate permissions. Both work on any order, at any time; the courier cost can be entered before shipping. When these were introduced, staff who had *Edit orders* or *Update order status* were given both, so nobody lost access.
 
 ### Advance and due

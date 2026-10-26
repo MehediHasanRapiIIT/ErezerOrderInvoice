@@ -41,16 +41,23 @@
   </aside>
 
   <!-- Main column -->
-  <div class="flex min-h-screen flex-col lg:pl-64">
+  <div class="flex min-h-screen min-w-0 flex-col lg:pl-64">
     <header class="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-line bg-panel/95 px-4 backdrop-blur sm:px-6">
-      <button
-        type="button"
-        class="rounded p-2 text-slate-300 hover:bg-white/5 lg:hidden cursor-pointer"
-        (click)="sidebarOpen.set(true)"
-        aria-label="Open navigation"
-      >
-        <i class="fas fa-bars text-lg"></i>
-      </button>
+      <!-- Phones and tablets: menu button and the logo (on wide screens the logo is in the sidebar) -->
+      <div class="flex items-center gap-2 lg:hidden">
+        <button
+          type="button"
+          class="rounded p-2 text-slate-300 hover:bg-white/5 cursor-pointer"
+          (click)="sidebarOpen.set(true)"
+          aria-label="Open navigation"
+        >
+          <i class="fas fa-bars text-lg"></i>
+        </button>
+        <a routerLink="/" class="flex flex-col justify-center" aria-label="Erezer home">
+          <span class="block bg-white" role="img" aria-label="Erezer" style="height:13px;aspect-ratio:865/96;-webkit-mask:url(logo-wordmark.png) left center/contain no-repeat;mask:url(logo-wordmark.png) left center/contain no-repeat"></span>
+          <span class="mt-1 text-[10px] uppercase tracking-widest text-slate-400">Admin</span>
+        </a>
+      </div>
       <div class="hidden lg:block"></div>
 
       <div class="relative">
@@ -88,7 +95,7 @@
       </div>
     </header>
 
-    <main class="flex-1 p-4 sm:p-6">
+    <main class="min-w-0 flex-1 p-4 sm:p-6">
       <router-outlet />
     </main>
   </div>

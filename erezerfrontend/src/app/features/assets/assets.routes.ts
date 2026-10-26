@@ -12,7 +12,7 @@ export const ASSET_ROUTES: Routes = [
   {
     path: 'new',
     title: 'Add Asset',
-    canActivate: [requirePermission('ASSET_MANAGE')],
+    canActivate: [requirePermission('ASSET_CREATE')],
     canDeactivate: [unsavedChangesGuard],
     loadComponent: () => import('./asset-form/asset-form-page').then((m) => m.AssetFormPage),
   },

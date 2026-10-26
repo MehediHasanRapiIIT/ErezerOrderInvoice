@@ -242,7 +242,8 @@ class CourierIntegrationTest extends IntegrationTest {
         String viewer = bearer(Role.MODERATOR, Permission.ORDER_VIEW);
         mvc.perform(post("/api/orders/" + id + "/courier").header("Authorization", viewer)
                 .contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isForbidden());
-        String sender = bearer(Role.MODERATOR, Permission.ORDER_VIEW, Permission.COURIER_SEND, Permission.COURIER_SETTINGS);
+        // Sending doesn't include the courier settings (API keys); those are a separate permission.
+        String sender = bearer(Role.MODERATOR, Permission.ORDER_VIEW, Permission.COURIER_SEND);
         mvc.perform(get("/api/courier/settings").header("Authorization", sender)).andExpect(status().isForbidden());
         mvc.perform(post("/api/orders/" + id + "/courier").header("Authorization", sender)
                 .contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isOk());

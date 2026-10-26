@@ -2,6 +2,7 @@ package com.erezer.admin.staff;
 
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -14,6 +15,7 @@ import com.erezer.admin.support.IntegrationTest;
 import com.erezer.admin.user.User;
 import com.jayway.jsonpath.JsonPath;
 import jakarta.servlet.http.Cookie;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,8 +36,7 @@ class StaffApiIntegrationTest extends IntegrationTest {
     @Test
     void adminCreatesModeratorWhoCanSignInWithOnlyGrantedPermissions() throws Exception {
         String email = "mod-" + UUID.randomUUID() + "@test.local";
-        // STAFF_MANAGE is admin-only and must be dropped.
-        long id = createModerator(email, "[\"ORDER_VIEW\",\"ORDER_CREATE\",\"STAFF_MANAGE\"]");
+        long id = createModerator(email, "[\"ORDER_VIEW\",\"ORDER_CREATE\"]");
 
         mvc.perform(get("/api/staff/" + id).header("Authorization", admin))
                 .andExpect(status().isOk())
@@ -163,9 +164,46 @@ class StaffApiIntegrationTest extends IntegrationTest {
     }
 
     @Test
-    void moderatorsCannotManageStaff() throws Exception {
-        String moderator = bearer(Role.MODERATOR, Permission.ORDER_VIEW, Permission.STAFF_MANAGE);
+    void moderatorsWithoutThePermissionCannotManageStaff() throws Exception {
+        String moderator = bearer(Role.MODERATOR, Permission.ORDER_VIEW);
         mvc.perform(get("/api/staff").header("Authorization", moderator)).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void aStaffManagerLooksAfterModeratorsButNeverAdminsOrThemselves() throws Exception {
+        String managerEmail = createUser(Role.MODERATOR, List.of(Permission.STAFF_MANAGE, Permission.ORDER_VIEW, Permission.ORDER_CREATE));
+        String manager = login(managerEmail, PASSWORD);
+
+        // Can add a moderator with permissions they hold themselves…
+        String email = "managed-" + UUID.randomUUID() + "@test.local";
+        mvc.perform(post("/api/staff").header("Authorization", manager).contentType(MediaType.APPLICATION_JSON)
+                        .content(createJson(email, TEMP_PASSWORD, "[\"ORDER_VIEW\",\"ORDER_CREATE\"]")))
+                .andExpect(status().isCreated());
+        // …but not give ones they don't have, and not add admins.
+        mvc.perform(post("/api/staff").header("Authorization", manager).contentType(MediaType.APPLICATION_JSON)
+                        .content(createJson("x-" + email, TEMP_PASSWORD, "[\"EXPENSE_VIEW\"]")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.detail").value(startsWith("You can only give permissions you have yourself")));
+        mvc.perform(post("/api/staff").header("Authorization", manager).contentType(MediaType.APPLICATION_JSON)
+                        .content(createJson("y-" + email, TEMP_PASSWORD, "[]").replace("MODERATOR", "ADMIN")))
+                .andExpect(status().isForbidden());
+
+        // Admins' accounts and their own are off limits.
+        long adminId = users.findByEmail(createUser(Role.ADMIN, List.of())).orElseThrow().getId();
+        mvc.perform(post("/api/staff/" + adminId + "/deactivate").header("Authorization", manager)).andExpect(status().isForbidden());
+        long selfId = users.findByEmail(managerEmail).orElseThrow().getId();
+        mvc.perform(post("/api/staff/" + selfId + "/reset-password").header("Authorization", manager)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"newPassword\":\"Another12345\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void changingASectionIncludesSeeingIt() throws Exception {
+        String email = createUser(Role.MODERATOR, List.of(Permission.ASSET_MANAGE));
+        String token = login(email, PASSWORD);
+        mvc.perform(get("/api/assets").header("Authorization", token)).andExpect(status().isOk());   // View comes with it
+        mvc.perform(get("/api/auth/me").header("Authorization", token))
+                .andExpect(jsonPath("$.permissions").value(hasItem("ASSET_VIEW")));
     }
 
     private long createModerator(String email, String permissionsJson) throws Exception {

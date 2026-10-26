@@ -31,7 +31,8 @@ public final class AssetDtos {
             @NotBlank @Size(max = 120) String name,
             @NotNull Long categoryId,
             @Min(1) @Max(100000) int quantity,
-            @NotNull @DecimalMin("0") @DecimalMax("99999999") @Digits(integer = 10, fraction = 2) BigDecimal unitCost,
+            /** Ignored for people who can't see costs (a new asset then costs 0 until someone who can fills it in). */
+            @DecimalMin("0") @DecimalMax("99999999") @Digits(integer = 10, fraction = 2) BigDecimal unitCost,
             @NotNull LocalDate purchaseDate,
             @Size(max = 120) String supplier,
             PaymentMethod paymentMethod,

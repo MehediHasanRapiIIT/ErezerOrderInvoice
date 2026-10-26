@@ -128,6 +128,13 @@
     <div class="space-y-6">
       <section class="card space-y-4 p-5">
         <h2 class="font-semibold text-white"><i class="fas fa-file-invoice mr-2 text-slate-400"></i>Order details</h2>
+        @if (canSetDate) {
+          <div class="block">
+            <span class="field-label">Order date</span>
+            <app-date-time-picker formControlName="orderedAt" label="Order date" />
+            <span class="mt-1 block text-xs text-slate-500">{{ isEdit() ? 'Change it to move the order to another day.' : 'Today by default; pick any other day if needed.' }}</span>
+          </div>
+        }
         <label class="block">
           <span class="field-label">Order ID</span>
           <input formControlName="orderNumber" class="field font-mono uppercase" placeholder="Generated automatically" [class.field-invalid]="form.controls.orderNumber.invalid" />

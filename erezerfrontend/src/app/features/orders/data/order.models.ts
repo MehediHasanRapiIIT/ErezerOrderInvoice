@@ -123,6 +123,8 @@ export interface OrderDetail {
   returns: ReturnView[];
   /** Delivered, with some products sent back. */
   partlyReturned: boolean;
+  /** When it was delivered; absent if never delivered. */
+  deliveredAt?: string;
 }
 
 export interface ReturnedLine {
@@ -295,6 +297,8 @@ export interface OrderRequest {
   version?: number;
   /** Optional: paid before delivery. */
   advance: number;
+  /** The order date (ISO); only sent by users allowed to choose it. */
+  orderedAt?: string | null;
 }
 
 export interface StatusChangeRequest {
