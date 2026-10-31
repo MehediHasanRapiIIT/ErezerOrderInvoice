@@ -6,6 +6,7 @@ import { errorMessage } from '../../core/http/api-error';
 import { ToastService } from '../../core/notify/toast.service';
 import { isoDate } from '../../shared/date-range';
 import { BdDatePipe, bdToday } from '../../shared/ui/bd-date.pipe';
+import { ConfirmService } from '../../shared/ui/confirm-dialog';
 import { Pagination } from '../../shared/ui/pagination';
 import { TakaPipe } from '../../shared/ui/taka.pipe';
 import { AttendanceReviewDialog } from './review-dialog';
@@ -87,6 +88,9 @@ const PAGE_SIZE = 20;
                     @if (canEdit) {
                       <button type="button" class="btn-secondary" (click)="openCorrection(row)">Correct</button>
                     }
+                    @if (canDelete && row.record; as record) {
+                      <button type="button" class="btn-secondary" title="Delete" [attr.aria-label]="'Delete attendance of ' + row.fullName" (click)="remove(row, record)"><i class="fas fa-trash"></i></button>
+                    }
                   </div>
                 </td>
               </tr>
@@ -136,6 +140,7 @@ export class AttendanceDayTab {
   private readonly api = inject(AttendanceApi);
   private readonly toast = inject(ToastService);
   private readonly auth = inject(AuthService);
+  private readonly confirm = inject(ConfirmService);
 
   readonly month = input.required<string>();
   /** Null shows everyone on one day; an id shows that employee's month. */
@@ -149,6 +154,7 @@ export class AttendanceDayTab {
   protected readonly hours = hoursLabel;
   protected readonly canApprove = this.auth.hasPermission('ATTENDANCE_APPROVE');
   protected readonly canEdit = this.auth.hasPermission('ATTENDANCE_EDIT');
+  protected readonly canDelete = this.auth.hasPermission('ATTENDANCE_DELETE');
   /** Today in the current month, otherwise the 1st. */
   protected readonly date = linkedSignal(() => {
     const today = isoDate(bdToday());
@@ -202,6 +208,23 @@ export class AttendanceDayTab {
       this.day.reload();
       this.changed.emit();
     }
+  }
+
+  protected async remove(row: DayRow, record: AttendanceRecord): Promise<void> {
+    const confirmed = await this.confirm.ask({
+      title: `Delete ${row.fullName}'s attendance?`,
+      message: 'The check-in, check-out, photo, reasons and any late fee for this day are removed permanently.',
+      danger: true,
+    });
+    if (!confirmed) return;
+    this.api.deleteRecord(record.id).subscribe({
+      next: () => {
+        this.toast.success('Attendance deleted');
+        this.day.reload();
+        this.changed.emit();
+      },
+      error: (err: unknown) => this.toast.error(errorMessage(err)),
+    });
   }
 
   protected openCorrection(row: DayRow): void {

@@ -462,6 +462,41 @@ class AttendanceIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void anAdminCanDeleteARecordAndItsLateFee() throws Exception {
+        Staff employee = employee(ALL_LATE, "[]");
+        int id = read(checkIn(employee, inRange(selfie(employee), "Traffic")).andExpect(status().isOk()).andReturn(), "$.id");
+        review(id, "150", null).andExpect(status().isOk());
+
+        mvc.perform(delete("/api/attendance/records/" + id).header(HttpHeaders.AUTHORIZATION, admin)).andExpect(status().isNoContent());
+
+        mvc.perform(get("/api/attendance/summary").param("month", YearMonth.now(DHAKA).toString()).param("userId", String.valueOf(employee.id()))
+                        .header(HttpHeaders.AUTHORIZATION, admin))
+                .andExpect(jsonPath("$.lateFees").value(0));
+        mvc.perform(get("/api/attendance/day").param("date", today().toString()).param("size", "100").header(HttpHeaders.AUTHORIZATION, admin))
+                .andExpect(jsonPath("$.content[?(@.userId == " + employee.id() + ")].record").isEmpty());
+        // The day is free again, so a mistake can be redone.
+        checkIn(employee, inRange(selfie(employee), "Second try")).andExpect(status().isOk());
+    }
+
+    @Test
+    void deletingNeedsThePermissionAndNobodyDeletesTheirOwn() throws Exception {
+        Staff employee = employee(NEVER_LATE, "[]");
+        int id = read(checkIn(employee, inRange(selfie(employee), null)).andExpect(status().isOk()).andReturn(), "$.id");
+
+        String editor = staff(Role.MODERATOR, Permission.ATTENDANCE_EDIT).bearer();
+        mvc.perform(delete("/api/attendance/records/" + id).header(HttpHeaders.AUTHORIZATION, editor)).andExpect(status().isForbidden());
+        mvc.perform(delete("/api/attendance/records/" + id).header(HttpHeaders.AUTHORIZATION, employee.bearer())).andExpect(status().isForbidden());
+
+        Staff own = staff(Role.MODERATOR, Permission.ATTENDANCE_MARK, Permission.ATTENDANCE_DELETE);
+        setShift(own.id(), NEVER_LATE, "[]").andExpect(status().isNoContent());
+        int mine = read(checkIn(own, inRange(selfie(own), null)).andExpect(status().isOk()).andReturn(), "$.id");
+        mvc.perform(delete("/api/attendance/records/" + mine).header(HttpHeaders.AUTHORIZATION, own.bearer()))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("OWN_ATTENDANCE"));
+
+        mvc.perform(delete("/api/attendance/records/999999").header(HttpHeaders.AUTHORIZATION, admin)).andExpect(status().isNotFound());
+    }
+
+    @Test
     void theMonthExportsToExcel() throws Exception {
         employee(NEVER_LATE, "[]");
         MvcResult file = mvc.perform(get("/api/attendance/month/export.xlsx").param("month", YearMonth.now(DHAKA).toString())

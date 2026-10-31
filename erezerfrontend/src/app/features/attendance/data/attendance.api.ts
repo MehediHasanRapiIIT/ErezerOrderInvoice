@@ -94,6 +94,10 @@ export class AttendanceApi {
     return this.http.post<AttendanceRecord>(`${this.baseUrl}/records/${id}/review`, { lateFee, note });
   }
 
+  deleteRecord(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/records/${id}`);
+  }
+
   correct(body: { userId: number; date: string; checkIn: string | null; checkOut: string | null; note: string }): Observable<void> {
     return this.http.put<void>(`${this.baseUrl}/day`, body);
   }

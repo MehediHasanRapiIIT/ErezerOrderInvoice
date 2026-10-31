@@ -66,6 +66,7 @@ public enum Permission {
     ATTENDANCE_VIEW("Attendance", "View everyone's attendance", false),
     ATTENDANCE_APPROVE("Attendance", "Approve late / early days and add late fees", false),
     ATTENDANCE_EDIT("Attendance", "Correct attendance by hand", false),
+    ATTENDANCE_DELETE("Attendance", "Delete attendance records", false),
     ATTENDANCE_SETTINGS("Attendance", "Manage shifts and locations", false),
 
     SALES_VIEW("Sold products", "View sold products", false),
@@ -119,7 +120,7 @@ public enum Permission {
                     ASSET_CATEGORIES, ASSET_EXPORT, ASSET_DELETE -> EnumSet.of(ASSET_VIEW);
             case STOCK_MANAGE, SIZE_MANAGE -> EnumSet.of(STOCK_VIEW);
             case CUSTOMER_EXPORT -> EnumSet.of(CUSTOMER_VIEW);
-            case ATTENDANCE_APPROVE, ATTENDANCE_EDIT, ATTENDANCE_SETTINGS -> EnumSet.of(ATTENDANCE_VIEW);
+            case ATTENDANCE_APPROVE, ATTENDANCE_EDIT, ATTENDANCE_DELETE, ATTENDANCE_SETTINGS -> EnumSet.of(ATTENDANCE_VIEW);
             case EMPLOYEE_CREATE, EMPLOYEE_EDIT, EMPLOYEE_DELETE -> EnumSet.of(EMPLOYEE_VIEW);
             case DAILY_EXPENSE_APPROVE, DAILY_EXPENSE_EDIT, DAILY_EXPENSE_DELETE, DAILY_EXPENSE_CATEGORIES -> EnumSet.of(DAILY_EXPENSE_VIEW);
             case BOOST_COST_ADD, BOOST_BUY, BOOST_EDIT, BOOST_DELETE -> EnumSet.of(BOOST_VIEW);

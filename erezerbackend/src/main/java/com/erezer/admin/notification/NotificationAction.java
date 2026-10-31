@@ -82,6 +82,7 @@ public enum NotificationAction {
     ATTENDANCE_CHECK_OUT_PROBLEM("Attendance", "Left early or away from work", ATTENDANCE),
     ATTENDANCE_REVIEWED("Attendance", "Attendance approved", ATTENDANCE),
     ATTENDANCE_CORRECTED("Attendance", "Attendance corrected", ATTENDANCE_PERSON),
+    ATTENDANCE_DELETED("Attendance", "Attendance deleted", ATTENDANCE),
     ATTENDANCE_SHIFT_SET("Attendance", "Working hours set", ATTENDANCE_PERSON),
     ATTENDANCE_SHIFT_REMOVED("Attendance", "Working hours removed", ATTENDANCE_PERSON),
     ATTENDANCE_SPECIAL_HOURS_SET("Attendance", "Special hours set", SPECIAL_HOURS),

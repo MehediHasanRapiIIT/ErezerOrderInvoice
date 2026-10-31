@@ -199,6 +199,7 @@ Employees and moderators give attendance from their phones under **My Attendance
 - **Approval:** the admin sees the photo, reasons and location, and approves, with a late fee if they choose. Leaving early after an approved late arrival sends the day back for review and keeps the fee.
 - **Days off** are never late or absent. Days before someone's shift was first set aren't counted. A day with a check-in and no check-out shows as **No check-out**; hours aren't guessed.
 - **Corrections** (`ATTENDANCE_EDIT`) set a day's times by hand with a required note. Empty times clear the day. Nobody can approve or correct their own attendance.
+- **Deleting** (`ATTENDANCE_DELETE`) permanently removes a day's record with its times, reasons and late fee, from the Daily list. The day can then be given again. Nobody can delete their own.
 - **Monthly** shows one row per employee with totals, hours and late fees, and exports to Excel. Late fees are only recorded here; nothing is deducted automatically.
 - **Filter and cards:** the Attendance page has an employee and month filter above two cards, Total working hours and Total late fee. With all employees selected, the cards also count people since removed from attendance, because their hours and fees still happened. Choosing one employee narrows the cards, Approvals and Monthly to them, and turns Daily into their month day by day. Hours count only days with both a check-in and a check-out.
 - **Lists** are paged: 20 rows on Daily, Approvals and Monthly, 10 in Settings.

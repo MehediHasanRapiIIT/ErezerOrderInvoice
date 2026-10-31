@@ -266,6 +266,14 @@ public class AttendanceService {
         return toViews(List.of(record)).getFirst();
     }
 
+    /** Removes a day's record with its times and late fee. The photo goes in the nightly clean-up of unused files. */
+    @Transactional
+    public void deleteRecord(long id, long adminId) {
+        AttendanceRecord record = records.findById(id).orElseThrow(() -> ApiException.notFound("Attendance record", id));
+        requireNotOwn(record.getUserId(), adminId);
+        records.delete(record);
+    }
+
     /** Sets a day's times by hand, or clears the day when both are empty. */
     @Transactional
     public void correct(DayCorrection request, long adminId) {

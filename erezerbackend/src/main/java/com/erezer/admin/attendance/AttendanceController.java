@@ -154,6 +154,14 @@ class AttendanceController {
         return attendance.review(id, request, CurrentUser.id());
     }
 
+    @Notifies(NotificationAction.ATTENDANCE_DELETED)
+    @DeleteMapping("/records/{id}")
+    @PreAuthorize("hasAuthority('ATTENDANCE_DELETE')")
+    ResponseEntity<Void> deleteRecord(@PathVariable long id) {
+        attendance.deleteRecord(id, CurrentUser.id());
+        return ResponseEntity.noContent().build();
+    }
+
     @Notifies(NotificationAction.ATTENDANCE_CORRECTED)
     @PutMapping("/day")
     @PreAuthorize("hasAuthority('ATTENDANCE_EDIT')")
