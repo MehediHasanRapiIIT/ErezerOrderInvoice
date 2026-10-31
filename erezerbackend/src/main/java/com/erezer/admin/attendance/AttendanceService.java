@@ -174,7 +174,20 @@ public class AttendanceService {
     /** The people the lists can be filtered by. */
     @Transactional(readOnly = true)
     public List<EmployeeOption> employeeOptions() {
-        return employees().stream().map(s -> new EmployeeOption(s.userId(), s.fullName())).toList();
+        return jdbc.sql("""
+                        select u.id, u.full_name from users u
+                        where (u.active and u.role <> 'ADMIN' and exists (select 1 from attendance_shifts s where s.user_id = u.id))
+                           or exists (select 1 from attendance_records r where r.user_id = u.id)
+                        order by lower(u.full_name)
+                        """)
+                .query((rs, i) -> new EmployeeOption(rs.getLong(1), rs.getString(2)))
+                .list();
+    }
+
+    /** Someone taken out of attendance since: only the days they actually have records for are listed. */
+    private Shift formerEmployee(long userId) {
+        User user = users.findById(userId).orElseThrow(() -> ApiException.notFound("Employee", userId));
+        return new Shift(userId, user.getFullName(), null, null, 0, Set.of(), LocalDate.MAX);
     }
 
     /** Total hours worked and late fees for a month: everyone's, or one employee's. */
@@ -203,7 +216,7 @@ public class AttendanceService {
     /** One employee's month day by day, newest first, up to today. */
     @Transactional(readOnly = true)
     public PageResponse<DayRow> employeeDays(long userId, YearMonth month, int page, int size) {
-        Shift shift = shiftOf(userId).orElseThrow(() -> ApiException.notFound("Employee", userId));
+        Shift shift = shiftOf(userId).orElseGet(() -> formerEmployee(userId));
         List<AttendanceRecord> list = records.findByUserIdAndWorkDateBetween(userId, month.atDay(1), month.atEndOfMonth());
         Map<LocalDate, RecordView> views = toViews(list).stream().collect(Collectors.toMap(RecordView::date, r -> r));
         Map<LocalDate, AttendanceRecord> raw = list.stream().collect(Collectors.toMap(AttendanceRecord::getWorkDate, r -> r));

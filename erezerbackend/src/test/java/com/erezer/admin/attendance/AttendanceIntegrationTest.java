@@ -520,6 +520,26 @@ class AttendanceIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void someoneTakenOutOfAttendanceCanStillBeFoundAndFixed() throws Exception {
+        Staff employee = employee(ALL_LATE, "[]");
+        int id = read(checkIn(employee, inRange(selfie(employee), "Bus")).andExpect(status().isOk()).andReturn(), "$.id");
+        review(id, "10", null).andExpect(status().isOk());
+
+        mvc.perform(delete("/api/attendance/shifts/" + employee.id()).header(HttpHeaders.AUTHORIZATION, admin)).andExpect(status().isNoContent());
+
+        mvc.perform(get("/api/attendance/employees").header(HttpHeaders.AUTHORIZATION, admin))
+                .andExpect(jsonPath("$[*].userId").value(hasItem((int) employee.id())));
+        mvc.perform(get("/api/attendance/employees/" + employee.id() + "/days").param("month", YearMonth.now(DHAKA).toString())
+                        .header(HttpHeaders.AUTHORIZATION, admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].record.lateFee").value(10));
+
+        review(id, "0", "Removed").andExpect(status().isOk()).andExpect(jsonPath("$.lateFee").value(0));
+        mvc.perform(delete("/api/attendance/records/" + id).header(HttpHeaders.AUTHORIZATION, admin)).andExpect(status().isNoContent());
+    }
+
+    @Test
     void theMonthExportsToExcel() throws Exception {
         employee(NEVER_LATE, "[]");
         MvcResult file = mvc.perform(get("/api/attendance/month/export.xlsx").param("month", YearMonth.now(DHAKA).toString())
