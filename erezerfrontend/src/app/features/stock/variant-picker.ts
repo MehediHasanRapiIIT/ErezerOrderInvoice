@@ -5,7 +5,8 @@ import { StockApi, VariantSuggestion } from './stock.api';
 
 /**
  * The order form's Variant field: typing suggests every stock variant whose name contains the text, and only a
- * variant picked from the list counts (its id is what moves stock). Shows how many are left.
+ * variant picked from the list counts (its id is what moves stock). Shows how many are left. With {@code allowOther}
+ * the list also offers "Other", for something that isn't a stock variant.
  */
 @Component({
   selector: 'app-variant-picker',
@@ -37,6 +38,15 @@ import { StockApi, VariantSuggestion } from './stock.api';
           } @empty {
             <li class="px-3 py-2 text-sm text-slate-400">No variant contains "{{ name() }}". Add it in Stock first.</li>
           }
+          @if (allowOther()) {
+            <li role="option" class="border-t border-line" [attr.aria-selected]="other()">
+              <button type="button" class="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2 text-left text-sm"
+                      (mousedown)="$event.preventDefault()" (click)="chooseOther()">
+                <span class="font-medium text-slate-100">Other</span>
+                <span class="text-xs text-slate-400">Not in stock</span>
+              </button>
+            </li>
+          }
         </ul>
       }
       @if (invalid()) {
@@ -53,6 +63,10 @@ export class VariantPicker {
   readonly name = model('');
   /** The picked variant; null while the text does not match a picked variant. */
   readonly variantId = model<number | null>(null);
+  /** Whether the list offers "Other". */
+  readonly allowOther = input(false);
+  /** "Other" was chosen. */
+  readonly other = model(false);
   readonly label = input('Variant');
   readonly placeholder = input('Type to search, e.g. Black');
 
@@ -60,7 +74,7 @@ export class VariantPicker {
   protected readonly showList = signal(false);
   protected readonly active = signal(0);
   protected readonly picked = signal<VariantSuggestion | null>(null);
-  protected readonly invalid = () => this.name().trim() !== '' && this.variantId() === null;
+  protected readonly invalid = () => this.name().trim() !== '' && this.variantId() === null && !this.other();
 
   private readonly queries = new Subject<string>();
 
@@ -76,7 +90,7 @@ export class VariantPicker {
         this.active.set(0);
         // Typed an exact name: pick it, so pasting or typing a full name works too.
         const exact = list.find((s) => s.name.toLowerCase() === this.name().trim().toLowerCase());
-        if (exact && this.variantId() === null) {
+        if (exact && this.variantId() === null && !this.other()) {
           this.variantId.set(exact.id);
           this.picked.set(exact);
         }
@@ -88,13 +102,14 @@ export class VariantPicker {
 
   protected open(): void {
     this.showList.set(true);
-    this.queries.next(this.name().trim());
+    this.queries.next(this.other() ? '' : this.name().trim());
   }
 
   protected onInput(value: string): void {
     this.name.set(value);
     this.variantId.set(null);
     this.picked.set(null);
+    this.other.set(false);
     this.showList.set(true);
     this.queries.next(value.trim());
   }
@@ -103,6 +118,15 @@ export class VariantPicker {
     this.name.set(s.name);
     this.variantId.set(s.id);
     this.picked.set(s);
+    this.other.set(false);
+    this.showList.set(false);
+  }
+
+  protected chooseOther(): void {
+    this.name.set('Other');
+    this.variantId.set(null);
+    this.picked.set(null);
+    this.other.set(true);
     this.showList.set(false);
   }
 

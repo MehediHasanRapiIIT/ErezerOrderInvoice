@@ -5,6 +5,7 @@ import { catchError, filter, of } from 'rxjs';
 import { PushService } from '../../features/notifications/data/push.service';
 import { UnreadService } from '../../features/notifications/data/unread.service';
 import { StaffApi } from '../../features/staff/data/staff.api';
+import { ROLE_LABELS } from '../../core/auth/auth.models';
 import { AuthService } from '../../core/auth/auth.service';
 import { NAV_ITEMS } from '../nav-items';
 
@@ -32,6 +33,11 @@ export class Shell {
       (item) => this.auth.hasAnyPermission(item.permissions) && !(item.notForAdmins && this.auth.user()?.role === 'ADMIN'),
     ),
   );
+
+  protected readonly roleLabel = computed(() => {
+    const role = this.auth.user()?.role;
+    return role ? ROLE_LABELS[role] : '';
+  });
 
   protected readonly initials = computed(() =>
     (this.auth.user()?.fullName ?? '?')

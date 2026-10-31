@@ -62,6 +62,10 @@ public enum NotificationAction {
     BOOST_PURCHASE_EDITED("Expense (Boost)", "Dollar purchase edited", BOOST_PURCHASE),
     BOOST_PURCHASE_DELETED("Expense (Boost)", "Dollar purchase deleted", BOOST_PURCHASE),
 
+    REJECT_ADDED("Reject Track", "Reject added", REJECT),
+    REJECT_EDITED("Reject Track", "Reject edited", REJECT),
+    REJECT_DELETED("Reject Track", "Reject deleted", REJECT),
+
     ASSET_CREATED("Assets", "Asset added", ASSET),
     ASSET_EDITED("Assets", "Asset edited", ASSET),
     ASSET_STATUS_CHANGED("Assets", "Asset status changed", ASSET),

@@ -497,6 +497,29 @@ class AttendanceIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void aLateFeeCanBeChangedOrRemovedAfterApproval() throws Exception {
+        Staff employee = employee(ALL_LATE, "[]");
+        int id = read(checkIn(employee, inRange(selfie(employee), "Bus")).andExpect(status().isOk()).andReturn(), "$.id");
+        review(id, "100", null).andExpect(status().isOk()).andExpect(jsonPath("$.lateFee").value(100));
+
+        review(id, "60", "Reduced").andExpect(status().isOk()).andExpect(jsonPath("$.lateFee").value(60))
+                .andExpect(jsonPath("$.reviewStatus").value("APPROVED"));
+        review(id, "0", "Forgiven").andExpect(status().isOk()).andExpect(jsonPath("$.lateFee").value(0));
+    }
+
+    @Test
+    void aFeeIsNotStuckAfterTheDayIsCorrectedToOnTime() throws Exception {
+        Staff employee = employee("\"10:00\",\"18:00\"", "[]");
+        String date = today().minusDays(2).toString();
+        correct(admin, employee.id(), date, "\"10:30\"", "\"18:00\"", "Came late").andExpect(status().isNoContent());
+        int id = jdbc.sql("select id from attendance_records where user_id = :u").param("u", employee.id()).query(Integer.class).single();
+        review(id, "50", null).andExpect(status().isOk());
+
+        correct(admin, employee.id(), date, "\"10:00\"", "\"18:00\"", "Was on time").andExpect(status().isNoContent());
+        review(id, "0", "Not late after all").andExpect(status().isOk()).andExpect(jsonPath("$.lateFee").value(0));
+    }
+
+    @Test
     void theMonthExportsToExcel() throws Exception {
         employee(NEVER_LATE, "[]");
         MvcResult file = mvc.perform(get("/api/attendance/month/export.xlsx").param("month", YearMonth.now(DHAKA).toString())

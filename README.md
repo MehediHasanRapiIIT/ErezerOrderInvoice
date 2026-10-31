@@ -196,7 +196,7 @@ Employees and moderators give attendance from their phones under **My Attendance
 - **Check in:** takes a live selfie (no gallery option), reads the phone's position and records the nearest location. Times come from the server in Bangladesh time, so the phone's clock has no effect. One check-in a day.
 - **Photos:** the image is stored in MinIO under `selfies/`, its details in `stored_files`, and the record links to it. Lists show it through a presigned link. A record that is deleted leaves its photo to the nightly orphan purge.
 - **Reasons:** being late (after check-in time + grace, counted from the check-in time), leaving before check-out time, or being outside every location's radius or having no position all need a reason, and the day then waits in **Approvals**.
-- **Approval:** the admin sees the photo, reasons and location, and approves, with a late fee if they choose. Leaving early after an approved late arrival sends the day back for review and keeps the fee.
+- **Approval:** the admin sees the photo, reasons and location, and approves, with a late fee if they choose. An approved day leaves **Approvals** and stays in **Daily**, where **Late fee** changes or removes the fee at any time. Leaving early after an approved late arrival sends the day back for review and keeps the fee.
 - **Days off** are never late or absent. Days before someone's shift was first set aren't counted. A day with a check-in and no check-out shows as **No check-out**; hours aren't guessed.
 - **Corrections** (`ATTENDANCE_EDIT`) set a day's times by hand with a required note. Empty times clear the day. Nobody can approve or correct their own attendance.
 - **Deleting** (`ATTENDANCE_DELETE`) permanently removes a day's record with its times, reasons and late fee, from the Daily list. The day can then be given again. Nobody can delete their own.
@@ -230,6 +230,16 @@ Shifts must end after they start on the same day, so overnight shifts aren't sup
   - The order's **discount, delivery charge and courier cost are shared by pieces**: 2 tees + 1 cap → the tees carry 2/3. The order's largest category takes the rounding leftover, so the shares add up to the order exactly.
   - Courier cost = the courier's real charge, or the delivery charge when unknown.
 - **Permission:** *View sold products*.
+
+### Reject Track
+
+**Reject Track** records rejected pieces, with cards for the total, Solid Color, Printed and how many came from stock.
+
+- **Add Reject:** the variant list is the same as in Add Order, plus **Other**. Then type (Solid Color or Printed), size, quantity, date and a note.
+- **A stock variant** loses the pieces at that size, and it can't go below zero. The Stock history shows them as *Rejected*.
+- **Other** opens a field for the name and never changes stock.
+- **Editing or deleting** corrects a mistake, so what the reject took goes back into stock first (shown as *Reject removed*), then any edit takes what it now needs. An edit that stock can't cover changes nothing.
+- **Permissions:** `REJECT_VIEW`, `REJECT_CREATE`, `REJECT_EDIT` and `REJECT_DELETE`.
 
 ### Stock
 

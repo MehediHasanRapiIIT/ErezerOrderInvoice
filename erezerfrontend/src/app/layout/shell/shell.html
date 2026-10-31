@@ -13,7 +13,7 @@
     <div class="flex h-16 flex-col justify-center border-b border-line px-5">
       <!-- The shop's wordmark in white: the image is used only as a shape (mask), so it can take any colour. -->
       <span class="block bg-white" role="img" aria-label="Erezer" style="height:14px;aspect-ratio:865/96;-webkit-mask:url(logo-wordmark.png) left center/contain no-repeat;mask:url(logo-wordmark.png) left center/contain no-repeat"></span>
-      <p class="mt-1.5 text-xs text-slate-400">Admin</p>
+      <p class="mt-1.5 text-xs text-slate-400">{{ roleLabel() }}</p>
     </div>
 
     <nav class="flex-1 space-y-1 overflow-y-auto p-3">
@@ -55,7 +55,7 @@
         </button>
         <a routerLink="/" class="flex flex-col justify-center" aria-label="Erezer home">
           <span class="block bg-white" role="img" aria-label="Erezer" style="height:13px;aspect-ratio:865/96;-webkit-mask:url(logo-wordmark.png) left center/contain no-repeat;mask:url(logo-wordmark.png) left center/contain no-repeat"></span>
-          <span class="mt-1 text-[10px] uppercase tracking-widest text-slate-400">Admin</span>
+          <span class="mt-1 text-[10px] uppercase tracking-widest text-slate-400">{{ roleLabel() }}</span>
         </a>
       </div>
       <div class="hidden lg:block"></div>
@@ -88,7 +88,7 @@
 
         @if (userMenuOpen()) {
           <div class="fixed inset-0 z-10" (click)="userMenuOpen.set(false)" aria-hidden="true"></div>
-          <div role="menu" class="absolute right-0 z-20 mt-2 w-56 rounded-md border border-line bg-panel py-1 shadow-xl">
+          <div role="menu" class="absolute right-0 top-full z-20 mt-2 w-56 rounded-md border border-line bg-panel py-1 shadow-xl">
             <div class="border-b border-line px-4 py-2">
               <p class="truncate text-sm text-white">{{ auth.user()?.email }}</p>
             </div>

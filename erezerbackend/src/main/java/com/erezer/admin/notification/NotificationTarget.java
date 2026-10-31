@@ -21,6 +21,10 @@ public enum NotificationTarget {
     DAILY_CATEGORY("select name from daily_expense_categories where id = :id", "/daily-expenses"),
     BOOST_COST("select '$' || usd || ' at ৳' || rate || ' = ৳' || bdt || coalesce(' · ' || note, '') from boost_costs where id = :id", "/boost"),
     BOOST_PURCHASE("select '$' || usd || ' for ৳' || bdt || coalesce(' · ' || note, '') from boost_purchases where id = :id", "/boost"),
+    REJECT("""
+            select variant_name || coalesce(' / ' || size, '') || ' × ' || quantity || ' · ' ||
+                   case kind when 'SOLID' then 'Solid Color' else 'Printed' end
+            from rejects where id = :id""", "/rejects"),
     ASSET("select name from assets where id = :id", "/assets/{id}"),
     ASSET_CATEGORY("select name from asset_categories where id = :id", "/assets"),
     EMPLOYEE("select full_name || ' · ' || employee_code from employees where id = :id", "/employees/{id}"),

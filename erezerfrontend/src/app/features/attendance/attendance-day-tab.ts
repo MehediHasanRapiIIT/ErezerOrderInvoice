@@ -82,8 +82,8 @@ const PAGE_SIZE = 20;
                 </td>
                 <td class="cell-actions px-4 py-3 text-right">
                   <div class="flex justify-end gap-2">
-                    @if (canApprove && row.record && row.record.reviewStatus !== 'NONE') {
-                      <button type="button" class="btn-secondary" (click)="reviewing.set(row.record)">{{ row.record.reviewStatus === 'PENDING' ? 'Review' : 'Fee' }}</button>
+                    @if (canApprove && row.record) {
+                      <button type="button" class="btn-secondary" (click)="reviewing.set(row.record)">{{ row.record.reviewStatus === 'PENDING' ? 'Review' : 'Late fee' }}</button>
                     }
                     @if (canEdit) {
                       <button type="button" class="btn-secondary" (click)="openCorrection(row)">Correct</button>

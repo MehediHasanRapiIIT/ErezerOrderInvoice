@@ -253,14 +253,11 @@ public class AttendanceService {
                 found.getTotalElements(), found.getTotalPages());
     }
 
-    /** Approves a day, with a late fee if given. Also corrects the fee of a day already approved. */
+    /** Approves a day, with a late fee if given. Also changes or removes (0) the fee of any day, at any time. */
     @Transactional
     public RecordView review(long id, ReviewRequest request, long adminId) {
         AttendanceRecord record = records.findById(id).orElseThrow(() -> ApiException.notFound("Attendance record", id));
         requireNotOwn(record.getUserId(), adminId);
-        if (record.getReviewStatus() == AttendanceRecord.Review.NONE) {
-            throw ApiException.conflict("NOTHING_TO_REVIEW", "This day has nothing to review");
-        }
         record.review(request.lateFee() == null ? BigDecimal.ZERO : request.lateFee(), blankToNull(request.note()),
                 adminId, clock.instant());
         return toViews(List.of(record)).getFirst();

@@ -145,6 +145,22 @@ public class StockService {
         return new StockPick(variant.getId(), variant.getName(), row.id(), row.legacy() ? null : row.size());
     }
 
+    /** Takes rejected pieces out of stock, refusing more than there are. */
+    @Transactional
+    public void takeForReject(long variantId, long stockItemId, int quantity, long userId) {
+        lockVariant(variantId);
+        apply(stockItemId, -quantity, StockReason.REJECTED, null, null, userId);
+    }
+
+    /** Puts back what a reject took, when it is edited or deleted. A variant deleted since has no stock to return to. */
+    @Transactional
+    public void giveBackReject(long variantId, long stockItemId, int quantity, long userId) {
+        if (variants.existsById(variantId)) {
+            lockVariant(variantId);
+            apply(stockItemId, quantity, StockReason.REJECT_UNDONE, null, null, userId);
+        }
+    }
+
     /** Brings the stock held by an order in line with its current state (see the class comment). */
     @Transactional
     public void syncOrder(Order order, StockReason reason, Long userId) {

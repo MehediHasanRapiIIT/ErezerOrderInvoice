@@ -15,6 +15,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { label: 'Orders', icon: 'fa-receipt', route: '/orders', permissions: ['ORDER_VIEW', 'ORDER_CREATE'] },
   { label: 'Sold Products', icon: 'fa-chart-bar', route: '/sold-products', permissions: ['SALES_VIEW'] },
   { label: 'Stock', icon: 'fa-boxes', route: '/stock', permissions: ['STOCK_VIEW'] },
+  { label: 'Reject Track', icon: 'fa-ban', route: '/rejects', permissions: ['REJECT_VIEW'] },
   { label: 'Customers', icon: 'fa-address-book', route: '/customers', permissions: ['CUSTOMER_VIEW'] },
   { label: 'Expenses', icon: 'fa-wallet', route: '/expenses', permissions: ['EXPENSE_VIEW'] },
   { label: 'Expense (Daily)', icon: 'fa-money-bill-wave', route: '/daily-expenses', permissions: ['DAILY_EXPENSE_CREATE', 'DAILY_EXPENSE_VIEW'] },

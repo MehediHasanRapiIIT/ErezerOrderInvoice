@@ -74,6 +74,12 @@ export const routes: Routes = [
         loadComponent: () => import('./features/notifications/notifications-page').then((m) => m.NotificationsPage),
       },
       {
+        path: 'rejects',
+        title: 'Reject Track',
+        canActivate: [requirePermission('REJECT_VIEW')],
+        loadComponent: () => import('./features/rejects/reject-page').then((m) => m.RejectPage),
+      },
+      {
         path: 'boost',
         title: 'Expense (Boost)',
         canActivate: [requirePermission('BOOST_VIEW')],

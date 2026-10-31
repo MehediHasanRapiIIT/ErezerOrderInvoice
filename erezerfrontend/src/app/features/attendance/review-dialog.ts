@@ -42,7 +42,10 @@ import { AttendanceRecord, mapLink } from './data/attendance.models';
         <input id="review-note" name="note" class="field" maxlength="500" [(ngModel)]="note" />
         <div class="mt-5 flex justify-end gap-2">
           <button type="button" class="btn-secondary" (click)="closed.emit(false)">Cancel</button>
-          <button type="submit" class="btn-primary" [disabled]="saving()">{{ (fee || 0) > 0 ? 'Add fee & approve' : 'Approve' }}</button>
+          @if (record().lateFee > 0) {
+            <button type="button" class="btn-secondary text-red-300" [disabled]="saving()" (click)="removeFee()">Remove fee</button>
+          }
+          <button type="submit" class="btn-primary" [disabled]="saving()">{{ !pending ? 'Save fee' : (fee || 0) > 0 ? 'Add fee & approve' : 'Approve' }}</button>
         </div>
       </form>
     </div>
@@ -66,16 +69,28 @@ export class AttendanceReviewDialog implements OnInit {
     this.note = this.record().reviewNote ?? '';
   }
 
+  protected get pending(): boolean {
+    return this.record().reviewStatus === 'PENDING';
+  }
+
   protected map(): string | null {
     const r = this.record();
     return mapLink(r.checkInLatitude, r.checkInLongitude) ?? mapLink(r.checkOutLatitude, r.checkOutLongitude);
   }
 
+  protected removeFee(): void {
+    this.send(0, 'Late fee removed');
+  }
+
   protected save(): void {
+    this.send(this.fee || 0, this.pending ? 'Approved' : 'Late fee saved');
+  }
+
+  private send(fee: number, message: string): void {
     this.saving.set(true);
-    this.api.review(this.record().id, this.fee || 0, this.note.trim() || null).subscribe({
+    this.api.review(this.record().id, fee, this.note.trim() || null).subscribe({
       next: () => {
-        this.toast.success('Approved');
+        this.toast.success(message);
         this.closed.emit(true);
       },
       error: (err: unknown) => {

@@ -46,6 +46,11 @@ public enum Permission {
     NOTIFICATION_VIEW("Notifications", "Open the Notifications menu", false),
     NOTIFICATION_MANAGE("Notifications", "Set up notifications (actions, people and Firebase)", false),
 
+    REJECT_VIEW("Reject Track", "View rejects", false),
+    REJECT_CREATE("Reject Track", "Add rejects", false),
+    REJECT_EDIT("Reject Track", "Edit rejects", false),
+    REJECT_DELETE("Reject Track", "Delete rejects", false),
+
     ASSET_VIEW("Assets", "View assets", false),
     ASSET_COSTS_VIEW("Assets", "See costs and prices", false),
     ASSET_HISTORY_VIEW("Assets", "View history", false),
@@ -125,6 +130,7 @@ public enum Permission {
             case DAILY_EXPENSE_APPROVE, DAILY_EXPENSE_EDIT, DAILY_EXPENSE_DELETE, DAILY_EXPENSE_CATEGORIES -> EnumSet.of(DAILY_EXPENSE_VIEW);
             case BOOST_COST_ADD, BOOST_BUY, BOOST_EDIT, BOOST_DELETE -> EnumSet.of(BOOST_VIEW);
             case NOTIFICATION_MANAGE -> EnumSet.of(NOTIFICATION_VIEW);
+            case REJECT_CREATE, REJECT_EDIT, REJECT_DELETE -> EnumSet.of(REJECT_VIEW);
             default -> EnumSet.noneOf(Permission.class);
         };
     }
