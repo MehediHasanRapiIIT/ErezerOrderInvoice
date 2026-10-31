@@ -191,6 +191,17 @@ class StaffApiIntegrationTest extends IntegrationTest {
         // Admins' accounts and their own are off limits.
         long adminId = users.findByEmail(createUser(Role.ADMIN, List.of())).orElseThrow().getId();
         mvc.perform(post("/api/staff/" + adminId + "/deactivate").header("Authorization", manager)).andExpect(status().isForbidden());
+        // Nor can they reset the password of someone with permissions they don't have (then sign in as them).
+        long stronger = users.findByEmail(createUser(Role.MODERATOR, List.of(Permission.ORDER_VIEW, Permission.EXPENSE_VIEW))).orElseThrow().getId();
+        mvc.perform(post("/api/staff/" + stronger + "/reset-password").header("Authorization", manager)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"newPassword\":\"Another12345\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.detail").value(startsWith("Only someone who has all of this person's permissions")));
+        long weaker = users.findByEmail(createUser(Role.MODERATOR, List.of(Permission.ORDER_VIEW))).orElseThrow().getId();
+        mvc.perform(post("/api/staff/" + weaker + "/reset-password").header("Authorization", manager)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"newPassword\":\"Another12345\"}"))
+                .andExpect(status().isOk());
+
         long selfId = users.findByEmail(managerEmail).orElseThrow().getId();
         mvc.perform(post("/api/staff/" + selfId + "/reset-password").header("Authorization", manager)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"newPassword\":\"Another12345\"}"))

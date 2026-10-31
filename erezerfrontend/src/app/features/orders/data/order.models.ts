@@ -52,6 +52,21 @@ export interface UserRef {
 export interface OrderImage {
   fileId: number;
   url: string;
+  /** Printed under the image on the invoice. */
+  description?: string | null;
+}
+
+/** Mirrors com.erezer.admin.order.OrderPlatform. */
+export type OrderPlatform = 'FACEBOOK' | 'INSTAGRAM' | 'WHATSAPP' | 'TIKTOK' | 'WEBSITE' | 'PHONE' | 'SHOP' | 'OTHER';
+
+export interface StaffOption {
+  id: number;
+  name: string;
+}
+
+/** The descriptions of some images, by file id, for saving. */
+export function imageDescriptions(images: OrderImage[]): Record<number, string> {
+  return Object.fromEntries(images.filter((i) => i.description?.trim()).map((i) => [i.fileId, i.description!.trim()]));
 }
 
 export interface OrderItem {
@@ -91,6 +106,14 @@ export interface OrderDetail {
   orderNumber: string;
   status: OrderStatus;
   paymentMethod: PaymentMethod;
+  /** Who took the order; empty on older orders. */
+  acceptedBy?: StaffOption | null;
+  /** Where the order came from; empty on older orders. */
+  platform?: OrderPlatform | null;
+  /** A typed name, for someone who isn't on the staff list. */
+  acceptedByOther?: string | null;
+  /** What "Other" means for this order's platform. */
+  platformOther?: string | null;
   customer: { name: string; phone: string; email?: string; address: string };
   items: OrderItem[];
   subtotal: number;
@@ -251,10 +274,6 @@ export interface ExchangeOptions {
   orderNumber: string;
   customer: { name: string; phone: string; email?: string; address: string };
   deliveredAt: string;
-  deadline: string;
-  withinTimeLimit: boolean;
-  canOverrideTimeLimit: boolean;
-  timeLimitDays: number;
   defaultDeliveryCharge: number;
   items: ExchangeableItem[];
   exchanges: ExchangeRef[];
@@ -266,7 +285,6 @@ export interface ExchangeRequest {
   deliveryPaidBy: DeliveryPaidBy;
   deliveryCharge: number;
   refund: boolean;
-  overrideTimeLimit: boolean;
   note: string | null;
   /** Optional; generated when null. */
   orderNumber: string | null;
@@ -281,6 +299,8 @@ export interface OrderItemRequest {
   unitPrice: number;
   quantity: number;
   imageIds: number[];
+  /** A description for each image, by file id. */
+  imageDescriptions: Record<number, string>;
   /** Stock variant picked from the list (its name goes in `color`). */
   variantId?: number | null;
   /** The variant's size (its name goes in `size`). */
@@ -299,6 +319,10 @@ export interface OrderRequest {
   advance: number;
   /** The order date (ISO); only sent by users allowed to choose it. */
   orderedAt?: string | null;
+  acceptedBy: number | null;
+  platform: OrderPlatform | null;
+  acceptedByOther: string | null;
+  platformOther: string | null;
 }
 
 export interface StatusChangeRequest {

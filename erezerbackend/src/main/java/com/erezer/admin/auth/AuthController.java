@@ -8,6 +8,8 @@ import com.erezer.admin.auth.dto.AuthDtos.ForgotPasswordRequest;
 import com.erezer.admin.auth.dto.AuthDtos.LoginRequest;
 import com.erezer.admin.auth.dto.AuthDtos.TokenResponse;
 import com.erezer.admin.common.error.ApiException;
+import com.erezer.admin.notification.NotificationAction;
+import com.erezer.admin.notification.Notifies;
 import com.erezer.admin.security.CurrentUser;
 import com.erezer.admin.security.SecurityProperties;
 import com.erezer.admin.staff.PasswordResetRequests;
@@ -78,6 +80,7 @@ class AuthController {
         return authService.currentUser(CurrentUser.id());
     }
 
+    @Notifies(NotificationAction.OWN_PASSWORD_CHANGED)
     @PutMapping("/password")
     ResponseEntity<TokenResponse> changePassword(@Valid @RequestBody ChangePasswordRequest request,
             HttpServletRequest http) {

@@ -1,5 +1,7 @@
 package com.erezer.admin.order;
 
+import com.erezer.admin.notification.NotificationAction;
+import com.erezer.admin.notification.Notifies;
 import com.erezer.admin.order.dto.OrderDtos.OrderDetail;
 import com.erezer.admin.order.dto.OrderDtos.ReturnOptions;
 import com.erezer.admin.order.dto.OrderDtos.ReturnRequest;
@@ -34,6 +36,7 @@ class ReturnController {
     }
 
     /** Products sent back after delivery; answers with the updated order. */
+    @Notifies(NotificationAction.RETURN_CREATED)
     @PostMapping("/api/orders/{id}/returns")
     @PreAuthorize("hasAuthority('RETURN_CREATE')")
     ResponseEntity<OrderDetail> create(@PathVariable long id, @Valid @RequestBody ReturnRequest request) {
@@ -42,6 +45,7 @@ class ReturnController {
     }
 
     /** Correct the reason, return charge or who paid it (e.g. after a courier-reported return). */
+    @Notifies(NotificationAction.RETURN_CORRECTED)
     @PutMapping("/api/returns/{returnId}")
     @PreAuthorize("hasAnyAuthority('RETURN_CREATE', 'ORDER_STATUS_UPDATE')")
     OrderDetail update(@PathVariable long returnId, @Valid @RequestBody ReturnUpdateRequest request) {

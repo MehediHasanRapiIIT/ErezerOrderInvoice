@@ -80,7 +80,7 @@ public class ReturnService {
             return new ReturnableItem(i.getId(), i.getProductName(), i.getProductCode(), i.getColor(), i.getSize(),
                     i.getUnitPrice(), ExchangeService.unitCredit(order, i), i.getQuantity(), r, e,
                     Math.max(i.getQuantity() - r - e, 0),
-                    i.getImages().stream().map(img -> new Image(img.getFile().getId(), files.url(img.getFile()))).toList());
+                    i.getImages().stream().map(img -> new Image(img.getFile().getId(), files.url(img.getFile()), img.getDescription())).toList());
         }).toList();
         return new ReturnOptions(order.getId(), order.getOrderNumber(),
                 new Customer(order.getCustomerName(), order.getCustomerPhone(), order.getCustomerEmail(), order.getCustomerAddress()),
@@ -146,6 +146,12 @@ public class ReturnService {
     public void recordWholeReturn(Order order, ReturnReason reason, BigDecimal charge, DeliveryPaidBy paidBy, Long userId) {
         Instant now = clock.instant();
         boolean refused = order.getDeliveredAt() == null;
+        // Back to Returned after a detour (e.g. Returned → Cancelled → Returned): the return that still stands covers
+        // it, so nothing is counted twice.
+        boolean standing = returns.findByOrderIdOrderByCreatedAtDescIdDesc(order.getId()).stream().anyMatch(OrderReturn::isActive);
+        if (refused && standing) {
+            return;
+        }
         ReturnReason why = reason != null ? reason : refused ? ReturnReason.REFUSED : ReturnReason.OTHER;
         DeliveryPaidBy payer = paidBy != null ? paidBy : DeliveryPaidBy.EREZER;
         OrderReturn ret = new OrderReturn(order.getId(), refused ? ReturnKind.REFUSED : ReturnKind.AFTER_DELIVERY, why,
@@ -153,6 +159,12 @@ public class ReturnService {
         BigDecimal value = BigDecimal.ZERO;
         if (!refused) {
             Map<Long, Integer> returned = returnedQuantities(order.getId());
+            Map<Long, Integer> exchangedSoFar = exchangedQuantities(order.getId());
+            boolean anythingLeft = order.getItems().stream().anyMatch(item -> item.getQuantity()
+                    - returned.getOrDefault(item.getId(), 0) - exchangedSoFar.getOrDefault(item.getId(), 0) > 0);
+            if (!anythingLeft) {
+                return; // everything is already back: an empty return would count as the whole order again
+            }
             Map<Long, Integer> exchanged = exchangedQuantities(order.getId());
             for (OrderItem item : order.getItems()) {
                 int remaining = item.getQuantity() - returned.getOrDefault(item.getId(), 0) - exchanged.getOrDefault(item.getId(), 0);
@@ -165,6 +177,12 @@ public class ReturnService {
         }
         ret.settle(charge == null ? BigDecimal.ZERO : charge, payer, value, order.getAdvanceAmount(), refusedDeliveryCost(order), now);
         returns.saveAndFlush(ret); // the stock sync reads returns with plain SQL
+    }
+
+    /** Whether the order has any return record, standing or cancelled (they point at its item rows). */
+    @Transactional(readOnly = true)
+    public boolean hasReturns(long orderId) {
+        return !returns.findByOrderIdOrderByCreatedAtDescIdDesc(orderId).isEmpty();
     }
 
     /** The order was moved out of Returned again: its returns no longer stand. */

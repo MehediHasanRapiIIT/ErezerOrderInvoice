@@ -24,6 +24,7 @@ import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -219,6 +220,7 @@ public class StockService {
         if (deltas.isEmpty()) {
             return;
         }
+        lockVariantsOf(deltas.keySet());
         // List every shortage at once ("only 3 of Black / M left, White / L is out of stock").
         Map<Long, ItemRow> current = itemRows(deltas.keySet());
         List<String> short_ = new ArrayList<>();
@@ -463,6 +465,7 @@ public class StockService {
                 throw ApiException.badRequest("VARIANT_REPEATED", "A variant size is listed more than once");
             }
         }
+        lockVariantsOf(byItem.keySet());
         Map<Long, ItemRow> rows = lockItems(byItem.keySet());
         if (rows.size() != byItem.size()) {
             throw ApiException.badRequest("VARIANT_UNKNOWN", "A variant no longer exists. Reload the list.");
@@ -704,6 +707,22 @@ public class StockService {
         return jdbc.sql(ITEM_COLUMNS + " where i.id in (:ids)").param("ids", ids)
                 .query((rs, i) -> itemRow(rs)).list().stream()
                 .collect(Collectors.toMap(ItemRow::id, r -> r));
+    }
+
+    /**
+     * Locks the variants of these stock items, in id order. Every path that changes stock locks variants first and
+     * sizes after (editing a variant, merging, orders, bulk updates), so two changes can never wait on each other.
+     */
+    private void lockVariantsOf(Collection<Long> itemIds) {
+        if (itemIds.isEmpty()) {
+            return;
+        }
+        List<Long> variantIds = jdbc.sql("select distinct variant_id from stock_items where id in (:ids)")
+                .param("ids", itemIds).query(Long.class).list();
+        if (!variantIds.isEmpty()) {
+            jdbc.sql("select id from stock_variants where id in (:ids) order by id for update")
+                    .param("ids", variantIds).query(Long.class).list();
+        }
     }
 
     private Map<Long, ItemRow> lockItems(Set<Long> ids) {

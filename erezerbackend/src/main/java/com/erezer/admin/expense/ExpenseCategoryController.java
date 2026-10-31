@@ -2,6 +2,8 @@ package com.erezer.admin.expense;
 
 import com.erezer.admin.expense.dto.ExpenseDtos.CategoryRequest;
 import com.erezer.admin.expense.dto.ExpenseDtos.CategoryResponse;
+import com.erezer.admin.notification.NotificationAction;
+import com.erezer.admin.notification.Notifies;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -34,6 +36,7 @@ class ExpenseCategoryController {
         return categoryService.list();
     }
 
+    @Notifies(NotificationAction.EXPENSE_CATEGORY_CREATED)
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAnyAuthority('EXPENSE_CREATE', 'EXPENSE_EDIT')")
@@ -42,6 +45,7 @@ class ExpenseCategoryController {
     }
 
     /** Rename and/or activate/deactivate. */
+    @Notifies(NotificationAction.EXPENSE_CATEGORY_EDITED)
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('EXPENSE_EDIT')")
     ResponseEntity<Void> update(@PathVariable long id, @Valid @RequestBody CategoryRequest request) {
@@ -49,6 +53,7 @@ class ExpenseCategoryController {
         return ResponseEntity.noContent().build();
     }
 
+    @Notifies(NotificationAction.EXPENSE_CATEGORY_DELETED)
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('EXPENSE_DELETE')")
     ResponseEntity<Void> delete(@PathVariable long id) {

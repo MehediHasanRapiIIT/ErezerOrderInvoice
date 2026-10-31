@@ -1,6 +1,8 @@
 package com.erezer.admin.stock;
 
 import com.erezer.admin.common.web.PageResponse;
+import com.erezer.admin.notification.NotificationAction;
+import com.erezer.admin.notification.Notifies;
 import com.erezer.admin.security.CurrentUser;
 import com.erezer.admin.stock.dto.StockDtos.BulkCreateRequest;
 import com.erezer.admin.stock.dto.StockDtos.BulkUpdateRequest;
@@ -76,24 +78,28 @@ class StockController {
         return stock.summary();
     }
 
+    @Notifies(NotificationAction.VARIANT_CREATED)
     @PostMapping("/variants")
     @PreAuthorize("hasAuthority('STOCK_MANAGE')")
     ResponseEntity<VariantView> create(@Valid @RequestBody CreateVariantRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(stock.create(request, CurrentUser.id()));
     }
 
+    @Notifies(NotificationAction.VARIANTS_CREATED)
     @PostMapping("/variants/bulk")
     @PreAuthorize("hasAuthority('STOCK_MANAGE')")
     ResponseEntity<List<VariantView>> createAll(@Valid @RequestBody BulkCreateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(stock.createAll(request.items(), CurrentUser.id()));
     }
 
+    @Notifies(NotificationAction.VARIANT_EDITED)
     @PutMapping("/variants/{id}")
     @PreAuthorize("hasAuthority('STOCK_MANAGE')")
     VariantView update(@PathVariable long id, @Valid @RequestBody UpdateVariantRequest request) {
         return stock.update(id, request, CurrentUser.id());
     }
 
+    @Notifies(NotificationAction.VARIANTS_EDITED)
     @PostMapping("/variants/bulk-update")
     @PreAuthorize("hasAuthority('STOCK_MANAGE')")
     List<VariantView> updateAll(@Valid @RequestBody BulkUpdateRequest request) {
@@ -101,6 +107,7 @@ class StockController {
     }
 
     /** Moves a variant into a size of another variant ("Navy Blue - M" → Navy Blue, M). */
+    @Notifies(NotificationAction.VARIANT_MERGED)
     @PostMapping("/variants/{id}/merge")
     @PreAuthorize("hasAuthority('STOCK_MANAGE')")
     VariantView merge(@PathVariable long id, @Valid @RequestBody MergeRequest request) {
@@ -115,6 +122,7 @@ class StockController {
         return stock.sizes();
     }
 
+    @Notifies(NotificationAction.SIZE_CREATED)
     @PostMapping("/sizes")
     @PreAuthorize("hasAuthority('SIZE_MANAGE')")
     ResponseEntity<List<SizeView>> createSize(@Valid @RequestBody SizeRequest request) {
@@ -122,24 +130,28 @@ class StockController {
     }
 
     /** Rename and/or switch on or off. */
+    @Notifies(NotificationAction.SIZE_EDITED)
     @PutMapping("/sizes/{id}")
     @PreAuthorize("hasAuthority('SIZE_MANAGE')")
     List<SizeView> updateSize(@PathVariable long id, @Valid @RequestBody SizeRequest request) {
         return stock.updateSize(id, request);
     }
 
+    @Notifies(NotificationAction.SIZES_REORDERED)
     @PutMapping("/sizes/order")
     @PreAuthorize("hasAuthority('SIZE_MANAGE')")
     List<SizeView> reorderSizes(@Valid @RequestBody SizeOrderRequest request) {
         return stock.reorderSizes(request.ids());
     }
 
+    @Notifies(NotificationAction.SIZE_DELETED)
     @DeleteMapping("/sizes/{id}")
     @PreAuthorize("hasAuthority('SIZE_MANAGE')")
     List<SizeView> deleteSize(@PathVariable long id) {
         return stock.deleteSize(id);
     }
 
+    @Notifies(NotificationAction.VARIANT_DELETED)
     @DeleteMapping("/variants/{id}")
     @PreAuthorize("hasAuthority('STOCK_MANAGE')")
     ResponseEntity<Void> delete(@PathVariable long id) {

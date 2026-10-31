@@ -97,6 +97,23 @@ public class Order extends AuditableEntity {
     @Column(name = "courier_charge", precision = 12, scale = 2)
     private BigDecimal courierCharge;
 
+    /** Who took the order; empty on orders from before this was recorded. */
+    @Column(name = "accepted_by")
+    private Long acceptedBy;
+
+    /** Where the order came from; empty on orders from before this was recorded. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "platform", length = 20)
+    private OrderPlatform platform;
+
+    /** A typed name, for someone who isn't on the staff list. */
+    @Column(name = "accepted_by_other", length = 120)
+    private String acceptedByOther;
+
+    /** What "Other" means for this order's platform. */
+    @Column(name = "platform_other", length = 80)
+    private String platformOther;
+
     @CreatedBy
     @Column(name = "created_by", updatable = false)
     private Long createdBy;
@@ -148,6 +165,7 @@ public class Order extends AuditableEntity {
 
     Order(String orderNumber, Instant now, Long createdBy) {
         this.orderNumber = orderNumber;
+        this.acceptedBy = createdBy;
         this.statusHistory.add(new OrderStatusChange(this, null, OrderStatus.PLACED, null, createdBy, now));
     }
 
@@ -162,10 +180,30 @@ public class Order extends AuditableEntity {
         order.exchangeDeliveryPaidBy = paidBy;
         order.exchangeReason = reason;
         order.exchangeReturnedSummary = returnedSummary;
+        order.platform = original.platform;
+        order.platformOther = original.platformOther;
         order.updateDetails(orderNumber, PaymentMethod.CASH, original.customerName, original.customerPhone,
                 original.customerEmail, original.customerAddress, BigDecimal.ZERO, deliveryCharge);
         order.changeStatus(OrderStatus.ACCEPTED, "Exchange of " + original.orderNumber, createdBy, now);
         return order;
+    }
+
+    /**
+     * @param acceptedByOther a typed name, in place of {@code acceptedBy}
+     * @param platform        null keeps the current one
+     * @param platformOther   what "Other" means; only kept while the platform is Other
+     */
+    void setSource(Long acceptedBy, String acceptedByOther, OrderPlatform platform, String platformOther) {
+        this.acceptedBy = acceptedBy;
+        this.acceptedByOther = acceptedByOther;
+        if (platform != null) {
+            this.platform = platform;
+            if (platform != OrderPlatform.OTHER) {
+                this.platformOther = null;
+            } else if (platformOther != null) {
+                this.platformOther = platformOther;
+            }
+        }
     }
 
     void updateDetails(String orderNumber, PaymentMethod paymentMethod, String customerName, String customerPhone,
@@ -192,6 +230,11 @@ public class Order extends AuditableEntity {
             item.attachTo(this, i);
             items.add(item);
         }
+        recalculate();
+    }
+
+    /** Works the totals out again after a change of discount, delivery charge or advance (products unchanged). */
+    void recalculateTotals() {
         recalculate();
     }
 
@@ -436,6 +479,22 @@ public class Order extends AuditableEntity {
 
     public BigDecimal getCourierCharge() {
         return courierCharge;
+    }
+
+    public Long getAcceptedBy() {
+        return acceptedBy;
+    }
+
+    public String getAcceptedByOther() {
+        return acceptedByOther;
+    }
+
+    public String getPlatformOther() {
+        return platformOther;
+    }
+
+    public OrderPlatform getPlatform() {
+        return platform;
     }
 
     public Long getCreatedBy() {

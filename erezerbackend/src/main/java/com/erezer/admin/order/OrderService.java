@@ -5,6 +5,7 @@ import com.erezer.admin.file.FileService;
 import com.erezer.admin.file.StoredFile;
 import com.erezer.admin.order.dto.OrderDtos.OrderItemRequest;
 import com.erezer.admin.order.dto.OrderDtos.OrderRequest;
+import com.erezer.admin.order.dto.OrderDtos.UserRef;
 import com.erezer.admin.order.dto.OrderDtos.StatusChangeRequest;
 import com.erezer.admin.config.AppProperties;
 import java.math.BigDecimal;
@@ -15,6 +16,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -61,7 +63,7 @@ public class OrderService {
     public long create(OrderRequest request, long userId, boolean canSetDate) {
         String number = resolveOrderNumber(request.orderNumber(), 0L);
         Order order = new Order(number, clock.instant(), userId);
-        apply(order, number, request);
+        apply(order, number, request, false);
         long id = orders.save(order).getId();
         if (request.orderedAt() != null) {
             requireDateAllowed(canSetDate);
@@ -84,14 +86,13 @@ public class OrderService {
         if (!order.isEditable()) {
             throw ApiException.conflict("ORDER_LOCKED", "Cancelled or returned orders can no longer be edited");
         }
-        if (orders.hasExchanges(id)) {
-            throw ApiException.conflict("ORDER_LOCKED",
-                    "This order has exchanges, so its items can no longer be edited");
-        }
+        // Exchanges and returns point at this order's item rows, so its products stay as they are; the customer,
+        // payment and delivery details can still be corrected.
+        boolean productsLocked = orders.hasExchanges(id) || returns.hasReturns(id);
         String number = request.orderNumber() == null || request.orderNumber().isBlank()
                 ? order.getOrderNumber()
                 : resolveOrderNumber(request.orderNumber(), id);
-        apply(order, number, request);
+        apply(order, number, request, productsLocked);
         // Item-only edits touch child tables alone; marking the order modified makes Hibernate
         // bump its version, so concurrent edits of line items are still detected.
         order.touch(clock.instant());
@@ -334,17 +335,97 @@ public class OrderService {
         stock.syncOrder(order, StockReason.ORDER_DELETED, null);
     }
 
-    private void apply(Order order, String number, OrderRequest request) {
+    /** Everyone an order can be credited to. */
+    @Transactional(readOnly = true)
+    public List<UserRef> staffOptions() {
+        return jdbc.sql("select id, full_name from users where active order by lower(full_name)")
+                .query((rs, i) -> new UserRef(rs.getLong(1), rs.getString(2)))
+                .list();
+    }
+
+    private Long acceptedBy(Order order, Long requested) {
+        if (requested == null) {
+            return order.getAcceptedBy();
+        }
+        boolean active = jdbc.sql("select count(*) from users where id = :id and active").param("id", requested)
+                .query(Long.class).single() > 0;
+        if (!requested.equals(order.getAcceptedBy()) && !active) {
+            throw ApiException.badRequest("INVALID_STAFF", "Choose who accepted the order from the list");
+        }
+        return requested;
+    }
+
+    /** @param productsLocked the products must stay exactly as they are (the order has exchanges or returns) */
+    private void apply(Order order, String number, OrderRequest request, boolean productsLocked) {
         var customer = request.customer();
         order.updateDetails(number, request.paymentMethod(), customer.name().trim(), customer.phone().trim(),
                 blankToNull(customer.email()), customer.address().trim(), request.discount(), request.deliveryCharge());
         order.setAdvance(request.advance());
+        String acceptedByOther = blankToNull(request.acceptedByOther());
+        String platformOther = blankToNull(request.platformOther());
+        if (request.platform() == OrderPlatform.OTHER && platformOther == null && order.getPlatform() != OrderPlatform.OTHER) {
+            throw ApiException.badRequest("PLATFORM_OTHER_REQUIRED", "Write which platform the order came from");
+        }
+        Long acceptedBy = acceptedByOther != null ? null : acceptedBy(order, request.acceptedBy());
+        boolean keepTyped = acceptedByOther == null && request.acceptedBy() == null;
+        order.setSource(acceptedBy, keepTyped ? order.getAcceptedByOther() : acceptedByOther, request.platform(), platformOther);
 
         List<Long> imageIds = request.items().stream()
                 .flatMap(i -> i.imageIds() == null ? Stream.<Long>empty() : i.imageIds().stream())
                 .toList();
-        Map<Long, StoredFile> images = imageIds.isEmpty() ? Map.of() : files.requireImages(imageIds);
-        order.replaceItems(request.items().stream().map(i -> toItem(i, images, stock.pick(i.variantId(), i.stockItemId()))).toList());
+        List<Long> currentImages = order.getItems().stream()
+                .flatMap(i -> i.getImages().stream()).map(img -> img.getFile().getId()).toList();
+        Map<Long, StoredFile> images = imageIds.isEmpty() ? Map.of() : files.requireImages(imageIds, currentImages);
+        List<OrderItem> next = request.items().stream().map(i -> toItem(i, images, stock.pick(i.variantId(), i.stockItemId()))).toList();
+        if (productsLocked) {
+            if (!sameProducts(order.getItems(), next)) {
+                throw ApiException.conflict("ORDER_LOCKED", "This order has exchanges or returns, so its products can no longer be "
+                        + "changed. You can still change the customer, payment and delivery details.");
+            }
+            order.recalculateTotals(); // discount, delivery or advance may have changed
+            return;
+        }
+        order.replaceItems(next);
+    }
+
+    /** Whether the edited products are exactly the order's current ones (same order, names, sizes, prices, images…). */
+    private static boolean sameProducts(List<OrderItem> current, List<OrderItem> next) {
+        if (current.size() != next.size()) {
+            return false;
+        }
+        for (int i = 0; i < current.size(); i++) {
+            OrderItem a = current.get(i);
+            OrderItem b = next.get(i);
+            boolean same = Objects.equals(a.getProductName(), b.getProductName())
+                    && Objects.equals(a.getProductCode(), b.getProductCode())
+                    && Objects.equals(a.getDescription(), b.getDescription())
+                    && Objects.equals(a.getColor(), b.getColor())
+                    && Objects.equals(a.getSize(), b.getSize())
+                    && a.getUnitPrice().compareTo(b.getUnitPrice()) == 0
+                    && a.getQuantity() == b.getQuantity()
+                    && Objects.equals(a.getVariantId(), b.getVariantId())
+                    && Objects.equals(a.getStockItemId(), b.getStockItemId())
+                    && a.getImages().stream().map(img -> img.getFile().getId()).toList()
+                            .equals(b.getImages().stream().map(img -> img.getFile().getId()).toList())
+                    && a.getImages().stream().map(OrderItemImage::getDescription).toList()
+                            .equals(b.getImages().stream().map(OrderItemImage::getDescription).toList());
+            if (!same) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static Map<Long, String> imageDescriptions(OrderItemRequest request) {
+        Map<Long, String> descriptions = new HashMap<>();
+        if (request.imageDescriptions() != null) {
+            request.imageDescriptions().forEach((id, text) -> {
+                if (blankToNull(text) != null) {
+                    descriptions.put(id, text.trim());
+                }
+            });
+        }
+        return descriptions;
     }
 
     static OrderItem toItem(OrderItemRequest request, Map<Long, StoredFile> images, StockService.StockPick pick) {
@@ -353,7 +434,7 @@ public class OrderService {
         String code = blankToNull(request.productCode());
         OrderItem item = new OrderItem(request.productName().trim(), code == null ? null : code.toUpperCase(Locale.ROOT),
                 blankToNull(request.description()), blankToNull(request.color()), blankToNull(request.size()),
-                request.unitPrice(), request.quantity(), itemImages);
+                request.unitPrice(), request.quantity(), itemImages, imageDescriptions(request));
         if (pick != null) {
             item.useStock(pick);
         }

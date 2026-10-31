@@ -17,6 +17,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 @Entity
 @Table(name = "order_items")
@@ -74,7 +75,7 @@ public class OrderItem {
     }
 
     OrderItem(String productName, String productCode, String description, String color, String size,
-            BigDecimal unitPrice, int quantity, List<StoredFile> imageFiles) {
+            BigDecimal unitPrice, int quantity, List<StoredFile> imageFiles, Map<Long, String> imageDescriptions) {
         this.productName = productName;
         this.productCode = productCode;
         this.description = description;
@@ -84,7 +85,8 @@ public class OrderItem {
         this.quantity = quantity;
         this.lineTotal = Order.money(this.unitPrice.multiply(BigDecimal.valueOf(quantity)));
         for (int i = 0; i < imageFiles.size(); i++) {
-            images.add(new OrderItemImage(this, imageFiles.get(i), i));
+            StoredFile file = imageFiles.get(i);
+            images.add(new OrderItemImage(this, file, i, imageDescriptions.get(file.getId())));
         }
     }
 

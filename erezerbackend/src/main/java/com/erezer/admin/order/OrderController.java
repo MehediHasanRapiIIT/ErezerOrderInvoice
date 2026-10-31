@@ -3,6 +3,8 @@ package com.erezer.admin.order;
 import com.erezer.admin.common.error.ApiException;
 import com.erezer.admin.common.web.PageResponse;
 import com.erezer.admin.config.AppProperties;
+import com.erezer.admin.notification.NotificationAction;
+import com.erezer.admin.notification.Notifies;
 import com.erezer.admin.order.OrderQueryService.OrderFilter;
 import com.erezer.admin.order.dto.OrderDtos.NoteRequest;
 import com.erezer.admin.order.dto.OrderDtos.OrderDetail;
@@ -131,6 +133,13 @@ class OrderController {
                 .body(workbook);
     }
 
+    /** Who an order can be credited to, for the form. */
+    @GetMapping("/staff")
+    @PreAuthorize("hasAnyAuthority('ORDER_CREATE', 'ORDER_EDIT')")
+    List<com.erezer.admin.order.dto.OrderDtos.UserRef> staff() {
+        return orderService.staffOptions();
+    }
+
     @GetMapping("/stats")
     @PreAuthorize("hasAuthority('ORDER_VIEW')")
     OrderStats stats() {
@@ -143,6 +152,7 @@ class OrderController {
         return queryService.detail(id);
     }
 
+    @Notifies(NotificationAction.ORDER_CREATED)
     @PostMapping
     @PreAuthorize("hasAuthority('ORDER_CREATE')")
     ResponseEntity<CreatedResponse> create(@Valid @RequestBody OrderRequest request) {
@@ -150,6 +160,7 @@ class OrderController {
         return ResponseEntity.created(URI.create("/api/orders/" + id)).body(new CreatedResponse(id));
     }
 
+    @Notifies(NotificationAction.ORDER_EDITED)
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('ORDER_EDIT')")
     OrderDetail update(@PathVariable long id, @Valid @RequestBody OrderRequest request) {
@@ -157,15 +168,18 @@ class OrderController {
         return queryService.detail(id);
     }
 
+    @Notifies(NotificationAction.ORDER_STATUS_CHANGED)
     @PostMapping("/{id}/status")
     @PreAuthorize("hasAuthority('ORDER_STATUS_UPDATE')")
     OrderDetail changeStatus(@PathVariable long id, @Valid @RequestBody StatusChangeRequest request) {
         orderService.changeStatus(id, request, CurrentUser.id(), CurrentUser.has(Permission.ORDER_STATUS_OVERRIDE));
+        Notifies.Context.detail("Now " + request.status());
         return queryService.detail(id);
     }
 
     /** Internal courier cost of the order (never on the invoice). */
     /** Moves the ticked orders (or one, from the list) to a day: their order date or their delivered date. */
+    @Notifies(NotificationAction.ORDER_DATES_CHANGED)
     @PostMapping("/bulk-date")
     @PreAuthorize("hasAuthority('ORDER_DATE_EDIT')")
     com.erezer.admin.order.dto.OrderDtos.BulkDateResult bulkDate(
@@ -174,6 +188,7 @@ class OrderController {
     }
 
     /** Sets the delivered date by hand; the sale then counts on that day (dashboard, Sold Products). */
+    @Notifies(NotificationAction.ORDER_DELIVERED_DATE_CHANGED)
     @PutMapping("/{id}/delivered-date")
     @PreAuthorize("hasAuthority('ORDER_DATE_EDIT')")
     OrderDetail setDeliveredDate(@PathVariable long id,
@@ -182,6 +197,7 @@ class OrderController {
         return queryService.detail(id);
     }
 
+    @Notifies(NotificationAction.ORDER_COURIER_COST_CHANGED)
     @PutMapping("/{id}/courier-cost")
     @PreAuthorize("hasAuthority('ORDER_COURIER_COST')")
     OrderDetail recordCourierCost(@PathVariable long id,
@@ -190,6 +206,7 @@ class OrderController {
         return queryService.detail(id);
     }
 
+    @Notifies(NotificationAction.ORDER_NOTE_ADDED)
     @PostMapping("/{id}/notes")
     @PreAuthorize("hasAuthority('ORDER_NOTE_ADD')")
     OrderDetail addNote(@PathVariable long id, @Valid @RequestBody NoteRequest request) {
@@ -197,6 +214,7 @@ class OrderController {
         return queryService.detail(id);
     }
 
+    @Notifies(NotificationAction.ORDER_DELETED)
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('ORDER_DELETE')")
     ResponseEntity<Void> delete(@PathVariable long id) {

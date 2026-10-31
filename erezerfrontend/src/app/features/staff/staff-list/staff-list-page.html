@@ -1,7 +1,7 @@
 <div class="flex flex-wrap items-center justify-between gap-4">
   <div>
     <h1 class="page-title">Staff Management</h1>
-    <p class="page-subtitle">Add moderators and choose exactly what each one can do</p>
+    <p class="page-subtitle">Add employees and moderators, and choose exactly what each one can do</p>
   </div>
   <a routerLink="/staff/new" class="btn-primary"><i class="fas fa-user-plus"></i> Add staff</a>
 </div>
@@ -14,7 +14,7 @@
       @for (r of openRequests(); track r.id) {
         <li class="flex flex-wrap items-center justify-between gap-3 py-2.5">
           <div class="min-w-0">
-            <p class="font-semibold text-white">{{ r.fullName }} <span class="ml-1 text-xs font-normal text-slate-400">{{ r.role === 'ADMIN' ? 'Admin' : 'Moderator' }}</span></p>
+            <p class="font-semibold text-white">{{ r.fullName }} <span class="ml-1 text-xs font-normal text-slate-400">{{ roleLabels[r.role] }}</span></p>
             <p class="text-xs text-slate-400">{{ r.email }} · asked {{ r.requestedAt | bdDate }}</p>
           </div>
           <div class="flex gap-2">
@@ -37,6 +37,7 @@
       <option value="" [selected]="role() === ''">Role: All</option>
       <option value="ADMIN" [selected]="role() === 'ADMIN'">Admins</option>
       <option value="MODERATOR" [selected]="role() === 'MODERATOR'">Moderators</option>
+      <option value="EMPLOYEE" [selected]="role() === 'EMPLOYEE'">Employees</option>
     </select>
     <select class="field w-auto" (change)="setFilter('status', $any($event.target).value)" aria-label="Status">
       <option value="" [selected]="status() === ''">Status: All</option>
@@ -80,7 +81,7 @@
               </td>
               <td class="cell-inline px-4 py-3" data-label="Role">
                 <span class="rounded-full border px-2.5 py-0.5 text-xs font-semibold" [class]="m.role === 'ADMIN' ? 'border-blue-500/40 bg-blue-500/10 text-blue-300' : 'border-line bg-white/5 text-slate-300'">
-                  {{ m.role === 'ADMIN' ? 'Admin' : 'Moderator' }}
+                  {{ roleLabels[m.role] }}
                 </span>
               </td>
               <td class="max-w-sm px-4 py-3 text-xs text-slate-300" data-label="Permissions">

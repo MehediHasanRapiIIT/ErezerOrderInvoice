@@ -60,7 +60,15 @@
       </div>
       <div class="hidden lg:block"></div>
 
-      <div class="relative">
+      <div class="relative flex items-center gap-2">
+        @if (auth.hasPermission('NOTIFICATION_VIEW')) {
+          <a routerLink="/notifications" class="relative flex h-10 w-10 items-center justify-center rounded-full text-slate-300 hover:bg-white/5 hover:text-white" [attr.aria-label]="'Notifications, ' + unread.count() + ' unread'">
+            <i class="fas fa-bell"></i>
+            @if (unread.count() > 0) {
+              <span class="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white">{{ unread.count() > 99 ? '99+' : unread.count() }}</span>
+            }
+          </a>
+        }
         <button
           type="button"
           class="flex items-center gap-3 rounded-md px-2 py-1.5 hover:bg-white/5 cursor-pointer"
@@ -73,7 +81,7 @@
           </span>
           <span class="hidden text-left sm:block">
             <span class="block text-sm font-medium text-white">{{ auth.user()?.fullName }}</span>
-            <span class="block text-xs text-slate-400">{{ auth.user()?.role === 'ADMIN' ? 'Administrator' : 'Moderator' }}</span>
+            <span class="block text-xs text-slate-400">{{ auth.user()?.role === 'ADMIN' ? 'Administrator' : auth.user()?.role === 'EMPLOYEE' ? 'Employee' : 'Moderator' }}</span>
           </span>
           <i class="fas fa-chevron-down text-xs text-slate-400"></i>
         </button>

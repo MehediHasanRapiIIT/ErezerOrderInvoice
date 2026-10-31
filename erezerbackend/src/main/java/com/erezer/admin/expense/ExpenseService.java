@@ -35,7 +35,7 @@ public class ExpenseService {
         validateDate(request.expenseDate());
         Expense expense = new Expense(request.expenseDate(), category, request.description().trim(), request.amount(),
                 request.paymentMethod(), blankToNull(request.reference()), blankToNull(request.notes()),
-                receipt(request.receiptFileId()));
+                receipt(request.receiptFileId(), null));
         return expenses.save(expense).getId();
     }
 
@@ -52,7 +52,7 @@ public class ExpenseService {
         validateDate(request.expenseDate());
         expense.update(request.expenseDate(), category, request.description().trim(), request.amount(),
                 request.paymentMethod(), blankToNull(request.reference()), blankToNull(request.notes()),
-                receipt(request.receiptFileId()));
+                receipt(request.receiptFileId(), expense.getReceipt() == null ? null : expense.getReceipt().getId()));
     }
 
     /** Soft delete, so the record and its receipt stay available for audits. */
@@ -81,8 +81,8 @@ public class ExpenseService {
         }
     }
 
-    private StoredFile receipt(Long fileId) {
-        return fileId == null ? null : files.requireReceipt(fileId);
+    private StoredFile receipt(Long fileId, Long current) {
+        return fileId == null ? null : files.requireReceipt(fileId, current);
     }
 
     private static String blankToNull(String value) {

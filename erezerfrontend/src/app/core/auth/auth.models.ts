@@ -16,6 +16,28 @@ export type Permission =
   | 'EXPENSE_CREATE'
   | 'EXPENSE_EDIT'
   | 'EXPENSE_DELETE'
+  | 'NOTIFICATION_VIEW'
+  | 'NOTIFICATION_MANAGE'
+  | 'BOOST_VIEW'
+  | 'BOOST_COST_ADD'
+  | 'BOOST_BUY'
+  | 'BOOST_EDIT'
+  | 'BOOST_DELETE'
+  | 'DAILY_EXPENSE_CREATE'
+  | 'DAILY_EXPENSE_VIEW'
+  | 'DAILY_EXPENSE_APPROVE'
+  | 'DAILY_EXPENSE_EDIT'
+  | 'DAILY_EXPENSE_DELETE'
+  | 'DAILY_EXPENSE_CATEGORIES'
+  | 'EMPLOYEE_VIEW'
+  | 'EMPLOYEE_CREATE'
+  | 'EMPLOYEE_EDIT'
+  | 'EMPLOYEE_DELETE'
+  | 'ATTENDANCE_MARK'
+  | 'ATTENDANCE_VIEW'
+  | 'ATTENDANCE_APPROVE'
+  | 'ATTENDANCE_EDIT'
+  | 'ATTENDANCE_SETTINGS'
   | 'ASSET_VIEW'
   | 'ASSET_COSTS_VIEW'
   | 'ASSET_HISTORY_VIEW'
@@ -36,7 +58,13 @@ export type Permission =
   | 'COURIER_SETTINGS'
   | 'STAFF_MANAGE';
 
-export type Role = 'ADMIN' | 'MODERATOR';
+export type Role = 'ADMIN' | 'MODERATOR' | 'EMPLOYEE';
+
+export const ROLE_LABELS: Record<Role, string> = {
+  ADMIN: 'Admin',
+  MODERATOR: 'Moderator',
+  EMPLOYEE: 'Employee',
+};
 
 export interface CurrentUser {
   id: number;

@@ -44,7 +44,7 @@ class ImagePreparer {
             }
             image = applyOrientation(image, orientation(original));
             image = flattenAndScale(image);
-            return Optional.of(new PreparedImage(encodeJpeg(image), image.getWidth(), image.getHeight()));
+            return Optional.of(new PreparedImage(encodeJpeg(image), image.getWidth(), image.getHeight(), null));
         } catch (IOException | RuntimeException ex) {
             log.warn("Could not prepare image for the invoice", ex);
             return Optional.empty();
@@ -120,6 +120,11 @@ class ImagePreparer {
         return out.toByteArray();
     }
 
-    record PreparedImage(byte[] jpeg, int width, int height) {
+    /** @param caption printed under the image on the invoice; may be null */
+    record PreparedImage(byte[] jpeg, int width, int height, String caption) {
+
+        PreparedImage withCaption(String text) {
+            return new PreparedImage(jpeg, width, height, text);
+        }
     }
 }

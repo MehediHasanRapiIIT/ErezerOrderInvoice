@@ -89,6 +89,7 @@ public class StaffService {
         User actor = load(actingUserId);
         if (!isAdmin(actor)) {
             requireNotAdminOrSelf(actor, user);
+            requireHoldsAllOf(actor, user);
             if (request.role() == Role.ADMIN) {
                 throw forbidden("Only an admin can make someone an admin");
             }
@@ -169,6 +170,21 @@ public class StaffService {
         User actor = load(actingUserId);
         if (!isAdmin(actor)) {
             requireNotAdminOrSelf(actor, target);
+            requireHoldsAllOf(actor, target);
+        }
+    }
+
+    /**
+     * A staff manager may only look after accounts whose permissions they hold themselves; otherwise resetting a
+     * stronger account's password and signing in as it would give them its permissions.
+     */
+    private static void requireHoldsAllOf(User actor, User target) {
+        Set<Permission> held = actor.effectivePermissions();
+        List<String> beyond = target.effectivePermissions().stream()
+                .filter(p -> !held.contains(p)).map(Permission::label).toList();
+        if (!beyond.isEmpty()) {
+            throw forbidden("Only someone who has all of this person's permissions can change their account. They also have: "
+                    + String.join(", ", beyond));
         }
     }
 

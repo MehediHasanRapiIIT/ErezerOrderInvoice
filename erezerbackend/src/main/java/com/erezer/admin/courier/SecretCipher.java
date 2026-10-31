@@ -13,11 +13,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * AES-256-GCM encryption for courier credentials at rest. Output is base64(iv || ciphertext+tag).
+ * AES-256-GCM encryption for stored credentials (courier and Firebase). Output is base64(iv || ciphertext+tag).
  * Losing or changing {@code COURIER_ENCRYPTION_KEY} makes stored keys unreadable (re-enter them in Settings).
  */
 @Component
-class SecretCipher {
+public class SecretCipher {
 
     private static final int IV_BYTES = 12;
     private static final int TAG_BITS = 128;
@@ -36,7 +36,7 @@ class SecretCipher {
         this.key = new SecretKeySpec(bytes, "AES");
     }
 
-    String encrypt(String plain) {
+    public String encrypt(String plain) {
         try {
             byte[] iv = new byte[IV_BYTES];
             random.nextBytes(iv);
@@ -49,14 +49,14 @@ class SecretCipher {
         }
     }
 
-    String decrypt(String stored) {
+    public String decrypt(String stored) {
         try {
             byte[] all = Base64.getDecoder().decode(stored);
             Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
             cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(TAG_BITS, all, 0, IV_BYTES));
             return new String(cipher.doFinal(all, IV_BYTES, all.length - IV_BYTES), StandardCharsets.UTF_8);
         } catch (GeneralSecurityException | IllegalArgumentException ex) {
-            throw new IllegalStateException("Stored courier credentials cannot be decrypted; re-enter them in Settings", ex);
+            throw new IllegalStateException("Stored credentials cannot be decrypted; re-enter them in Settings", ex);
         }
     }
 }

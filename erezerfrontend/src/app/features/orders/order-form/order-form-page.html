@@ -82,6 +82,7 @@
             <p class="field-label">Product images <span class="font-normal text-slate-500">({{ item.controls.images.value.length }}/{{ maxImages }})</span></p>
             <div class="flex flex-wrap gap-3">
               @for (image of item.controls.images.value; track image.fileId) {
+                <div class="w-40">
                 <div class="group relative h-40 w-40 overflow-hidden rounded-lg border border-line bg-app">
                   <img [src]="image.url" alt="" class="h-full w-full object-cover" />
                   <button
@@ -92,6 +93,16 @@
                   >
                     <i class="fas fa-times text-xs"></i>
                   </button>
+                </div>
+                <textarea
+                  class="field mt-2 text-xs"
+                  rows="3"
+                  maxlength="500"
+                  placeholder="Image description"
+                  aria-label="Image description"
+                  [value]="image.description ?? ''"
+                  (input)="setImageDescription(item, image.fileId, $any($event.target).value)"
+                ></textarea>
                 </div>
               }
               @for (n of placeholders(uploadingCount(item.controls.key.value)); track $index) {
@@ -152,6 +163,49 @@
             }
           </select>
         </label>
+        <label class="block">
+          <span class="field-label">Accepted by{{ isEdit() ? '' : ' *' }}</span>
+          <select formControlName="acceptedBy" class="field" [class.field-invalid]="form.controls.acceptedBy.invalid && form.controls.acceptedBy.touched">
+            <option [ngValue]="null">Select</option>
+            @for (s of staffOptions(); track s.id) {
+              <option [ngValue]="s.id">{{ s.name }}</option>
+            }
+            <option [ngValue]="otherPerson">Other</option>
+          </select>
+          @if (form.controls.acceptedBy.invalid && form.controls.acceptedBy.touched) {
+            <span class="field-error">Choose who accepted the order</span>
+          }
+        </label>
+        @if (form.controls.acceptedBy.value === otherPerson) {
+          <label class="block">
+            <span class="field-label">Who accepted it? *</span>
+            <input formControlName="acceptedByOther" class="field" maxlength="120" [class.field-invalid]="form.controls.acceptedByOther.invalid && form.controls.acceptedByOther.touched" />
+            @if (form.controls.acceptedByOther.invalid && form.controls.acceptedByOther.touched) {
+              <span class="field-error">Write the name</span>
+            }
+          </label>
+        }
+        <label class="block">
+          <span class="field-label">Platform{{ isEdit() ? '' : ' *' }}</span>
+          <select formControlName="platform" class="field" [class.field-invalid]="form.controls.platform.invalid && form.controls.platform.touched">
+            <option [ngValue]="null">Select</option>
+            @for (p of platforms; track p) {
+              <option [ngValue]="p">{{ platformLabels[p] }}</option>
+            }
+          </select>
+          @if (form.controls.platform.invalid && form.controls.platform.touched) {
+            <span class="field-error">Choose where the order came from</span>
+          }
+        </label>
+        @if (form.controls.platform.value === 'OTHER') {
+          <label class="block">
+            <span class="field-label">Which platform? *</span>
+            <input formControlName="platformOther" class="field" maxlength="80" [class.field-invalid]="form.controls.platformOther.invalid && form.controls.platformOther.touched" />
+            @if (form.controls.platformOther.invalid && form.controls.platformOther.touched) {
+              <span class="field-error">Write the platform</span>
+            }
+          </label>
+        }
       </section>
 
       <section class="card space-y-4 p-5" formGroupName="customer">

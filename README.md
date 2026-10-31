@@ -72,10 +72,10 @@ cd erezerfrontend && npm test -- --watch=false
 
 ### Permissions
 
-- `ADMIN` has every permission. A `MODERATOR` has only what an admin grants, from the catalog in [Permission.java](erezerbackend/src/main/java/com/erezer/admin/security/Permission.java).
+- `ADMIN` has every permission. A `MODERATOR` or `EMPLOYEE` has only what an admin grants, from the catalog in [Permission.java](erezerbackend/src/main/java/com/erezer/admin/security/Permission.java).
 - An admin can give a moderator **every** permission, including courier settings, the size list and *Manage staff and permissions*.
 - **Changing a section includes seeing it:** e.g. *Add and edit assets* also gives *View assets*, and order actions (edit, status, notes, dates, exchanges, returns, sending to courier…) give *View orders*. The staff form shows these as "(included)". This applies to existing accounts too, from their next request.
-- **A moderator who manages staff** looks after moderators only: they can't add or change admins, can't change their own account, and can only give permissions they have themselves.
+- **A moderator or employee who manages staff** looks after non-admins only: they can't add or change admins, can't change their own account, and can only give permissions they have themselves.
 - Every endpoint is protected with `@PreAuthorize("hasAuthority('...')")`. The frontend's route guards and `*appHasPermission` only hide UI the user cannot use.
 - Permissions travel inside the access token, so a change takes effect within one token lifetime (at most 15 minutes).
 
@@ -145,9 +145,71 @@ Rules:
   - Without *View history* the History panel is hidden (the repair list stays).
   - When this was introduced, staff who had *Add and edit assets* kept adding, status changes, repairs and categories, and everyone who could view assets kept seeing costs, history and the export.
 
+### Employees
+
+**Employees** holds a record for each person the shop employs: photo, name, contact number, parents and their numbers, addresses, NID number and image, Employee ID, ID card image and any number of salary accounts (bank, with its branch and routing number, bKash, Nagad, Rocket or other). It is separate from **Staff Management**, which controls who can sign in, and from Attendance, which uses staff logins.
+
+Starred fields are required. An Employee ID and an NID number can each belong to one person only. An NID number must have 10, 13 or 17 digits. The list is paged and searches name, Employee ID, contact number and NID number.
+
+Photos, NID images and ID card images are stored privately in MinIO under `employee-images/`, with their details in `stored_files`, and open only through short-lived links. Permissions: `EMPLOYEE_VIEW` (includes NID and salary details), `EMPLOYEE_CREATE`, `EMPLOYEE_EDIT` and `EMPLOYEE_DELETE`. Deleting an employee is permanent, and the images go in the nightly orphan purge.
+
+### Expense (Daily)
+
+**Expense (Daily)** is where employees and moderators apply for what they spent, and an admin approves it. It is kept **separate from Expenses on purpose**: nothing here changes the expense totals, net profit or the dashboard.
+
+- **Adding:** date, category, amount, details and an optional bill (photo or PDF). The date can't be in the future. Choosing **Other** opens a field for what it was for. Saving sends it for approval, and the person can take it back until it is decided. Admins approve but don't add expenses.
+- **Approving:** the **Approvals** tab shows all the details. The approver enters **Paid** (up to the expense), **Due** is worked out, and they approve, or reject with a required reason. Nobody decides their own expense. A later payment can be recorded on an approved expense until nothing is due.
+- **List:** paged, with filters and cards for total approved, paid, due and waiting for approval. The cards follow every filter except status, and money counts approved expenses only.
+- **Editing and deleting:** whoever has the permission can edit or delete anyone else's expense, even one already decided. What was paid stays, so the amount can't drop below it. Nobody edits their own.
+- **Categories** are managed from the page. One that has been used can't be deleted, only deactivated. **Other** is always offered.
+- **Permissions:** `DAILY_EXPENSE_CREATE` (add and see your own), `DAILY_EXPENSE_VIEW` (see everyone's), `DAILY_EXPENSE_APPROVE`, `DAILY_EXPENSE_EDIT`, `DAILY_EXPENSE_DELETE` and `DAILY_EXPENSE_CATEGORIES`. Existing employees and moderators got `DAILY_EXPENSE_CREATE`, and it starts ticked for a new Employee.
+
+### Expense (Boost)
+
+**Expense (Boost)** tracks what is spent on boosting ads and the dollars bought to pay for it. It is kept **separate from Expenses on purpose**: nothing here changes the expense totals, net profit or the dashboard.
+
+- **Add cost:** date, dollars and dollar rate, and the taka is worked out. The rate starts at the average buying rate and can be changed. The taka is saved with the entry, so later purchases never change past days.
+- **Buy cost:** date and one or more parts, such as $5 for ৳500 and $6 for ৳600. **Calculate** shows the total and what each dollar cost, and only then can it be saved. Any change means calculating again.
+- **Cards:** boost spent follows the dates chosen, as do dollars bought. Average per dollar and the dollar balance (bought minus spent) are always all-time, because dollars bought last month are still there to spend. The balance can go below zero when more was spent than was recorded as bought.
+- **Editing:** both kinds of entry can be edited in the form they were added with. Changing a cost works out its taka again, and changing a purchase changes the average and the balance. Only that entry changes; other days keep the rate they were saved with.
+- **Permissions:** `BOOST_VIEW`, `BOOST_COST_ADD`, `BOOST_BUY`, `BOOST_EDIT` and `BOOST_DELETE`. Purchases and the buying cards need `BOOST_BUY`, and editing or deleting a purchase needs it as well.
+
+### Notifications
+
+The **Notifications** menu shows what people did, and is also where an admin sets up everything about it. Nothing is fixed in the code.
+
+- **Actions tab:** lists every action in the app, grouped by section. For each one, **On** decides whether it notifies, **Push** whether it also reaches phones, and **Moderator, Employee, Admin** whose actions count.
+- **People tab:** for one person, ticks exactly which actions they **See** and which they get a **Push** for. Ticking anything lets them open the menu (`NOTIFICATION_VIEW`), and unticking everything removes it. With nothing set, admins get everything and nobody else gets anything, and an admin can be unticked too.
+- **Firebase tab:** the connection. Nobody ever gets a notification about their own action.
+- **Secrets:** the Firebase details are entered in the panel and stored in the database, with the private key encrypted using `COURIER_ENCRYPTION_KEY`. Nothing goes in the repository, Docker images or `.env`, and the private key is never sent back. The public web settings reach a browser only after sign-in.
+- **No gaps:** endpoints that change data carry `@Notifies`, and `NotificationRecorder` handles them all from one place. `NotificationIntegrationTest.noEndpointThatChangesDataIsLeftOut` fails if a new one has neither that nor a place on its short list of exceptions.
+- **Safety:** a notification is made only after the action succeeds, and a problem with it never fails the action. Descriptions leave out NID numbers, salary accounts and passwords, because they travel to phones. Notifications are deleted after 90 days.
+- **Devices:** each person presses **Enable notifications** once on each device. Signing out stops pushes there; being signed out for inactivity doesn't. On iPhone (iOS 16.4 or newer) the panel must first be added to the Home Screen.
+
+Sending uses FCM's HTTP API directly, with no Firebase library on the server.
+
+### Attendance
+
+Employees and moderators give attendance from their phones under **My Attendance**, when an admin has ticked *Check in and out* for them in Staff Management. A new Employee starts with it ticked. Admins never give attendance, even though they hold every permission.
+
+- **Set up (Attendance → Settings):** give each person a check-in time, a check-out time, optional grace minutes and any days off in the week (one or several). Saving hours never grants the permission; Settings warns about anyone with hours who can't check in. Add any number of locations, each with a position and a radius. Shop and Warehouse start with no position, and a location without one can't be recognised.
+- **Check in:** takes a live selfie (no gallery option), reads the phone's position and records the nearest location. Times come from the server in Bangladesh time, so the phone's clock has no effect. One check-in a day.
+- **Photos:** the image is stored in MinIO under `selfies/`, its details in `stored_files`, and the record links to it. Lists show it through a presigned link. A record that is deleted leaves its photo to the nightly orphan purge.
+- **Reasons:** being late (after check-in time + grace, counted from the check-in time), leaving before check-out time, or being outside every location's radius or having no position all need a reason, and the day then waits in **Approvals**.
+- **Approval:** the admin sees the photo, reasons and location, and approves, with a late fee if they choose. Leaving early after an approved late arrival sends the day back for review and keeps the fee.
+- **Days off** are never late or absent. Days before someone's shift was first set aren't counted. A day with a check-in and no check-out shows as **No check-out**; hours aren't guessed.
+- **Corrections** (`ATTENDANCE_EDIT`) set a day's times by hand with a required note. Empty times clear the day. Nobody can approve or correct their own attendance.
+- **Monthly** shows one row per employee with totals, hours and late fees, and exports to Excel. Late fees are only recorded here; nothing is deducted automatically.
+- **Filter and cards:** the Attendance page has an employee and month filter above two cards, Total working hours and Total late fee. With all employees selected, the cards also count people since removed from attendance, because their hours and fees still happened. Choosing one employee narrows the cards, Approvals and Monthly to them, and turns Daily into their month day by day. Hours count only days with both a check-in and a check-out.
+- **Lists** are paged: 20 rows on Daily, Approvals and Monthly, 10 in Settings.
+
+**Special hours** (Attendance → Settings) give different check-in and check-out times, or a day off, for one person or everyone, on a date, a date range or a weekday. The most specific wins: dates, then the weekly day off, then a weekday, then the normal shift, and someone's own setting beats one for everyone. So a date can call someone in on their day off, and a weekday setting can't. Lateness and early leaving use that day's hours, and days already given keep the hours they were saved with.
+
+Shifts must end after they start on the same day, so overnight shifts aren't supported. A shift's times are copied onto each day's record, so changing a shift never rewrites past days.
+
 ### Staff management
 
-- Admins add staff (Moderator or Admin) with an initial password, tick each moderator's permissions, reset passwords, unlock locked accounts, and deactivate or reactivate accounts (`/api/staff`, admin-only).
+- Admins add staff (Employee, Moderator or Admin) with an initial password, tick each moderator's permissions, reset passwords, unlock locked accounts, and deactivate or reactivate accounts (`/api/staff`, admin-only).
 - **Changes apply immediately.** Every API request checks that the account is still active and that its token was issued after the account's `sessions_valid_after` mark. That mark moves on deactivation, password reset, a self-service password change, and any role or permission change.
   - A deactivated user is rejected on their next request.
   - A moderator whose permissions changed is silently given a new token with the new permissions; they are not signed out.
@@ -197,6 +259,14 @@ An order needing more than is in stock is refused as a whole ("Only 3 of Black /
 **Implementation:** each order change re-checks how much stock of each variant + size the order should hold against what its history says it holds, and moves only the difference. Every quantity change is one guarded SQL update, so two orders can't both take the last piece. Orders placed before stock existed never move stock.
 
 **Permissions:** *View stock* and *Add and update stock*. Order takers can search variants without either.
+
+### Order source and image descriptions
+
+Each order records who accepted it (the signed-in person by default, any active staff member can be chosen) and its platform: Facebook, Instagram, WhatsApp, TikTok, Website, Phone call, In the shop or Other. Choosing **Other** in either list opens a field to write it in. Both are required on new orders and optional when editing an older order that has none. Neither is printed on the invoice. The list of platforms lives in `OrderPlatform.java` and `order-labels.ts`.
+
+The dashboard lists orders by person and by platform for the chosen period: the number of orders and their order totals. It counts sales orders by order date and leaves out cancelled orders and exchanges. A typed name or platform gets its own line, whatever its capitals. Older orders show as **Not set**.
+
+Each product image can have a description of up to 500 characters, printed in bold under the image on the invoice. Up to about three lines fit in a normal slot, which keeps two rows on a page. A longer description makes the slot taller, and a slot that no longer fits moves to the next page.
 
 ### Order status, order date, notes and courier cost permissions
 
@@ -248,7 +318,7 @@ An exchange swaps items of a **delivered** order. It is a new order of type *Exc
 - **Courier:** the Steadfast note always starts with "EXCHANGE - collect the old item(s): …".
 - **Exchange invoice:** a separate PDF showing the new items, returned items and the summary.
 - **Order ID:** optional, like Add Order; left empty, one is generated.
-- **Editing:** an exchange order is edited like any order (items, sizes, prices, customer, delivery charge, advance). The money is worked out again: the rider collects the positive difference against the returned items' credit, plus the delivery if the customer pays it. Exchanges have no discount. The order that was exchanged keeps its items locked.
+- **Editing:** an exchange order is edited like any order (items, sizes, prices, customer, delivery charge, advance). The money is worked out again: the rider collects the positive difference against the returned items' credit, plus the delivery if the customer pays it. Exchanges have no discount. An order with exchanges or returns keeps its products as they are (its customer, payment and delivery details can still be edited).
 - **Dashboard:** booked on the exchange's delivery date.
   - **Total Exchange Items**, plus the items **paid by Customer** and **paid by Erezer**.
   - Product revenue grows only by the positive difference. Refunds on cheaper exchanges, and Erezer-paid delivery (the courier's real charge when known), reduce net profit.

@@ -3,7 +3,7 @@ import { CLOSED_MENU, MenuPosition, placeMenu } from '../../../shared/ui/floatin
 import { rxResource, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Params, Router, RouterLink } from '@angular/router';
 import { Observable } from 'rxjs';
-import { Role } from '../../../core/auth/auth.models';
+import { Role, ROLE_LABELS } from '../../../core/auth/auth.models';
 import { AuthService } from '../../../core/auth/auth.service';
 import { errorMessage } from '../../../core/http/api-error';
 import { ToastService } from '../../../core/notify/toast.service';
@@ -34,6 +34,7 @@ export class StaffListPage {
   /** Where the open row menu sits on screen (fixed, so the table's scroll box can't cut it off). */
   protected readonly menuPosition = signal<MenuPosition>(CLOSED_MENU);
   protected readonly resetting = signal<StaffMember | null>(null);
+  protected readonly roleLabels = ROLE_LABELS;
   protected readonly myId = computed(() => this.auth.user()?.id);
 
   private readonly params = toSignal(this.route.queryParamMap, { initialValue: this.route.snapshot.queryParamMap });

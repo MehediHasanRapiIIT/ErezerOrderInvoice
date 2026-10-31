@@ -37,6 +37,30 @@ class FileController {
         return new UploadedFileResponse(f.getId(), fileService.url(f), f.getContentType(), f.getSizeBytes());
     }
 
+    /** An employee's photo, NID or ID card image, uploaded before the form is saved. */
+    @PostMapping(path = "/employee-images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyAuthority('EMPLOYEE_CREATE', 'EMPLOYEE_EDIT')")
+    UploadedFileResponse uploadEmployeeImage(@RequestPart("file") MultipartFile file) {
+        StoredFile f = fileService.uploadEmployeeImage(file, CurrentUser.id());
+        return new UploadedFileResponse(f.getId(), fileService.url(f), f.getContentType(), f.getSizeBytes());
+    }
+
+    /** The bill for a daily expense, uploaded before the form is saved. */
+    @PostMapping(path = "/daily-expense-receipts", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyAuthority('DAILY_EXPENSE_CREATE', 'DAILY_EXPENSE_EDIT')")
+    UploadedFileResponse uploadDailyExpenseReceipt(@RequestPart("file") MultipartFile file) {
+        StoredFile f = fileService.uploadDailyExpenseReceipt(file, CurrentUser.id());
+        return new UploadedFileResponse(f.getId(), fileService.url(f), f.getContentType(), f.getSizeBytes());
+    }
+
+    /** The photo taken at check-in. */
+    @PostMapping(path = "/selfies", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAuthority('ATTENDANCE_MARK')")
+    UploadedFileResponse uploadSelfie(@RequestPart("file") MultipartFile file) {
+        StoredFile f = fileService.uploadSelfie(file, CurrentUser.id());
+        return new UploadedFileResponse(f.getId(), fileService.url(f), f.getContentType(), f.getSizeBytes());
+    }
+
     record UploadedFileResponse(long id, String url, String contentType, long sizeBytes) {
     }
 }

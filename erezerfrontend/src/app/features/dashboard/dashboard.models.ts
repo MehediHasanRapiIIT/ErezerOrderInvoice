@@ -30,11 +30,20 @@ export interface SeriesPoint {
   expenses: number;
 }
 
+export interface SourceTotal {
+  /** Empty for older orders, from before this was recorded. */
+  name?: string | null;
+  orders: number;
+  amount: number;
+}
+
 export interface DashboardSummary {
   from: string;
   to: string;
   current: DashboardTotals;
   previous: DashboardTotals;
+  /** Sales orders placed in the period, leaving out cancelled ones and exchanges. */
+  sources: { byUser: SourceTotal[]; byPlatform: SourceTotal[] };
   orders: { placed: number; cancelled: number; delivered: number; returned: number; returnRate: number | null };
   /** Exchanges delivered in the period, counted in items. */
   exchanges: {

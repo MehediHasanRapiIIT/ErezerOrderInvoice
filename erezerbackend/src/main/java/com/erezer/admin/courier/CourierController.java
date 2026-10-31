@@ -11,6 +11,8 @@ import com.erezer.admin.courier.CourierSettingsService.Availability;
 import com.erezer.admin.courier.CourierSettingsService.SettingsView;
 import com.erezer.admin.courier.CourierSettingsService.UpdateRequest;
 import com.erezer.admin.courier.ParcelPlanner.Overrides;
+import com.erezer.admin.notification.NotificationAction;
+import com.erezer.admin.notification.Notifies;
 import com.erezer.admin.security.CurrentUser;
 import jakarta.validation.Valid;
 import java.math.BigDecimal;
@@ -45,6 +47,7 @@ class CourierController {
         return settings.view();
     }
 
+    @Notifies(NotificationAction.COURIER_SETTINGS_CHANGED)
     @PutMapping("/api/courier/settings")
     @PreAuthorize("hasAuthority('COURIER_SETTINGS')")
     SettingsView updateSettings(@RequestBody UpdateRequest request) {
@@ -58,6 +61,7 @@ class CourierController {
     }
 
     /** Generates a token and returns it once (it is stored encrypted and never shown again). */
+    @Notifies(NotificationAction.COURIER_WEBHOOK_TOKEN_CHANGED)
     @PostMapping("/api/courier/settings/webhook-token")
     @PreAuthorize("hasAuthority('COURIER_SETTINGS')")
     Map<String, String> regenerateWebhookToken() {
@@ -68,6 +72,7 @@ class CourierController {
     }
 
     /** Saves a token generated in Steadfast's own Webhook page. */
+    @Notifies(NotificationAction.COURIER_WEBHOOK_TOKEN_CHANGED)
     @PutMapping("/api/courier/settings/webhook-token")
     @PreAuthorize("hasAuthority('COURIER_SETTINGS')")
     org.springframework.http.ResponseEntity<Void> setWebhookToken(@RequestBody WebhookTokenRequest request) {
@@ -95,6 +100,7 @@ class CourierController {
         return courierService.fraudCheck(phone);
     }
 
+    @Notifies(NotificationAction.ORDER_SENT_TO_COURIER)
     @PostMapping("/api/orders/{id}/courier")
     @PreAuthorize("hasAuthority('COURIER_SEND')")
     ResponseEntity<SendResult> send(@PathVariable long id, @Valid @RequestBody SendRequest request) {
@@ -109,12 +115,14 @@ class CourierController {
         return courierService.shipmentFor(id).map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.noContent().build());
     }
 
+    @Notifies(NotificationAction.ORDER_COURIER_REFRESHED)
     @PostMapping("/api/orders/{id}/courier/refresh")
     @PreAuthorize("hasAnyAuthority('COURIER_SEND', 'ORDER_STATUS_UPDATE')")
     ShipmentView refresh(@PathVariable long id) {
         return courierService.refresh(id);
     }
 
+    @Notifies(NotificationAction.ORDERS_SENT_TO_COURIER)
     @PostMapping("/api/courier/batches")
     @PreAuthorize("hasAuthority('COURIER_SEND')")
     ResponseEntity<Map<String, Long>> startBatch(@Valid @RequestBody BatchRequest request) {

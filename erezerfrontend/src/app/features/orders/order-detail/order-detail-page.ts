@@ -10,7 +10,7 @@ import { HasPermissionDirective } from '../../../shared/has-permission.directive
 import { ConfirmService } from '../../../shared/ui/confirm-dialog';
 import { TakaPipe } from '../../../shared/ui/taka.pipe';
 import { OrderApi } from '../data/order.api';
-import { PAYMENT_LABELS, RETURN_REASONS, STATUS_FLOW, STATUS_LABELS } from '../data/order-labels';
+import { PLATFORM_LABELS, PAYMENT_LABELS, RETURN_REASONS, STATUS_FLOW, STATUS_LABELS } from '../data/order-labels';
 import { DeliveryPaidBy, OrderDetail, OrderImage, OrderStatus, ReturnReason, ReturnView } from '../data/order.models';
 import { StatusBadge } from '../status-badge';
 import { CourierApi, SENDABLE_STATUSES, SendResult } from '../../courier/courier.api';
@@ -45,6 +45,7 @@ export class OrderDetailPage {
   protected readonly auth = inject(AuthService);
 
   protected readonly paymentLabels = PAYMENT_LABELS;
+  protected readonly platformLabels = PLATFORM_LABELS;
   protected readonly statusLabels = STATUS_LABELS;
 
   protected readonly resource = rxResource({

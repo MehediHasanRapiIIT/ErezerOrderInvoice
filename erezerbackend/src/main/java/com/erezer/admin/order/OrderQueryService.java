@@ -103,6 +103,9 @@ public class OrderQueryService {
 
         List<Long> userIds = new ArrayList<>();
         userIds.add(order.getCreatedBy());
+        if (order.getAcceptedBy() != null) {
+            userIds.add(order.getAcceptedBy());
+        }
         order.getStatusHistory().forEach(h -> userIds.add(h.getChangedBy()));
         orderNotes.forEach(n -> userIds.add(n.getCreatedBy()));
         Map<Long, String> names = userDirectory.namesById(userIds);
@@ -111,7 +114,7 @@ public class OrderQueryService {
                 .map(i -> new Item(i.getId(), i.getProductName(), i.getProductCode(), i.getDescription(), i.getColor(),
                         i.getSize(), i.getUnitPrice(), i.getQuantity(), i.getLineTotal(),
                         i.getImages().stream()
-                                .map(img -> new Image(img.getFile().getId(), files.url(img.getFile())))
+                                .map(img -> new Image(img.getFile().getId(), files.url(img.getFile()), img.getDescription()))
                                 .toList(), i.getVariantId(), i.getStockItemId()))
                 .toList();
 
@@ -140,7 +143,8 @@ public class OrderQueryService {
                 com.erezer.admin.security.CurrentUser.has(com.erezer.admin.security.Permission.ORDER_STATUS_OVERRIDE),
                 returns, order.getStatus() == OrderStatus.DELIVERED
                         && returns.stream().anyMatch(r -> r.active() && r.kind() == ReturnKind.AFTER_DELIVERY),
-                order.getDeliveredAt());
+                order.getDeliveredAt(), userRef(names, order.getAcceptedBy()), order.getPlatform(),
+                order.getAcceptedByOther(), order.getPlatformOther());
     }
 
     /** The normal next steps, or every other status for users who may change it freely. */

@@ -2,6 +2,7 @@ package com.erezer.admin.order.dto;
 
 import com.erezer.admin.order.DeliveryPaidBy;
 import com.erezer.admin.order.ExchangeReason;
+import com.erezer.admin.order.OrderPlatform;
 import com.erezer.admin.order.OrderStatus;
 import com.erezer.admin.order.OrderType;
 import com.erezer.admin.order.ReturnKind;
@@ -22,6 +23,7 @@ import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 public final class OrderDtos {
 
@@ -51,7 +53,15 @@ public final class OrderDtos {
              * Optional order date (needs "Choose or change the order date"); when missing, a new order is dated now
              * and an edited one keeps its date.
              */
-            Instant orderedAt) {
+            Instant orderedAt,
+            /** Who took the order; left out, a new order is the creator's and an edited one stays as it is. */
+            Long acceptedBy,
+            /** Where the order came from; left out, it stays as it is. */
+            OrderPlatform platform,
+            /** A typed name, for someone who isn't on the staff list; replaces {@code acceptedBy}. */
+            @Size(max = 120) String acceptedByOther,
+            /** What "Other" means, when the platform is Other. */
+            @Size(max = 80) String platformOther) {
     }
 
     public record CustomerRequest(
@@ -75,7 +85,9 @@ public final class OrderDtos {
             /** The stock variant (its name replaces {@code color}); null = not tracked in stock. */
             Long variantId,
             /** The variant's size (its name replaces {@code size}); may be left out when the variant has one size. */
-            Long stockItemId) {
+            Long stockItemId,
+            /** A description for each image, by file id; printed under the image on the invoice. */
+            @Size(max = 10) Map<Long, @Size(max = 500) String> imageDescriptions) {
     }
 
     public record StatusChangeRequest(
@@ -153,7 +165,6 @@ public final class OrderDtos {
      * Exchange items of a delivered order.
      *
      * @param refund            only matters when the replacement is cheaper: hand the difference back or not
-     * @param overrideTimeLimit admins only: allow an exchange after the time limit
      */
     public record ExchangeRequest(
             @NotEmpty(message = "Choose at least one item to exchange") @Size(max = 50) List<@Valid ExchangeLineRequest> items,
@@ -161,7 +172,6 @@ public final class OrderDtos {
             @NotNull DeliveryPaidBy deliveryPaidBy,
             @NotNull @DecimalMin("0") @DecimalMax("9999999") @Digits(integer = 10, fraction = 2) BigDecimal deliveryCharge,
             Boolean refund,
-            Boolean overrideTimeLimit,
             @Size(max = 1000) String note,
             /** Optional, like a normal order's; generated when empty. */
             @Size(max = 30) @Pattern(regexp = "^[A-Za-z0-9-]*$", message = "may contain only letters, digits and dashes")
@@ -172,9 +182,6 @@ public final class OrderDtos {
             return Boolean.TRUE.equals(refund);
         }
 
-        public boolean timeLimitOverridden() {
-            return Boolean.TRUE.equals(overrideTimeLimit);
-        }
     }
 
     /** Take back {@code quantity} of an original item and send {@code replacement} instead (same quantity). */
@@ -235,7 +242,11 @@ public final class OrderDtos {
             /** Delivered, with some products sent back. */
             boolean partlyReturned,
             /** When it was delivered (the day its sale counts on); null if never delivered. */
-            Instant deliveredAt) {
+            Instant deliveredAt,
+            UserRef acceptedBy,
+            OrderPlatform platform,
+            String acceptedByOther,
+            String platformOther) {
     }
 
     /** Set the delivered date by hand. */
@@ -296,10 +307,6 @@ public final class OrderDtos {
             String orderNumber,
             Customer customer,
             Instant deliveredAt,
-            Instant deadline,
-            boolean withinTimeLimit,
-            boolean canOverrideTimeLimit,
-            int timeLimitDays,
             BigDecimal defaultDeliveryCharge,
             List<ExchangeableItem> items,
             List<ExchangeRef> exchanges) {
@@ -340,7 +347,7 @@ public final class OrderDtos {
             Long stockItemId) {
     }
 
-    public record Image(long fileId, String url) {
+    public record Image(long fileId, String url, String description) {
     }
 
     public record StatusChange(OrderStatus fromStatus, OrderStatus toStatus, String note, UserRef changedBy,

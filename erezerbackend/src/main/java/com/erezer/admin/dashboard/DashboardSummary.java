@@ -19,7 +19,8 @@ public record DashboardSummary(
         Returns returns,
         String granularity,
         List<SeriesPoint> series,
-        List<CategoryTotal> topExpenseCategories) {
+        List<CategoryTotal> topExpenseCategories,
+        OrderSources sources) {
 
     /**
      * Cash-basis totals for the period (see {@code DashboardService#totals} for the business rules).
@@ -102,5 +103,15 @@ public record DashboardSummary(
     }
 
     public record CategoryTotal(String name, BigDecimal total) {
+    }
+
+    /**
+     * Sales orders placed in the period, leaving out cancelled ones and exchanges, by who accepted them and by
+     * platform. Orders from before these were recorded have a null name.
+     */
+    public record OrderSources(List<SourceTotal> byUser, List<SourceTotal> byPlatform) {
+    }
+
+    public record SourceTotal(String name, long orders, BigDecimal amount) {
     }
 }

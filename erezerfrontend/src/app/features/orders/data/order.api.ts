@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../../environments/environment';
 import { Page } from '../../../core/http/page';
 import {
+  StaffOption,
   DeliveryPaidBy,
   ReturnOptions,
   ReturnReason,
@@ -117,6 +118,11 @@ export class OrderApi {
 
   updateReturn(returnId: number, body: { reason: ReturnReason; paidBy: DeliveryPaidBy; returnCharge: number; note: string | null }): Observable<OrderDetail> {
     return this.http.put<OrderDetail>(`${environment.apiBaseUrl}/returns/${returnId}`, body);
+  }
+
+  /** Who an order can be credited to. */
+  staff(): Observable<StaffOption[]> {
+    return this.http.get<StaffOption[]>(`${this.baseUrl}/staff`);
   }
 
   uploadImages(files: File[]): Observable<UploadedFile[]> {

@@ -5,6 +5,8 @@ import com.erezer.admin.config.AppProperties;
 import com.erezer.admin.expense.dto.ExpenseDtos.ExpensePage;
 import com.erezer.admin.expense.dto.ExpenseDtos.ExpenseRequest;
 import com.erezer.admin.expense.dto.ExpenseDtos.ExpenseResponse;
+import com.erezer.admin.notification.NotificationAction;
+import com.erezer.admin.notification.Notifies;
 import com.erezer.admin.order.PaymentMethod;
 import jakarta.validation.Valid;
 import java.math.BigDecimal;
@@ -97,6 +99,7 @@ class ExpenseController {
         return queryService.get(id);
     }
 
+    @Notifies(NotificationAction.EXPENSE_CREATED)
     @PostMapping
     @PreAuthorize("hasAuthority('EXPENSE_CREATE')")
     ResponseEntity<ExpenseResponse> create(@Valid @RequestBody ExpenseRequest request) {
@@ -104,6 +107,7 @@ class ExpenseController {
         return ResponseEntity.created(URI.create("/api/expenses/" + id)).body(queryService.get(id));
     }
 
+    @Notifies(NotificationAction.EXPENSE_EDITED)
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('EXPENSE_EDIT')")
     ExpenseResponse update(@PathVariable long id, @Valid @RequestBody ExpenseRequest request) {
@@ -111,6 +115,7 @@ class ExpenseController {
         return queryService.get(id);
     }
 
+    @Notifies(NotificationAction.EXPENSE_DELETED)
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('EXPENSE_DELETE')")
     ResponseEntity<Void> delete(@PathVariable long id) {

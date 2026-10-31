@@ -122,6 +122,11 @@
       </div>
     </div>
 
+    <div class="card mt-4 flex flex-wrap gap-x-8 gap-y-1 px-4 py-3 text-sm">
+      <p class="text-slate-400">Accepted by <b class="text-white">{{ o.acceptedBy?.name ?? o.acceptedByOther ?? 'Not set' }}</b></p>
+      <p class="text-slate-400">Platform <b class="text-white">{{ o.platformOther || (o.platform ? platformLabels[o.platform] : 'Not set') }}</b></p>
+    </div>
+
     <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
       <!-- Left column -->
       <div class="space-y-6 lg:col-span-2">
@@ -573,7 +578,12 @@
   <!-- Image viewer -->
   @if (lightbox(); as box) {
     <div class="fixed inset-0 z-[80] flex items-center justify-center bg-black/90 p-4" (click)="lightbox.set(null)" role="dialog" aria-modal="true" aria-label="Product images">
-      <img [src]="box.images[box.index].url" alt="" class="max-h-[85vh] max-w-full rounded-lg object-contain" (click)="$event.stopPropagation()" />
+      <div class="flex max-h-full max-w-full flex-col items-center gap-3" (click)="$event.stopPropagation()">
+        <img [src]="box.images[box.index].url" alt="" class="max-h-[80vh] max-w-full rounded-lg object-contain" />
+        @if (box.images[box.index].description; as description) {
+          <p class="max-w-2xl text-center text-sm font-semibold text-white">{{ description }}</p>
+        }
+      </div>
       <button type="button" class="absolute right-4 top-4 cursor-pointer text-2xl text-white/80 hover:text-white" (click)="lightbox.set(null)" aria-label="Close">
         <i class="fas fa-times"></i>
       </button>

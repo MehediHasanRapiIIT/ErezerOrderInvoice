@@ -4,6 +4,8 @@ import { rxResource, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Params, Router, RouterLink } from '@angular/router';
 import { isoDate } from '../../shared/date-range';
 import { TakaPipe } from '../../shared/ui/taka.pipe';
+import { PLATFORM_LABELS } from '../orders/data/order-labels';
+import { OrderPlatform } from '../orders/data/order.models';
 import { DashboardApi } from './dashboard.api';
 import { DashboardTotals } from './dashboard.models';
 import { BdDatePipe } from '../../shared/ui/bd-date.pipe';
@@ -66,6 +68,9 @@ export class DashboardPage {
   private readonly route = inject(ActivatedRoute);
 
   protected readonly presets = PRESETS;
+  protected platformLabel(name: string | null | undefined): string {
+    return name ? (PLATFORM_LABELS[name as OrderPlatform] ?? name) : 'Not set';
+  }
   protected readonly today = isoDate(bdToday());
 
   private readonly params = toSignal(this.route.queryParamMap, { initialValue: this.route.snapshot.queryParamMap });

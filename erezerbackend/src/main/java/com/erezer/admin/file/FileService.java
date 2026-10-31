@@ -1,6 +1,7 @@
 package com.erezer.admin.file;
 
 import com.erezer.admin.common.error.ApiException;
+import com.erezer.admin.security.CurrentUser;
 import com.erezer.admin.storage.StorageService;
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -14,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -70,24 +72,120 @@ public class FileService {
         return store(upload, uploadedBy, "receipts", true);
     }
 
-    @Transactional(readOnly = true)
-    public StoredFile requireReceipt(long id) {
-        return files.findById(id).filter(f -> f.isImage() || f.getContentType().equals(PDF_TYPE))
-                .orElseThrow(() -> ApiException.badRequest("INVALID_RECEIPT", "The receipt no longer exists. Upload it again."));
+    /** An employee's photo, NID or ID card image: private, and only ever shown through a short-lived link. */
+    @Transactional
+    public StoredFile uploadEmployeeImage(MultipartFile upload, long uploadedBy) {
+        if (upload == null) {
+            throw ApiException.badRequest("NO_FILES", "Select an image");
+        }
+        return store(upload, uploadedBy, "employee-images", false);
     }
 
-    /** Loads files by id, failing if any is missing or is not an image. */
+    /**
+     * A photo, NID or ID card image for an employee record.
+     *
+     * @param current the record's image now, or null
+     */
     @Transactional(readOnly = true)
-    public Map<Long, StoredFile> requireImages(Collection<Long> ids) {
+    public StoredFile requireEmployeeImage(long id, Long current) {
+        StoredFile file = files.findById(id).filter(StoredFile::isImage).filter(f -> f.getObjectKey().startsWith("employee-images/"))
+                .orElseThrow(() -> ApiException.badRequest("INVALID_IMAGE", "The image no longer exists. Upload it again."));
+        requireMine(file, current != null && current == id);
+        return file;
+    }
+
+    /** A bill for a daily expense: a photo or a PDF. */
+    @Transactional
+    public StoredFile uploadDailyExpenseReceipt(MultipartFile upload, long uploadedBy) {
+        if (upload == null) {
+            throw ApiException.badRequest("NO_FILES", "Select a file");
+        }
+        return store(upload, uploadedBy, "daily-expenses", true);
+    }
+
+    /** The bill on a new daily expense: the person's own, uploaded for this. */
+    @Transactional(readOnly = true)
+    public StoredFile requireDailyExpenseReceipt(long id) {
+        StoredFile file = files.findById(id).filter(f -> f.getObjectKey().startsWith("daily-expenses/"))
+                .orElseThrow(() -> ApiException.badRequest("INVALID_RECEIPT", "The bill no longer exists. Upload it again."));
+        requireMine(file, false);
+        return file;
+    }
+
+    /** A photo taken at check-in. */
+    @Transactional
+    public StoredFile uploadSelfie(MultipartFile upload, long uploadedBy) {
+        if (upload == null) {
+            throw ApiException.badRequest("NO_FILES", "Take a photo first");
+        }
+        return store(upload, uploadedBy, "selfies", false);
+    }
+
+    /** The check-in photo: the employee's own, uploaded as a selfie. */
+    @Transactional(readOnly = true)
+    public StoredFile requireSelfie(long id) {
+        StoredFile file = files.findById(id).filter(StoredFile::isImage).filter(f -> f.getObjectKey().startsWith("selfies/"))
+                .orElseThrow(() -> ApiException.badRequest("INVALID_IMAGE", "The photo no longer exists. Take it again."));
+        requireMine(file, false);
+        return file;
+    }
+
+    /*
+     * Attaching files. File ids are plain numbers, so a file is only accepted when it is the right kind (a product
+     * image, or a receipt-upload) and either the current user uploaded it or the record already has it. Otherwise
+     * anyone who can save an order could attach someone else's receipt photo by its number and then view it.
+     */
+
+    /**
+     * An expense or asset receipt (photo or PDF) uploaded through the receipt upload.
+     *
+     * @param current the record's receipt now (kept even if someone else uploaded it), or null
+     */
+    @Transactional(readOnly = true)
+    public StoredFile requireReceipt(long id, Long current) {
+        StoredFile file = files.findById(id).filter(f -> f.isImage() || f.getContentType().equals(PDF_TYPE))
+                .filter(f -> f.getObjectKey().startsWith("receipts/"))
+                .orElseThrow(() -> ApiException.badRequest("INVALID_RECEIPT", "The receipt no longer exists. Upload it again."));
+        requireMine(file, current != null && current == id);
+        return file;
+    }
+
+    /**
+     * An asset photo (an image uploaded through the receipt upload).
+     *
+     * @param current the asset's photo now, or null
+     */
+    @Transactional(readOnly = true)
+    public StoredFile requirePhoto(long id, Long current) {
+        StoredFile file = files.findById(id).filter(StoredFile::isImage).filter(f -> f.getObjectKey().startsWith("receipts/"))
+                .orElseThrow(() -> ApiException.badRequest("INVALID_IMAGE", "The photo no longer exists. Upload it again."));
+        requireMine(file, current != null && current == id);
+        return file;
+    }
+
+    /**
+     * Product images for order items.
+     *
+     * @param alreadyAttached images the record (or the order being exchanged) already has; they may stay
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, StoredFile> requireImages(Collection<Long> ids, Collection<Long> alreadyAttached) {
         Map<Long, StoredFile> found = files.findAllById(ids).stream()
                 .collect(Collectors.toMap(StoredFile::getId, Function.identity()));
         for (Long id : ids) {
             StoredFile file = found.get(id);
-            if (file == null || !file.isImage()) {
+            if (file == null || !file.isImage() || !file.getObjectKey().startsWith("images/")) {
                 throw ApiException.badRequest("INVALID_IMAGE", "Image " + id + " does not exist. Upload it again.");
             }
+            requireMine(file, alreadyAttached.contains(id));
         }
         return found;
+    }
+
+    private static void requireMine(StoredFile file, boolean alreadyOnRecord) {
+        if (!alreadyOnRecord && !Objects.equals(file.getUploadedBy(), CurrentUser.id())) {
+            throw ApiException.badRequest("FILE_NOT_YOURS", "A file can only be attached by the person who uploaded it. Upload it again.");
+        }
     }
 
     public String url(StoredFile file) {

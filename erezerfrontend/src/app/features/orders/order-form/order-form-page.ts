@@ -23,10 +23,21 @@ import { SizeField } from '../../stock/size-field';
 import { SoldProductsApi } from '../../sold-products/sold-products.api';
 import { TakaPipe } from '../../../shared/ui/taka.pipe';
 import { OrderApi } from '../data/order.api';
-import { PAYMENT_LABELS, PAYMENT_METHODS, SIZE_SUGGESTIONS } from '../data/order-labels';
-import { ExchangeInfo, OrderDetail, OrderImage, OrderRequest, PaymentMethod } from '../data/order.models';
+import { PAYMENT_LABELS, PAYMENT_METHODS, PLATFORM_LABELS, PLATFORMS, SIZE_SUGGESTIONS } from '../data/order-labels';
+import {
+  ExchangeInfo,
+  imageDescriptions,
+  OrderDetail,
+  OrderImage,
+  OrderPlatform,
+  OrderRequest,
+  PaymentMethod,
+  StaffOption,
+} from '../data/order.models';
 import { BdDatePipe } from '../../../shared/ui/bd-date.pipe';
 
+/** The Accepted by list's value for "Other". */
+const OTHER_PERSON = -1;
 const MAX_IMAGES_PER_ITEM = 10;
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -75,6 +86,9 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
   private readonly customers = inject(CustomerApi);
 
   protected readonly paymentMethods = PAYMENT_METHODS;
+  protected readonly platforms = PLATFORMS;
+  protected readonly otherPerson = OTHER_PERSON;
+  protected readonly platformLabels = PLATFORM_LABELS;
   protected readonly paymentLabels = PAYMENT_LABELS;
   protected readonly sizeSuggestions = SIZE_SUGGESTIONS;
   protected readonly maxImages = MAX_IMAGES_PER_ITEM;
@@ -87,14 +101,29 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
   protected readonly uploading = signal<Record<string, number>>({});
   protected readonly dragOverKey = signal<string | null>(null);
 
+  /** The person an edited order is credited to, kept selectable if they have since left. */
+  private readonly currentAccepted = signal<StaffOption | null>(null);
+  private readonly staff = toSignal(this.api.staff().pipe(catchError(() => of([] as StaffOption[]))), {
+    initialValue: [] as StaffOption[],
+  });
+  protected readonly staffOptions = computed(() => {
+    const current = this.currentAccepted();
+    return current && !this.staff().some((s) => s.id === current.id) ? [current, ...this.staff()] : this.staff();
+  });
+
   private version: number | undefined;
   private saved = false;
+  private savedPlatform: OrderPlatform | null = null;
 
   protected readonly form = this.fb.group({
     orderNumber: ['', [Validators.maxLength(30), Validators.pattern(ORDER_NUMBER_PATTERN)]],
     /** Bangladesh date and time of the order; only users allowed to choose it see the field. */
     orderedAt: [toBdInputValue()],
     paymentMethod: this.fb.control<PaymentMethod>('CASH', Validators.required),
+    acceptedBy: this.fb.control<number | null>(null),
+    platform: this.fb.control<OrderPlatform | null>(null),
+    acceptedByOther: ['', Validators.maxLength(120)],
+    platformOther: ['', Validators.maxLength(80)],
     customer: this.fb.group({
       name: ['', [Validators.required, Validators.maxLength(120)]],
       phone: ['', [Validators.required, Validators.pattern(PHONE_PATTERN)]],
@@ -156,6 +185,13 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
   });
 
   constructor() {
+    this.form.controls.acceptedBy.valueChanges.pipe(takeUntilDestroyed()).subscribe((value) => {
+      requireText(this.form.controls.acceptedByOther, value === OTHER_PERSON);
+    });
+    this.form.controls.platform.valueChanges.pipe(takeUntilDestroyed()).subscribe((value) => {
+      // An older order can stay "Other" without one.
+      requireText(this.form.controls.platformOther, value === 'OTHER' && this.savedPlatform !== 'OTHER');
+    });
     // Recognise returning customers as soon as a complete phone number is typed, in any format.
     this.form.controls.customer.controls.phone.valueChanges
       .pipe(
@@ -224,6 +260,10 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
       this.load(Number(id));
     } else {
       this.addItem();
+      // Required on new orders only, so older orders without them can still be edited.
+      this.form.controls.acceptedBy.setValidators(Validators.required);
+      this.form.controls.platform.setValidators(Validators.required);
+      this.form.controls.acceptedBy.setValue(this.auth.user()?.id ?? null);
     }
   }
 
@@ -379,12 +419,24 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
       orderNumber: order.orderNumber,
       orderedAt: toBdInputValue(order.createdAt),
       paymentMethod: order.paymentMethod,
+      acceptedBy: order.acceptedByOther ? OTHER_PERSON : (order.acceptedBy?.id ?? null),
+      acceptedByOther: order.acceptedByOther ?? '',
+      platform: order.platform ?? null,
+      platformOther: order.platformOther ?? '',
       customer: { ...order.customer, email: order.customer.email ?? '' },
       deliveryCharge: order.deliveryCharge,
       discount: order.discount,
       advance: order.advance > 0 ? order.advance : null,
     });
+    this.currentAccepted.set(order.acceptedBy ?? null);
+    this.savedPlatform = order.platform ?? null;
+    requireText(this.form.controls.platformOther, false);
     this.form.markAsPristine();
+  }
+
+  protected setImageDescription(item: ItemForm, fileId: number, description: string): void {
+    item.controls.images.setValue(item.controls.images.value.map((img) => (img.fileId === fileId ? { ...img, description } : img)));
+    item.controls.images.markAsDirty();
   }
 
   private createItem(value?: Partial<ReturnType<ItemForm['getRawValue']>>): ItemForm {
@@ -451,6 +503,10 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
       // Only a date the user picked; otherwise a new order is dated when saved and an edited one keeps its date.
       orderedAt: this.canSetDate && this.form.controls.orderedAt.dirty ? fromBdInputValue(v.orderedAt) : null,
       paymentMethod: v.paymentMethod,
+      acceptedBy: v.acceptedBy === OTHER_PERSON ? null : v.acceptedBy,
+      acceptedByOther: v.acceptedBy === OTHER_PERSON ? v.acceptedByOther.trim() : null,
+      platform: v.platform,
+      platformOther: v.platform === 'OTHER' ? v.platformOther.trim() || null : null,
       customer: {
         name: v.customer.name.trim(),
         phone: v.customer.phone.trim(),
@@ -469,12 +525,19 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
         unitPrice: Number(i.unitPrice) || 0,
         quantity: Number(i.quantity) || 1,
         imageIds: i.images.map((img) => img.fileId),
+        imageDescriptions: imageDescriptions(i.images),
         variantId: i.variantId,
         stockItemId: i.variantId === null ? null : i.stockItemId,
       })),
       version: this.version,
     };
   }
+}
+
+/** Makes a field that only applies to "Other" required while it does. */
+function requireText(control: FormControl<string>, required: boolean): void {
+  control.setValidators(required ? [Validators.required, Validators.pattern(/\S/), Validators.maxLength(120)] : Validators.maxLength(120));
+  control.updateValueAndValidity({ emitEvent: false });
 }
 
 /** "items[0].productCode" → "Product 1 product code" */

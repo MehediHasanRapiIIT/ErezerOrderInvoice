@@ -38,7 +38,9 @@ import org.springframework.stereotype.Component;
  * <ul>
  *   <li>Page 1 (continuing if there are many items): header band, bill-to, items table and totals.</li>
  *   <li>Page 2 onwards: product images, two product slots per page. Each slot shows the product's heading
- *       and up to two images side by side; a product with more images continues in the next slot.</li>
+ *       and up to two images side by side, each with its description in bold underneath; a product with more
+ *       images continues in the next slot. A long description makes its slot taller, and a slot that no longer
+ *       fits moves to the next page.</li>
  * </ul>
  * Every page carries a faint logo watermark and a "Page x of y" footer.
  */
@@ -66,6 +68,12 @@ class InvoicePdfRenderer {
     private static final float IMAGE_GAP = 14;
     private static final int IMAGES_PER_SLOT = 2;
     private static final int SLOTS_PER_PAGE = 2;
+    private static final float CAPTION_SIZE = 10;
+    private static final float CAPTION_LEADING = 13;
+    private static final float CAPTION_GAP = 6;
+    private static final float MEASURE_HEIGHT = 2000;
+    /** Descriptions up to about three lines fit inside a normal slot; longer ones make it taller. */
+    private static final float CAPTION_ROOM = 3 * CAPTION_LEADING + CAPTION_GAP;
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("d MMM yyyy, h:mm a", Locale.ENGLISH);
 
     private final InvoiceFonts fonts;
@@ -326,10 +334,14 @@ class InvoicePdfRenderer {
         float contentTop = titleTop - 30;
         float contentBottom = FOOTER_SPACE + 4;
         float slotHeight = (contentTop - contentBottom - SLOT_GAP * (SLOTS_PER_PAGE - 1)) / SLOTS_PER_PAGE;
+        float imageWidth = (right - left - IMAGE_GAP) / IMAGES_PER_SLOT;
 
-        for (int i = 0; i < slots.size(); i++) {
-            int position = i % SLOTS_PER_PAGE;
-            if (position == 0) {
+        float slotTop = contentBottom - 1; // nothing fits yet, so the first slot starts a page
+        for (Slot slot : slots) {
+            float captions = captionHeight(writer, slot, imageWidth);
+            float height = captions + CAPTION_GAP > CAPTION_ROOM ? slotHeight + captions + CAPTION_GAP - CAPTION_ROOM : slotHeight;
+            if (slotTop - height < contentBottom - 0.5f) {
+                slotTop = contentTop;
                 document.newPage();
                 writer.setPageEmpty(false); // content below is drawn absolutely
                 PdfContentByte canvas = writer.getDirectContent();
@@ -343,12 +355,31 @@ class InvoicePdfRenderer {
                 canvas.lineTo(right, titleTop - 22);
                 canvas.stroke();
             }
-            float slotTop = contentTop - position * (slotHeight + SLOT_GAP);
-            drawSlot(writer.getDirectContent(), slots.get(i), left, right, slotTop, slotTop - slotHeight);
+            drawSlot(writer.getDirectContent(), slot, left, right, slotTop, slotTop - height, captions);
+            slotTop -= height + SLOT_GAP;
         }
     }
 
-    private void drawSlot(PdfContentByte canvas, Slot slot, float left, float right, float top, float bottom) {
+    /** Height of the tallest description in the slot, 0 when none has one. */
+    private float captionHeight(PdfWriter writer, Slot slot, float width) {
+        float tallest = 0;
+        for (PreparedImage image : slot.images()) {
+            if (image.caption() != null) {
+                ColumnText column = captionColumn(writer.getDirectContent(), image.caption(), 0, 0, width, MEASURE_HEIGHT);
+                column.go(true);
+                tallest = Math.max(tallest, MEASURE_HEIGHT - column.getYLine());
+            }
+        }
+        return tallest;
+    }
+
+    private ColumnText captionColumn(PdfContentByte canvas, String caption, float x1, float y1, float x2, float y2) {
+        ColumnText column = new ColumnText(canvas);
+        column.setSimpleColumn(fonts.phrase(caption, CAPTION_SIZE, true, INK), x1, y1, x2, y2, CAPTION_LEADING, Element.ALIGN_CENTER);
+        return column;
+    }
+
+    private void drawSlot(PdfContentByte canvas, Slot slot, float left, float right, float top, float bottom, float captions) {
         Line line = slot.line();
         String heading = line.number() + ". " + line.productName() + (slot.continued() ? " (continued)" : "");
         ColumnText.showTextAligned(canvas, Element.ALIGN_LEFT, fonts.phrase(heading, 11.5f, true, INK), left, top - 12, 0);
@@ -356,7 +387,8 @@ class InvoicePdfRenderer {
         ColumnText.showTextAligned(canvas, Element.ALIGN_LEFT, fonts.phrase(details, 8.5f, false, MUTED), left, top - 25, 0);
 
         float boxTop = top - 34;
-        float boxHeight = boxTop - bottom;
+        float boxBottom = captions > 0 ? bottom + captions + CAPTION_GAP : bottom;
+        float boxHeight = boxTop - boxBottom;
         float boxWidth = (right - left - IMAGE_GAP) / IMAGES_PER_SLOT;
         int count = slot.images().size();
         // A single image is centred across the slot instead of sitting in the left column.
@@ -366,16 +398,20 @@ class InvoicePdfRenderer {
             float boxLeft = firstLeft + i * (boxWidth + IMAGE_GAP);
             canvas.setColorStroke(LINE);
             canvas.setLineWidth(0.6f);
-            canvas.roundRectangle(boxLeft, bottom, boxWidth, boxHeight, 6);
+            canvas.roundRectangle(boxLeft, boxBottom, boxWidth, boxHeight, 6);
             canvas.stroke();
             try {
                 Image image = Image.getInstance(slot.images().get(i).jpeg());
                 float pad = 6;
                 image.scaleToFit(boxWidth - 2 * pad, boxHeight - 2 * pad);
                 float x = boxLeft + (boxWidth - image.getScaledWidth()) / 2;
-                float y = bottom + (boxHeight - image.getScaledHeight()) / 2;
+                float y = boxBottom + (boxHeight - image.getScaledHeight()) / 2;
                 image.setAbsolutePosition(x, y);
                 canvas.addImage(image);
+                String caption = slot.images().get(i).caption();
+                if (caption != null) {
+                    captionColumn(canvas, caption, boxLeft, bottom, boxLeft + boxWidth, boxBottom - CAPTION_GAP).go();
+                }
             } catch (IOException ex) {
                 throw new UncheckedIOException(ex);
             }

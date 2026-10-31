@@ -47,6 +47,6 @@ export interface PasswordRequest {
   userId: number;
   fullName: string;
   email: string;
-  role: string;
+  role: Role;
   requestedAt: string;
 }

@@ -13,6 +13,7 @@ import { TakaPipe } from '../../../shared/ui/taka.pipe';
 import { OrderApi } from '../data/order.api';
 import { EXCHANGE_REASONS } from '../data/order-labels';
 import {
+  imageDescriptions,
   DeliveryPaidBy,
   ExchangeableItem,
   ExchangeCandidate,
@@ -239,6 +240,7 @@ export class ExchangePage implements OnInit {
             unitPrice: Number(l.unitPrice),
             quantity: l.quantity,
             imageIds: l.images.map((i) => i.fileId),
+            imageDescriptions: imageDescriptions(l.images),
             variantId: l.variantId,
             stockItemId: l.variantId === null ? null : l.stockItemId,
           },
@@ -247,7 +249,6 @@ export class ExchangePage implements OnInit {
         deliveryPaidBy: this.paidBy(),
         deliveryCharge: this.delivery(),
         refund: this.refund(),
-        overrideTimeLimit: false,
         note: this.note.trim() || null,
         orderNumber: this.orderNumber.trim().toUpperCase() || null,
       })

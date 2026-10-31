@@ -35,13 +35,12 @@ import org.springframework.transaction.annotation.Transactional;
  * Product exchanges. An exchange is a new order (type EXCHANGE) for the same customer that sends replacement items
  * and takes the originals back, so the original order, its invoice and its dashboard figures never change.
  *
- * <p>Rules: only delivered orders, within {@value #TIME_LIMIT_DAYS} days of delivery (admins may override); any
- * subset of items and quantities; a unit can be exchanged only once (a cancelled or refused exchange frees it again).
+ * <p>Rules: only delivered orders, at any time after delivery; any subset of items and quantities; a unit can be
+ * exchanged only once (a cancelled or refused exchange frees it again).
  */
 @Service
 public class ExchangeService {
 
-    static final int TIME_LIMIT_DAYS = 3;
     private static final int MAX_CANDIDATES = 20;
 
     private final OrderRepository orders;
@@ -84,7 +83,7 @@ public class ExchangeService {
     }
 
     @Transactional(readOnly = true)
-    public ExchangeOptions options(long orderId, boolean admin) {
+    public ExchangeOptions options(long orderId) {
         Order order = orders.findDetailedById(orderId).orElseThrow(() -> ApiException.notFound("Order", orderId));
         requireDelivered(order);
         Map<Long, Integer> exchanged = exchangedQuantities(orderId);
@@ -94,15 +93,14 @@ public class ExchangeService {
                     return new ExchangeableItem(i.getId(), i.getProductName(), i.getProductCode(), i.getDescription(),
                             i.getColor(), i.getSize(), i.getUnitPrice(), unitCredit(order, i), i.getQuantity(), already,
                             Math.max(i.getQuantity() - already, 0),
-                            i.getImages().stream().map(img -> new Image(img.getFile().getId(), files.url(img.getFile()))).toList(),
+                            i.getImages().stream().map(img -> new Image(img.getFile().getId(), files.url(img.getFile()), img.getDescription())).toList(),
                             i.getVariantId(), i.getStockItemId());
                 })
                 .toList();
         return new ExchangeOptions(order.getId(), order.getOrderNumber(),
                 new Customer(order.getCustomerName(), order.getCustomerPhone(), order.getCustomerEmail(),
                         order.getCustomerAddress()),
-                order.getDeliveredAt(), null, true, admin, 0,
-                order.getDeliveryCharge(), items, exchangesOf(orderId));
+                order.getDeliveredAt(), order.getDeliveryCharge(), items, exchangesOf(orderId));
     }
 
     /** Creates the exchange order; returns its id. */
@@ -152,7 +150,10 @@ public class ExchangeService {
         List<Long> imageIds = request.items().stream()
                 .flatMap(l -> l.replacement().imageIds() == null ? Stream.<Long>empty() : l.replacement().imageIds().stream())
                 .toList();
-        Map<Long, StoredFile> images = imageIds.isEmpty() ? Map.of() : files.requireImages(imageIds);
+        // Replacements start as copies of the original items, images included.
+        List<Long> originalImages = original.getItems().stream()
+                .flatMap(i -> i.getImages().stream()).map(img -> img.getFile().getId()).toList();
+        Map<Long, StoredFile> images = imageIds.isEmpty() ? Map.of() : files.requireImages(imageIds, originalImages);
         // Each replacement ships in the same quantity as the units taken back.
         exchange.replaceItems(request.items().stream()
                 .map(l -> OrderService.toItem(withQuantity(l), images,
@@ -215,13 +216,6 @@ public class ExchangeService {
         return result;
     }
 
-    /** End of the {@value #TIME_LIMIT_DAYS}rd business day after delivery (Asia/Dhaka). */
-    Instant deadline(Order order) {
-        var zone = appProperties.zoneId();
-        return order.getDeliveredAt().atZone(zone).toLocalDate().plusDays(TIME_LIMIT_DAYS + 1L).atStartOfDay(zone)
-                .toInstant().minusMillis(1);
-    }
-
     /** What the customer actually paid per unit: the price less its share of the order discount. */
     static BigDecimal unitCredit(Order order, OrderItem item) {
         if (order.getDiscount().signum() == 0 || order.getSubtotal().signum() == 0) {
@@ -242,7 +236,7 @@ public class ExchangeService {
         var r = line.replacement();
         return new com.erezer.admin.order.dto.OrderDtos.OrderItemRequest(r.productName(), r.productCode(),
                 r.description(), r.color(), r.size(), r.unitPrice(), line.quantity(), r.imageIds(), r.variantId(),
-                r.stockItemId());
+                r.stockItemId(), r.imageDescriptions());
     }
 
     private static String describe(OrderItem item, int quantity) {

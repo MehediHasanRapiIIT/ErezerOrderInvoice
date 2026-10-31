@@ -36,6 +36,9 @@ services:
       # Production calls Steadfast over https only.
       COURIER_ALLOW_INSECURE_HOSTS: ""
       REFRESH_COOKIE_SECURE: "true"
+      # Shown on invoices. Set here so a deploy applies them; these win over the server's .env.
+      COMPANY_PHONE: "01786141187"
+      COMPANY_EMAIL: contact.erezer@gmail.com
 
   frontend:
     ports: !reset []

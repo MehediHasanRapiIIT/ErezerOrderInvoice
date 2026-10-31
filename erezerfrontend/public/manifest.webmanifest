@@ -1,0 +1,9 @@
+{
+  "name": "Erezer Admin",
+  "short_name": "Erezer",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b1222",
+  "theme_color": "#0b1222",
+  "icons": [{ "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }]
+}

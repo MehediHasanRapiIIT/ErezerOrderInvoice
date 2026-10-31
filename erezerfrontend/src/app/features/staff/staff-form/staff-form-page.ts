@@ -66,6 +66,13 @@ export class StaffFormPage implements OnInit, HasUnsavedChanges {
   });
 
   ngOnInit(): void {
+    // A new employee usually gives attendance and adds daily expenses; these can still be unticked.
+    this.form.controls.role.valueChanges.subscribe((role) => {
+      if (role === 'EMPLOYEE' && !this.isEdit()) {
+        const usual = (['ATTENDANCE_MARK', 'DAILY_EXPENSE_CREATE'] as const).filter((p) => this.canGive(p));
+        this.selected.update((set) => new Set([...set, ...usual]));
+      }
+    });
     const id = this.id();
     if (!id) {
       return;
@@ -78,7 +85,7 @@ export class StaffFormPage implements OnInit, HasUnsavedChanges {
       next: (member) => {
         this.member.set(member);
         this.form.patchValue({ fullName: member.fullName, email: member.email, phone: member.phone ?? '', role: member.role });
-        this.selected.set(new Set(member.role === 'MODERATOR' ? member.permissions : []));
+        this.selected.set(new Set(member.role === 'ADMIN' ? [] : member.permissions));
         if (this.isSelf()) {
           this.form.controls.role.disable(); // you cannot change your own role
         }

@@ -7,6 +7,8 @@ import com.erezer.admin.asset.dto.AssetDtos.RepairRequest;
 import com.erezer.admin.asset.dto.AssetDtos.StatusRequest;
 import com.erezer.admin.common.error.ApiException;
 import com.erezer.admin.config.AppProperties;
+import com.erezer.admin.notification.NotificationAction;
+import com.erezer.admin.notification.Notifies;
 import com.erezer.admin.security.CurrentUser;
 import jakarta.validation.Valid;
 import java.net.URI;
@@ -112,6 +114,7 @@ class AssetController {
         return AssetVisibility.trim(queryService.get(id));
     }
 
+    @Notifies(NotificationAction.ASSET_CREATED)
     @PostMapping
     @PreAuthorize("hasAuthority('ASSET_CREATE')")
     ResponseEntity<AssetResponse> create(@Valid @RequestBody AssetRequest request) {
@@ -119,6 +122,7 @@ class AssetController {
         return ResponseEntity.created(URI.create("/api/assets/" + id)).body(AssetVisibility.trim(queryService.get(id)));
     }
 
+    @Notifies(NotificationAction.ASSET_EDITED)
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('ASSET_MANAGE')")
     AssetResponse update(@PathVariable long id, @Valid @RequestBody AssetRequest request) {
@@ -127,6 +131,7 @@ class AssetController {
     }
 
     /** In use, under repair, in storage, damaged, sold (with the price) or disposed. */
+    @Notifies(NotificationAction.ASSET_STATUS_CHANGED)
     @PostMapping("/{id}/status")
     @PreAuthorize("hasAuthority('ASSET_STATUS')")
     AssetResponse changeStatus(@PathVariable long id, @Valid @RequestBody StatusRequest request) {
@@ -134,6 +139,7 @@ class AssetController {
         return AssetVisibility.trim(queryService.get(id));
     }
 
+    @Notifies(NotificationAction.ASSET_REPAIR_ADDED)
     @PostMapping("/{id}/repairs")
     @PreAuthorize("hasAuthority('ASSET_REPAIRS')")
     AssetResponse addRepair(@PathVariable long id, @Valid @RequestBody RepairRequest request) {
@@ -141,6 +147,7 @@ class AssetController {
         return AssetVisibility.trim(queryService.get(id));
     }
 
+    @Notifies(NotificationAction.ASSET_REPAIR_REMOVED)
     @DeleteMapping("/{id}/repairs/{eventId}")
     @PreAuthorize("hasAuthority('ASSET_REPAIRS')")
     AssetResponse deleteRepair(@PathVariable long id, @PathVariable long eventId) {
@@ -148,6 +155,7 @@ class AssetController {
         return AssetVisibility.trim(queryService.get(id));
     }
 
+    @Notifies(NotificationAction.ASSET_DELETED)
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('ASSET_DELETE')")
     ResponseEntity<Void> delete(@PathVariable long id) {

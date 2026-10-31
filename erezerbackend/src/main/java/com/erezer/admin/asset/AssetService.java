@@ -51,7 +51,7 @@ public class AssetService {
             throw ApiException.badRequest("COST_REQUIRED", "Enter what one piece cost (0 if it was a gift)");
         }
         BigDecimal unitCost = costs ? request.unitCost() : BigDecimal.ZERO;
-        Asset asset = assets.save(new Asset(details(request, activeCategory(request.categoryId()), unitCost), status));
+        Asset asset = assets.save(new Asset(details(request, activeCategory(request.categoryId()), unitCost, null), status));
         log(asset, AssetEventKind.CREATED, request.purchaseDate(), "Added · " + asset.getQuantity() + " × "
                 + taka(asset.getUnitCost()) + " = " + taka(asset.getTotalCost()) + " · " + status.label(), null, userId);
         return asset.getId();
@@ -69,7 +69,7 @@ public class AssetService {
                 ? asset.getCategory()
                 : activeCategory(request.categoryId());
         BigDecimal unitCost = costs && request.unitCost() != null ? request.unitCost() : asset.getUnitCost();
-        Asset.Details next = details(request, category, unitCost);
+        Asset.Details next = details(request, category, unitCost, asset);
         if (!costs) {
             // The receipt shows prices, so these users never see it: keep whatever is attached.
             next = new Asset.Details(next.name(), next.category(), next.quantity(), next.unitCost(), next.purchaseDate(),
@@ -137,7 +137,8 @@ public class AssetService {
         load(id).markDeleted(clock.instant());
     }
 
-    private Asset.Details details(AssetRequest r, AssetCategory category, BigDecimal unitCost) {
+    /** @param current the asset being edited (its photo and receipt may stay), or null for a new one */
+    private Asset.Details details(AssetRequest r, AssetCategory category, BigDecimal unitCost, Asset current) {
         notInFuture(r.purchaseDate(), "The purchase date");
         if (r.warrantyUntil() != null && r.warrantyUntil().isBefore(r.purchaseDate())) {
             throw ApiException.badRequest("INVALID_WARRANTY", "The warranty can't end before the purchase date");
@@ -145,8 +146,9 @@ public class AssetService {
         return new Asset.Details(r.name().trim().replaceAll("\\s+", " "), category, r.quantity(), unitCost,
                 r.purchaseDate(), blankToNull(r.supplier()), r.paymentMethod(), blankToNull(r.reference()),
                 blankToNull(r.location()) == null ? null : r.location().trim().replaceAll("\\s+", " "),
-                blankToNull(r.serialNumber()), r.warrantyUntil(), blankToNull(r.notes()), photo(r.photoFileId()),
-                r.receiptFileId() == null ? null : files.requireReceipt(r.receiptFileId()));
+                blankToNull(r.serialNumber()), r.warrantyUntil(), blankToNull(r.notes()),
+                r.photoFileId() == null ? null : files.requirePhoto(r.photoFileId(), fileId(current == null ? null : current.getPhoto())),
+                r.receiptFileId() == null ? null : files.requireReceipt(r.receiptFileId(), fileId(current == null ? null : current.getReceipt())));
     }
 
     /** Names of the fields an edit changes (location is logged on its own as a move). */
@@ -206,10 +208,6 @@ public class AssetService {
             throw ApiException.badRequest("INACTIVE_CATEGORY", "Category " + category.getName() + " is no longer in use");
         }
         return category;
-    }
-
-    private StoredFile photo(Long fileId) {
-        return fileId == null ? null : files.requireImages(List.of(fileId)).get(fileId);
     }
 
     private LocalDate today() {

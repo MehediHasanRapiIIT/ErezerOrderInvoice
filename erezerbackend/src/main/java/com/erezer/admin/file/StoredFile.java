@@ -53,6 +53,10 @@ public class StoredFile {
         return id;
     }
 
+    public Long getUploadedBy() {
+        return uploadedBy;
+    }
+
     public String getObjectKey() {
         return objectKey;
     }

@@ -2,6 +2,8 @@ package com.erezer.admin.asset;
 
 import com.erezer.admin.asset.dto.AssetDtos.CategoryRequest;
 import com.erezer.admin.asset.dto.AssetDtos.CategoryResponse;
+import com.erezer.admin.notification.NotificationAction;
+import com.erezer.admin.notification.Notifies;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -34,6 +36,7 @@ class AssetCategoryController {
         return categoryService.list();
     }
 
+    @Notifies(NotificationAction.ASSET_CATEGORY_CREATED)
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAuthority('ASSET_CATEGORIES')")
@@ -42,6 +45,7 @@ class AssetCategoryController {
     }
 
     /** Rename and/or activate/deactivate. */
+    @Notifies(NotificationAction.ASSET_CATEGORY_EDITED)
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('ASSET_CATEGORIES')")
     ResponseEntity<Void> update(@PathVariable long id, @Valid @RequestBody CategoryRequest request) {
@@ -49,6 +53,7 @@ class AssetCategoryController {
         return ResponseEntity.noContent().build();
     }
 
+    @Notifies(NotificationAction.ASSET_CATEGORY_DELETED)
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('ASSET_CATEGORIES')")
     ResponseEntity<Void> delete(@PathVariable long id) {

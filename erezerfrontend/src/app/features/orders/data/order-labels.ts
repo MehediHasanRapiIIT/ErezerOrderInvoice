@@ -1,5 +1,18 @@
 import { PAYMENT_LABELS as BASE_PAYMENT_LABELS, PaymentMethod } from '../../../shared/payment-methods';
-import { DeliveryPaidBy, ExchangeReason, OrderStatus, OrderTab, ReturnReason } from './order.models';
+import { DeliveryPaidBy, ExchangeReason, OrderPlatform, OrderStatus, OrderTab, ReturnReason } from './order.models';
+
+export const PLATFORM_LABELS: Record<OrderPlatform, string> = {
+  FACEBOOK: 'Facebook',
+  INSTAGRAM: 'Instagram',
+  WHATSAPP: 'WhatsApp',
+  TIKTOK: 'TikTok',
+  WEBSITE: 'Website',
+  PHONE: 'Phone call',
+  SHOP: 'In the shop',
+  OTHER: 'Other',
+};
+
+export const PLATFORMS = Object.keys(PLATFORM_LABELS) as OrderPlatform[];
 
 export const EXCHANGE_REASONS: { value: ExchangeReason; label: string; suggestedPayer: DeliveryPaidBy }[] = [
   { value: 'WRONG_SIZE', label: 'Wrong size', suggestedPayer: 'CUSTOMER' },

@@ -70,8 +70,8 @@ app:
   company:
     name: ${COMPANY_NAME:EREZER}
     address: ${COMPANY_ADDRESS:Opposite of Dhaka Commerce College, Mirpur-2, Dhaka}
-    phone: ${COMPANY_PHONE:01708697257}
-    email: ${COMPANY_EMAIL:contact@erezer.com}
+    phone: ${COMPANY_PHONE:01786141187}
+    email: ${COMPANY_EMAIL:contact.erezer@gmail.com}
     invoice-footer: ${COMPANY_INVOICE_FOOTER:Thank you for shopping with EREZER!}
   security:
     jwt:

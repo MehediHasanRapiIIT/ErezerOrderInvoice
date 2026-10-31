@@ -1,6 +1,8 @@
 package com.erezer.admin.staff;
 
 import com.erezer.admin.common.web.PageResponse;
+import com.erezer.admin.notification.NotificationAction;
+import com.erezer.admin.notification.Notifies;
 import com.erezer.admin.security.CurrentUser;
 import com.erezer.admin.security.Role;
 import com.erezer.admin.staff.StaffDtos.CreateStaffRequest;
@@ -54,27 +56,32 @@ class StaffController {
         return staffService.get(id);
     }
 
+    @Notifies(NotificationAction.STAFF_CREATED)
     @PostMapping
     ResponseEntity<StaffResponse> create(@Valid @RequestBody CreateStaffRequest request) {
         StaffResponse created = staffService.create(request, CurrentUser.id());
         return ResponseEntity.created(URI.create("/api/staff/" + created.id())).body(created);
     }
 
+    @Notifies(NotificationAction.STAFF_EDITED)
     @PutMapping("/{id}")
     StaffResponse update(@PathVariable long id, @Valid @RequestBody UpdateStaffRequest request) {
         return staffService.update(id, request, CurrentUser.id());
     }
 
+    @Notifies(NotificationAction.STAFF_ACTIVATED)
     @PostMapping("/{id}/activate")
     StaffResponse activate(@PathVariable long id) {
         return staffService.setActive(id, true, CurrentUser.id());
     }
 
+    @Notifies(NotificationAction.STAFF_DEACTIVATED)
     @PostMapping("/{id}/deactivate")
     StaffResponse deactivate(@PathVariable long id) {
         return staffService.setActive(id, false, CurrentUser.id());
     }
 
+    @Notifies(NotificationAction.STAFF_PASSWORD_RESET)
     @PostMapping("/{id}/reset-password")
     StaffResponse resetPassword(@PathVariable long id, @Valid @RequestBody ResetPasswordRequest request) {
         return staffService.resetPassword(id, request.newPassword(), CurrentUser.id());
@@ -86,12 +93,14 @@ class StaffController {
         return passwordRequests.open();
     }
 
+    @Notifies(NotificationAction.STAFF_PASSWORD_REQUEST_DISMISSED)
     @PostMapping("/password-requests/{requestId}/dismiss")
     ResponseEntity<Void> dismissPasswordRequest(@PathVariable long requestId) {
         passwordRequests.dismiss(requestId, CurrentUser.id());
         return ResponseEntity.noContent().build();
     }
 
+    @Notifies(NotificationAction.STAFF_UNLOCKED)
     @PostMapping("/{id}/unlock")
     StaffResponse unlock(@PathVariable long id) {
         return staffService.unlock(id, CurrentUser.id());

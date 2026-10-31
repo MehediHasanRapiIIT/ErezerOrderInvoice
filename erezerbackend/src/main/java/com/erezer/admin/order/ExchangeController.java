@@ -1,5 +1,7 @@
 package com.erezer.admin.order;
 
+import com.erezer.admin.notification.NotificationAction;
+import com.erezer.admin.notification.Notifies;
 import com.erezer.admin.order.dto.OrderDtos.ExchangeCandidate;
 import com.erezer.admin.order.dto.OrderDtos.ExchangeOptions;
 import com.erezer.admin.order.dto.OrderDtos.ExchangeRequest;
@@ -35,9 +37,10 @@ class ExchangeController {
     @GetMapping("/api/orders/{id}/exchange-options")
     @PreAuthorize("hasAuthority('EXCHANGE_CREATE')")
     ExchangeOptions options(@PathVariable long id) {
-        return exchanges.options(id, CurrentUser.isAdmin());
+        return exchanges.options(id);
     }
 
+    @Notifies(NotificationAction.EXCHANGE_CREATED)
     @PostMapping("/api/orders/{id}/exchanges")
     @PreAuthorize("hasAuthority('EXCHANGE_CREATE')")
     ResponseEntity<OrderController.CreatedResponse> create(@PathVariable long id,

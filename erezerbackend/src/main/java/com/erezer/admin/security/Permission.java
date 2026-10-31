@@ -30,6 +30,22 @@ public enum Permission {
     EXPENSE_EDIT("Expenses", "Edit expenses", false),
     EXPENSE_DELETE("Expenses", "Delete expenses", false),
 
+    DAILY_EXPENSE_CREATE("Expense (Daily)", "Add own daily expenses", false),
+    DAILY_EXPENSE_VIEW("Expense (Daily)", "View everyone's daily expenses", false),
+    DAILY_EXPENSE_APPROVE("Expense (Daily)", "Approve or reject daily expenses", false),
+    DAILY_EXPENSE_EDIT("Expense (Daily)", "Edit daily expenses", false),
+    DAILY_EXPENSE_DELETE("Expense (Daily)", "Delete daily expenses", false),
+    DAILY_EXPENSE_CATEGORIES("Expense (Daily)", "Manage daily expense categories", false),
+
+    BOOST_VIEW("Expense (Boost)", "View boost costs", false),
+    BOOST_COST_ADD("Expense (Boost)", "Add daily boost costs", false),
+    BOOST_BUY("Expense (Boost)", "Buy dollars and see what they cost", false),
+    BOOST_EDIT("Expense (Boost)", "Edit boost entries", false),
+    BOOST_DELETE("Expense (Boost)", "Delete boost entries", false),
+
+    NOTIFICATION_VIEW("Notifications", "Open the Notifications menu", false),
+    NOTIFICATION_MANAGE("Notifications", "Set up notifications (actions, people and Firebase)", false),
+
     ASSET_VIEW("Assets", "View assets", false),
     ASSET_COSTS_VIEW("Assets", "See costs and prices", false),
     ASSET_HISTORY_VIEW("Assets", "View history", false),
@@ -40,6 +56,17 @@ public enum Permission {
     ASSET_CATEGORIES("Assets", "Manage categories", false),
     ASSET_EXPORT("Assets", "Export to Excel", false),
     ASSET_DELETE("Assets", "Delete assets", false),
+
+    EMPLOYEE_VIEW("Employees", "View employees, NID and salary accounts", false),
+    EMPLOYEE_CREATE("Employees", "Register employees", false),
+    EMPLOYEE_EDIT("Employees", "Edit employees", false),
+    EMPLOYEE_DELETE("Employees", "Delete employees", false),
+
+    ATTENDANCE_MARK("Attendance", "Check in and out (own attendance)", false),
+    ATTENDANCE_VIEW("Attendance", "View everyone's attendance", false),
+    ATTENDANCE_APPROVE("Attendance", "Approve late / early days and add late fees", false),
+    ATTENDANCE_EDIT("Attendance", "Correct attendance by hand", false),
+    ATTENDANCE_SETTINGS("Attendance", "Manage shifts and locations", false),
 
     SALES_VIEW("Sold products", "View sold products", false),
 
@@ -92,6 +119,11 @@ public enum Permission {
                     ASSET_CATEGORIES, ASSET_EXPORT, ASSET_DELETE -> EnumSet.of(ASSET_VIEW);
             case STOCK_MANAGE, SIZE_MANAGE -> EnumSet.of(STOCK_VIEW);
             case CUSTOMER_EXPORT -> EnumSet.of(CUSTOMER_VIEW);
+            case ATTENDANCE_APPROVE, ATTENDANCE_EDIT, ATTENDANCE_SETTINGS -> EnumSet.of(ATTENDANCE_VIEW);
+            case EMPLOYEE_CREATE, EMPLOYEE_EDIT, EMPLOYEE_DELETE -> EnumSet.of(EMPLOYEE_VIEW);
+            case DAILY_EXPENSE_APPROVE, DAILY_EXPENSE_EDIT, DAILY_EXPENSE_DELETE, DAILY_EXPENSE_CATEGORIES -> EnumSet.of(DAILY_EXPENSE_VIEW);
+            case BOOST_COST_ADD, BOOST_BUY, BOOST_EDIT, BOOST_DELETE -> EnumSet.of(BOOST_VIEW);
+            case NOTIFICATION_MANAGE -> EnumSet.of(NOTIFICATION_VIEW);
             default -> EnumSet.noneOf(Permission.class);
         };
     }

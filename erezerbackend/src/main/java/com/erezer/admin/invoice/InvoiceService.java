@@ -53,7 +53,7 @@ public class InvoiceService {
         for (OrderItem item : order.getItems()) {
             List<PreparedImage> images = new ArrayList<>();
             for (OrderItemImage image : item.getImages()) {
-                load(image).flatMap(imagePreparer::prepare).ifPresent(images::add);
+                load(image).flatMap(imagePreparer::prepare).map(p -> p.withCaption(image.getDescription())).ifPresent(images::add);
             }
             lines.add(new InvoiceData.Line(item.getPosition() + 1, item.getProductName(), item.getProductCode(),
                     item.getDescription(), item.getColor(), item.getSize(), item.getUnitPrice(), item.getQuantity(),

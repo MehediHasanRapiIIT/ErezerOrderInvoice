@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,7 +52,27 @@ public class DashboardService {
         String granularity = days <= MAX_DAILY_BUCKETS ? "DAY" : "MONTH";
         return new DashboardSummary(from, to, current, totals(previousFrom, previousTo),
                 orderCounts(from, to, current), exchanges(from, to), returns(from, to), granularity, series(from, to, granularity),
-                topCategories(from, to));
+                topCategories(from, to), sources(from, to));
+    }
+
+    /** Who accepted the period's sales orders and where they came from (see {@code OrderSources}). */
+    private DashboardSummary.OrderSources sources(LocalDate from, LocalDate to) {
+        Map<String, Object> range = range(from, to);
+        String where = """
+                 where o.deleted_at is null and o.order_type = 'SALE' and o.status <> 'CANCELLED'
+                   and o.created_at >= :start and o.created_at < :end
+                """;
+        RowMapper<DashboardSummary.SourceTotal> row = (rs, i) ->
+                new DashboardSummary.SourceTotal(rs.getString(1), rs.getLong(2), rs.getBigDecimal(3));
+        List<DashboardSummary.SourceTotal> byUser = jdbc.sql("""
+                        select min(coalesce(u.full_name, o.accepted_by_other)), count(*), coalesce(sum(o.total), 0)
+                        from orders o left join users u on u.id = o.accepted_by
+                        """ + where + " group by lower(coalesce(u.full_name, o.accepted_by_other)) order by 3 desc, 1")
+                .params(range).query(row).list();
+        List<DashboardSummary.SourceTotal> byPlatform = jdbc.sql("select min(coalesce(o.platform_other, o.platform)), count(*), coalesce(sum(o.total), 0) from orders o"
+                        + where + " group by lower(coalesce(o.platform_other, o.platform)) order by 3 desc, 1")
+                .params(range).query(row).list();
+        return new DashboardSummary.OrderSources(byUser, byPlatform);
     }
 
     /**

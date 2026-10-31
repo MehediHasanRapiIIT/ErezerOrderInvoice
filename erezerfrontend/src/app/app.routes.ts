@@ -68,6 +68,40 @@ export const routes: Routes = [
         loadChildren: () => import('./features/assets/assets.routes').then((m) => m.ASSET_ROUTES),
       },
       {
+        path: 'notifications',
+        title: 'Notifications',
+        canActivate: [requirePermission('NOTIFICATION_VIEW')],
+        loadComponent: () => import('./features/notifications/notifications-page').then((m) => m.NotificationsPage),
+      },
+      {
+        path: 'boost',
+        title: 'Expense (Boost)',
+        canActivate: [requirePermission('BOOST_VIEW')],
+        loadComponent: () => import('./features/boost/boost-page').then((m) => m.BoostPage),
+      },
+      {
+        path: 'daily-expenses',
+        title: 'Expense (Daily)',
+        canActivate: [requirePermission('DAILY_EXPENSE_CREATE', 'DAILY_EXPENSE_VIEW')],
+        loadComponent: () => import('./features/daily-expenses/daily-expense-page').then((m) => m.DailyExpensePage),
+      },
+      {
+        path: 'employees',
+        loadChildren: () => import('./features/employees/employees.routes').then((m) => m.EMPLOYEE_ROUTES),
+      },
+      {
+        path: 'my-attendance',
+        title: 'My Attendance',
+        canActivate: [requirePermission('ATTENDANCE_MARK')],
+        loadComponent: () => import('./features/attendance/my-attendance-page').then((m) => m.MyAttendancePage),
+      },
+      {
+        path: 'attendance',
+        title: 'Attendance',
+        canActivate: [requirePermission('ATTENDANCE_VIEW')],
+        loadComponent: () => import('./features/attendance/attendance-page').then((m) => m.AttendancePage),
+      },
+      {
         path: 'settings/courier',
         title: 'Courier settings',
         canActivate: [requirePermission('COURIER_SETTINGS')],

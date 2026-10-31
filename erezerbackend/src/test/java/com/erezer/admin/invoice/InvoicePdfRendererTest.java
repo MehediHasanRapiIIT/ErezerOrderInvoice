@@ -24,7 +24,7 @@ class InvoicePdfRendererTest {
 
     private final ImagePreparer preparer = new ImagePreparer();
     private final InvoicePdfRenderer renderer = new InvoicePdfRenderer(new InvoiceFonts(),
-            new CompanyProperties("EREZER", "Mirpur-2, Dhaka", "01708697257", "contact@erezer.com", "Thank you!"));
+            new CompanyProperties("EREZER", "Mirpur-2, Dhaka", "01786141187", "contact.erezer@gmail.com", "Thank you!"));
 
     @Test
     void firstPageIsTheInvoiceAndImagesFollowTwoProductSlotsPerPage() throws Exception {
@@ -60,11 +60,40 @@ class InvoicePdfRendererTest {
     }
 
     @Test
+    void aShortDescriptionKeepsTwoRowsOnAPage() throws Exception {
+        List<PreparedImage> pictures = captioned(images(4, true), "Front print", "Back print", null, "Sleeve");
+        PdfReader reader = new PdfReader(renderer.render(invoice(List.of(line(1, "T-Shirt", pictures)))));
+        assertThat(reader.getNumberOfPages()).isEqualTo(2);
+        assertThat(new PdfTextExtractor(reader).getTextFromPage(2)).contains("Front print", "Back print", "Sleeve");
+        reader.close();
+    }
+
+    @Test
+    void aLongDescriptionSendsTheNextRowToTheNextPage() throws Exception {
+        String longText = "Print the logo large on the left side and keep the stitching in white. ".repeat(6).trim();
+        List<PreparedImage> pictures = captioned(images(4, true), longText, null, "Next row", null);
+        PdfReader reader = new PdfReader(renderer.render(invoice(List.of(line(1, "T-Shirt", pictures)))));
+        assertThat(reader.getNumberOfPages()).isEqualTo(3);
+        PdfTextExtractor text = new PdfTextExtractor(reader);
+        assertThat(text.getTextFromPage(2)).contains("Print the logo").doesNotContain("Next row");
+        assertThat(text.getTextFromPage(3)).contains("Next row");
+        reader.close();
+    }
+
+    @Test
     void orderWithoutImagesIsASinglePage() throws Exception {
         byte[] pdf = renderer.render(invoice(List.of(line(1, "Cap", List.of()))));
         PdfReader reader = new PdfReader(pdf);
         assertThat(reader.getNumberOfPages()).isEqualTo(1);
         reader.close();
+    }
+
+    private static List<PreparedImage> captioned(List<PreparedImage> images, String... captions) {
+        List<PreparedImage> result = new ArrayList<>();
+        for (int i = 0; i < images.size(); i++) {
+            result.add(images.get(i).withCaption(captions[i]));
+        }
+        return result;
     }
 
     private List<PreparedImage> images(int count, boolean portrait) throws IOException {
