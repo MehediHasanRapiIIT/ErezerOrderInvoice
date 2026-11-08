@@ -1,8 +1,8 @@
 package com.erezer.admin.notification;
 
 import com.erezer.admin.common.web.PageResponse;
+import com.erezer.admin.config.AppProperties;
 import com.erezer.admin.notification.NotificationDtos.NotificationView;
-import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Duration;
@@ -43,14 +43,16 @@ public class NotificationService {
     private final NotificationSetupService setup;
     private final FcmClient fcm;
     private final Clock clock;
+    private final AppProperties appProperties;
     /** Pushes go out on the side, so nobody waits for Firebase after pressing Save. */
     private final ExecutorService pushes = Executors.newVirtualThreadPerTaskExecutor();
 
-    NotificationService(JdbcClient jdbc, NotificationSetupService setup, FcmClient fcm, Clock clock) {
+    NotificationService(JdbcClient jdbc, NotificationSetupService setup, FcmClient fcm, Clock clock, AppProperties appProperties) {
         this.jdbc = jdbc;
         this.setup = setup;
         this.fcm = fcm;
         this.clock = clock;
+        this.appProperties = appProperties;
     }
 
     /** A line about a record, or null when it has none or no longer exists. */
@@ -157,7 +159,7 @@ public class NotificationService {
         return new PageResponse<>(rows, page, size, total, (int) Math.ceil((double) total / size));
     }
 
-    private static String where(long userId, Filter f, Map<String, Object> params) {
+    private String where(long userId, Filter f, Map<String, Object> params) {
         List<String> conditions = new ArrayList<>();
         conditions.add("r.user_id = :user");
         params.put("user", userId);
@@ -175,13 +177,14 @@ public class NotificationService {
             conditions.add("n.actor_id = :actor");
             params.put("actor", f.actorId());
         }
+        // Days are Bangladesh days: midnight there, not midnight UTC.
         if (f.from() != null) {
-            conditions.add("n.created_at >= cast(:from as date)");
-            params.put("from", Date.valueOf(f.from()));
+            conditions.add("n.created_at >= :from");
+            params.put("from", Timestamp.from(f.from().atStartOfDay(appProperties.zoneId()).toInstant()));
         }
         if (f.to() != null) {
-            conditions.add("n.created_at < cast(:to as date)");
-            params.put("to", Date.valueOf(f.to().plusDays(1)));
+            conditions.add("n.created_at < :to");
+            params.put("to", Timestamp.from(f.to().plusDays(1).atStartOfDay(appProperties.zoneId()).toInstant()));
         }
         return " where " + String.join(" and ", conditions);
     }
