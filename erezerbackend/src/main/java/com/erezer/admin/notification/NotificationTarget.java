@@ -34,6 +34,12 @@ public enum NotificationTarget {
             where r.id = :id""", "/attendance"),
     ATTENDANCE_PERSON("select full_name from users where id = :id", "/attendance"),
     LOCATION("select name from work_locations where id = :id", "/attendance"),
+    REMOTE_DAY("""
+            select u.full_name || ' · ' || d.work_date from remote_days d join users u on u.id = d.user_id
+            where d.id = :id""", "/attendance"),
+    REMOTE_SESSION("""
+            select u.full_name || ' · ' || d.work_date from remote_sessions s join remote_days d on d.id = s.day_id
+            join users u on u.id = d.user_id where s.id = :id""", "/attendance"),
     SPECIAL_HOURS(null, "/attendance"),
     PERSONAL(null, "/account/password"),
     COURIER_SETTINGS(null, "/settings/courier"),

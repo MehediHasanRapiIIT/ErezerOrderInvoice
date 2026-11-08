@@ -19,6 +19,7 @@ public @interface Notifies {
 
         static final String ACTION = "notification.action";
         static final String DETAIL = "notification.detail";
+        static final String TARGET = "notification.target";
 
         private Context() {
         }
@@ -31,6 +32,11 @@ public @interface Notifies {
         /** Adds a line to the notification, such as the new status. */
         public static void detail(String text) {
             set(DETAIL, text);
+        }
+
+        /** What the notification points at, when it isn't in the path or the response. */
+        public static void target(long id) {
+            set(TARGET, id);
         }
 
         private static void set(String name, Object value) {

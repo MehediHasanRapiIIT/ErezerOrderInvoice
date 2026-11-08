@@ -208,6 +208,18 @@ Employees and moderators give attendance from their phones under **My Attendance
 
 Shifts must end after they start on the same day, so overnight shifts aren't supported. A shift's times are copied onto each day's record, so changing a shift never rewrites past days.
 
+#### Remote attendance
+
+For people working from home: no camera and no location, just **Reply On** and **Reply Off** on My Attendance.
+
+- **Office or Remote** is chosen per person in Attendance → Settings (needs *Manage shifts and locations*), and can be switched at any time. A remote worker can't check in at the office and is left out of the office lists; past office days stay. Their hours and days off are set in the same row and are optional: without hours, nothing is late or early, and a forgotten Reply Off is closed at midnight. Special hours apply to them too.
+- **Permissions** (group *Remote attendance*): *Reply On and Off* (`REMOTE_MARK`, given to existing moderators by the migration), *View* (`REMOTE_VIEW`), *Approve and add late fees* (`REMOTE_APPROVE`) and *Add, edit and delete sessions* (`REMOTE_EDIT`). Admins hold all of them.
+- **Reply On** takes an optional note and an optional image (stored in MinIO under `remote/`). Several On/Off sessions a day are allowed; only time On counts, so breaks don't. Pressing a button twice changes nothing.
+- **Reply Off** offers **Break** (never asks for a reason) or **Done for today**. Done before the end time needs a reason.
+- **Late:** the first Reply On of the day after start + grace needs a reason. Late or finished early sends the day to **Approvals**, where the admin approves with an optional late fee, and can later change or remove it. A break that never ends counts as finishing early once the hours are over.
+- **Forgot Reply Off:** every 5 minutes the server closes sessions still open after the end of the hours (or midnight without hours), marks the day *Forgot Reply Off*, sends it to Approvals, and notifies.
+- **Attendance → Remote** shows cards for hours, days worked, late days, finished early, forgot Reply Off and late fees (for everyone or one person), a card per remote worker with who is On right now, each day's sessions, approvals, and an Excel export. With *Add, edit and delete sessions*, the admin fixes times with a required note, or deletes a session or a whole day. Nobody changes or approves their own.
+
 ### Staff management
 
 - Admins add staff (Employee, Moderator or Admin) with an initial password, tick each moderator's permissions, reset passwords, unlock locked accounts, and deactivate or reactivate accounts (`/api/staff`, admin-only).

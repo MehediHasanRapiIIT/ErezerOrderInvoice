@@ -61,6 +61,13 @@ class FileController {
         return new UploadedFileResponse(f.getId(), fileService.url(f), f.getContentType(), f.getSizeBytes());
     }
 
+    @PostMapping(path = "/remote-images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAuthority('REMOTE_MARK')")
+    UploadedFileResponse uploadRemoteImage(@RequestPart("file") MultipartFile file) {
+        StoredFile f = fileService.uploadRemoteImage(file, CurrentUser.id());
+        return new UploadedFileResponse(f.getId(), fileService.url(f), f.getContentType(), f.getSizeBytes());
+    }
+
     record UploadedFileResponse(long id, String url, String contentType, long sizeBytes) {
     }
 }

@@ -74,6 +74,11 @@ public enum Permission {
     ATTENDANCE_DELETE("Attendance", "Delete attendance records", false),
     ATTENDANCE_SETTINGS("Attendance", "Manage shifts and locations", false),
 
+    REMOTE_MARK("Remote attendance", "Reply On and Off (own remote attendance)", false),
+    REMOTE_VIEW("Remote attendance", "View everyone's remote attendance", false),
+    REMOTE_APPROVE("Remote attendance", "Approve late / early days and add late fees", false),
+    REMOTE_EDIT("Remote attendance", "Add, edit and delete remote sessions", false),
+
     SALES_VIEW("Sold products", "View sold products", false),
 
     STOCK_VIEW("Stock", "View stock", false),
@@ -126,6 +131,7 @@ public enum Permission {
             case STOCK_MANAGE, SIZE_MANAGE -> EnumSet.of(STOCK_VIEW);
             case CUSTOMER_EXPORT -> EnumSet.of(CUSTOMER_VIEW);
             case ATTENDANCE_APPROVE, ATTENDANCE_EDIT, ATTENDANCE_DELETE, ATTENDANCE_SETTINGS -> EnumSet.of(ATTENDANCE_VIEW);
+            case REMOTE_APPROVE, REMOTE_EDIT -> EnumSet.of(REMOTE_VIEW);
             case EMPLOYEE_CREATE, EMPLOYEE_EDIT, EMPLOYEE_DELETE -> EnumSet.of(EMPLOYEE_VIEW);
             case DAILY_EXPENSE_APPROVE, DAILY_EXPENSE_EDIT, DAILY_EXPENSE_DELETE, DAILY_EXPENSE_CATEGORIES -> EnumSet.of(DAILY_EXPENSE_VIEW);
             case BOOST_COST_ADD, BOOST_BUY, BOOST_EDIT, BOOST_DELETE -> EnumSet.of(BOOST_VIEW);

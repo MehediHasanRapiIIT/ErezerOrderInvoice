@@ -78,6 +78,10 @@ public class AttendanceService {
             LocalTime checkIn, LocalTime checkOut, String note) {
     }
 
+    /** Someone's hours on one day, for remote attendance. Times are empty on a day off. */
+    record Hours(LocalTime start, LocalTime end, int grace, boolean off) {
+    }
+
     /** What applies to someone on one day. */
     private record Day(LocalTime checkIn, LocalTime checkOut, boolean off) {
     }
@@ -169,6 +173,15 @@ public class AttendanceService {
         return monthRow(shift.get(), month, records.findByUserIdAndWorkDateBetween(userId, month.atDay(1), month.atEndOfMonth()), specials());
     }
 
+    /** Someone's hours on a day, with special hours and days off applied; empty when no hours are set. */
+    @Transactional(readOnly = true)
+    public Optional<Hours> hoursFor(long userId, LocalDate date) {
+        return shiftOf(userId).filter(s -> !date.isBefore(s.startsOn())).map(s -> {
+            Day day = dayOf(s, date, specials());
+            return day.off() ? new Hours(null, null, 0, true) : new Hours(day.checkIn(), day.checkOut(), s.graceMinutes(), false);
+        });
+    }
+
     // ---- The admin's pages ----
 
     /** The people the lists can be filtered by. */
@@ -176,7 +189,8 @@ public class AttendanceService {
     public List<EmployeeOption> employeeOptions() {
         return jdbc.sql("""
                         select u.id, u.full_name from users u
-                        where (u.active and u.role <> 'ADMIN' and exists (select 1 from attendance_shifts s where s.user_id = u.id))
+                        where (u.active and u.role <> 'ADMIN' and exists (select 1 from attendance_shifts s where s.user_id = u.id)
+                               and not exists (select 1 from remote_workers w where w.user_id = u.id))
                            or exists (select 1 from attendance_records r where r.user_id = u.id)
                         order by lower(u.full_name)
                         """)
@@ -323,13 +337,16 @@ public class AttendanceService {
         return jdbc.sql("""
                         select u.id, u.full_name, s.check_in_time, s.check_out_time, coalesce(s.grace_minutes, 0),
                                coalesce(s.weekly_off, ''),
-                               exists(select 1 from user_permissions p where p.user_id = u.id and p.permission = 'ATTENDANCE_MARK')
+                               exists(select 1 from user_permissions p where p.user_id = u.id and p.permission = 'ATTENDANCE_MARK'),
+                               exists(select 1 from remote_workers w where w.user_id = u.id),
+                               exists(select 1 from user_permissions p where p.user_id = u.id and p.permission = 'REMOTE_MARK')
                         from users u left join attendance_shifts s on s.user_id = u.id
                         where u.active and u.role <> 'ADMIN'
                         order by lower(u.full_name)
                         """)
                 .query((rs, i) -> new ShiftView(rs.getLong(1), rs.getString(2), rs.getObject(3, LocalTime.class),
-                        rs.getObject(4, LocalTime.class), rs.getInt(5), parseDays(rs.getString(6)), rs.getBoolean(7)))
+                        rs.getObject(4, LocalTime.class), rs.getInt(5), parseDays(rs.getString(6)), rs.getBoolean(7),
+                        rs.getBoolean(8), rs.getBoolean(9)))
                 .list();
     }
 
@@ -603,6 +620,10 @@ public class AttendanceService {
         if (user.getRole() == Role.ADMIN) {
             throw ApiException.conflict("ADMIN_NO_ATTENDANCE", "Admins don't give attendance");
         }
+        boolean remote = jdbc.sql("select count(*) from remote_workers where user_id = :id").param("id", userId).query(Long.class).single() > 0;
+        if (remote) {
+            throw ApiException.conflict("REMOTE_WORKER", "You work remotely. Use Reply On and Reply Off instead.");
+        }
         return shiftOf(userId).orElseThrow(() ->
                 ApiException.conflict("NO_SHIFT", "Your working hours haven't been set yet. Ask an admin."));
     }
@@ -688,7 +709,7 @@ public class AttendanceService {
     }
 
     private static ShiftView toView(Shift s) {
-        return new ShiftView(s.userId(), s.fullName(), s.checkIn(), s.checkOut(), s.graceMinutes(), s.weeklyOff(), true);
+        return new ShiftView(s.userId(), s.fullName(), s.checkIn(), s.checkOut(), s.graceMinutes(), s.weeklyOff(), true, false, false);
     }
 
     private Optional<Shift> shiftOf(long userId) {
@@ -696,7 +717,8 @@ public class AttendanceService {
     }
 
     private List<Shift> employees() {
-        return shiftRows("where u.active and u.role <> 'ADMIN'", Map.of());
+        return shiftRows("where u.active and u.role <> 'ADMIN' and not exists (select 1 from remote_workers w where w.user_id = u.id)",
+                Map.of());
     }
 
     private List<Shift> employees(Long userId) {

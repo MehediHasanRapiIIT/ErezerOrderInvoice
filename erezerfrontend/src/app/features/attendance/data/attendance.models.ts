@@ -93,6 +93,10 @@ export interface Shift {
   weeklyOff: WeekDay[];
   /** Holds the attendance permission. */
   canCheckIn: boolean;
+  /** Works from home with Reply On and Off. */
+  remote: boolean;
+  /** Holds the remote attendance permission. */
+  canReply: boolean;
 }
 
 export interface MyToday {

@@ -10,27 +10,29 @@ import { AttendanceApprovalsTab } from './attendance-approvals-tab';
 import { AttendanceDayTab } from './attendance-day-tab';
 import { AttendanceMonthTab } from './attendance-month-tab';
 import { AttendanceSettingsTab } from './attendance-settings-tab';
+import { RemoteTab } from './remote-tab';
 import { AttendanceApi } from './data/attendance.api';
 import { hoursLabel } from './data/attendance.models';
 
-type Tab = 'day' | 'approvals' | 'month' | 'settings';
+type Tab = 'day' | 'approvals' | 'month' | 'remote' | 'settings';
 
 const TABS: readonly { value: Tab; label: string; icon: string; permission: Permission }[] = [
   { value: 'day', label: 'Daily', icon: 'fa-calendar-day', permission: 'ATTENDANCE_VIEW' },
   { value: 'approvals', label: 'Approvals', icon: 'fa-check-double', permission: 'ATTENDANCE_APPROVE' },
   { value: 'month', label: 'Monthly', icon: 'fa-table', permission: 'ATTENDANCE_VIEW' },
+  { value: 'remote', label: 'Remote', icon: 'fa-house-laptop', permission: 'REMOTE_VIEW' },
   { value: 'settings', label: 'Settings', icon: 'fa-cog', permission: 'ATTENDANCE_SETTINGS' },
 ];
 
 /** Everyone's attendance. The employee and month chosen here drive the cards and the lists below. */
 @Component({
   selector: 'app-attendance-page',
-  imports: [AttendanceApprovalsTab, AttendanceDayTab, AttendanceMonthTab, AttendanceSettingsTab, BdDatePipe, FormsModule, TakaPipe],
+  imports: [AttendanceApprovalsTab, AttendanceDayTab, AttendanceMonthTab, AttendanceSettingsTab, BdDatePipe, FormsModule, RemoteTab, TakaPipe],
   template: `
     <h1 class="page-title">Attendance</h1>
-    <p class="page-subtitle">Check-ins with photo and location, approvals, late fees and each employee's hours.</p>
+    <p class="page-subtitle">Check-ins with photo and location, remote Reply On / Off, approvals, late fees and each employee's hours.</p>
 
-    @if (tab() !== 'settings') {
+    @if (tab() !== 'settings' && tab() !== 'remote') {
       <div class="mt-6 flex flex-wrap gap-3">
         <select class="field w-full sm:w-64" aria-label="Employee" [ngModel]="userId()" (ngModelChange)="userId.set($event)">
           <option [ngValue]="null">All employees</option>
@@ -68,6 +70,7 @@ const TABS: readonly { value: Tab; label: string; icon: string; permission: Perm
         @case ('day') { <app-attendance-day-tab [month]="month()" [userId]="userId()" (changed)="data.reload()" /> }
         @case ('approvals') { <app-attendance-approvals-tab [userId]="userId()" (changed)="data.reload()" /> }
         @case ('month') { <app-attendance-month-tab [month]="month()" [userId]="userId()" /> }
+        @case ('remote') { <app-remote-tab /> }
         @case ('settings') { <app-attendance-settings-tab (changed)="people.reload()" /> }
       }
     </div>
@@ -79,14 +82,16 @@ export class AttendancePage {
   private readonly api = inject(AttendanceApi);
 
   protected readonly tabs = TABS.filter((t) => this.auth.hasPermission(t.permission));
-  protected readonly tab = signal<Tab>('day');
+  protected readonly tab = signal<Tab>(this.tabs[0]?.value ?? 'day');
   protected readonly hours = hoursLabel;
   protected readonly month = signal(isoDate(bdToday()).slice(0, 7));
   protected readonly userId = signal<number | null>(null);
 
-  protected readonly people = rxResource({ stream: () => this.api.employees() });
+  /** Office lists need the office permission; someone with only the remote one sees just the Remote tab. */
+  private readonly office = this.auth.hasPermission('ATTENDANCE_VIEW');
+  protected readonly people = rxResource({ params: () => (this.office ? true : undefined), stream: () => this.api.employees() });
   protected readonly data = rxResource({
-    params: () => ({ month: this.month(), userId: this.userId() }),
+    params: () => (this.office ? { month: this.month(), userId: this.userId() } : undefined),
     stream: ({ params }) => this.api.summary(params.month, params.userId),
   });
 

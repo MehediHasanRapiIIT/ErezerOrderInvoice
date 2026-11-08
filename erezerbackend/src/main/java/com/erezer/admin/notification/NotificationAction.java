@@ -94,6 +94,18 @@ public enum NotificationAction {
     ATTENDANCE_LOCATION_CREATED("Attendance", "Location added", LOCATION),
     ATTENDANCE_LOCATION_EDITED("Attendance", "Location edited", LOCATION),
     ATTENDANCE_LOCATION_DELETED("Attendance", "Location deleted", LOCATION),
+    ATTENDANCE_TYPE_CHANGED("Attendance", "Switched between office and remote", ATTENDANCE_PERSON),
+
+    REMOTE_ON("Remote attendance", "Reply On", REMOTE_DAY, false, false),
+    REMOTE_LATE("Remote attendance", "Reply On late", REMOTE_DAY),
+    REMOTE_OFF("Remote attendance", "Reply Off", REMOTE_DAY, false, false),
+    REMOTE_DONE_EARLY("Remote attendance", "Finished early", REMOTE_DAY),
+    REMOTE_NOT_TURNED_OFF("Remote attendance", "Forgot Reply Off (closed by the system)", REMOTE_DAY),
+    REMOTE_REVIEWED("Remote attendance", "Remote day approved", REMOTE_DAY),
+    REMOTE_SESSION_ADDED("Remote attendance", "Remote session added", REMOTE_DAY),
+    REMOTE_SESSION_EDITED("Remote attendance", "Remote session edited", REMOTE_DAY),
+    REMOTE_SESSION_DELETED("Remote attendance", "Remote session deleted", REMOTE_SESSION),
+    REMOTE_DAY_DELETED("Remote attendance", "Remote day deleted", REMOTE_DAY),
 
     STAFF_CREATED("Staff", "Staff member added", STAFF),
     STAFF_EDITED("Staff", "Staff member or permissions edited", STAFF),

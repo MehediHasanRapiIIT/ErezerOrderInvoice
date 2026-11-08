@@ -130,6 +130,29 @@ public class FileService {
         return file;
     }
 
+    /** A picture added to a remote Reply On; it isn't required. */
+    @Transactional
+    public StoredFile uploadRemoteImage(MultipartFile upload, long uploadedBy) {
+        if (upload == null) {
+            throw ApiException.badRequest("NO_FILES", "Choose an image first");
+        }
+        return store(upload, uploadedBy, "remote", false);
+    }
+
+    /** The Reply On picture: the person's own, uploaded for remote attendance. */
+    @Transactional(readOnly = true)
+    public StoredFile requireRemoteImage(long id) {
+        StoredFile file = files.findById(id).filter(StoredFile::isImage).filter(f -> f.getObjectKey().startsWith("remote/"))
+                .orElseThrow(() -> ApiException.badRequest("INVALID_IMAGE", "The image no longer exists. Add it again."));
+        requireMine(file, false);
+        return file;
+    }
+
+    @Transactional(readOnly = true)
+    public StoredFile find(long id) {
+        return files.findById(id).orElse(null);
+    }
+
     /*
      * Attaching files. File ids are plain numbers, so a file is only accepted when it is the right kind (a product
      * image, or a receipt-upload) and either the current user uploaded it or the record already has it. Otherwise

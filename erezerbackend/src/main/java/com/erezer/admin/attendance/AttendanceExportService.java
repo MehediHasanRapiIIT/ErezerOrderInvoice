@@ -3,10 +3,12 @@ package com.erezer.admin.attendance;
 import com.erezer.admin.attendance.AttendanceDtos.DayCell;
 import com.erezer.admin.attendance.AttendanceDtos.MonthRow;
 import com.erezer.admin.attendance.AttendanceDtos.MonthSheet;
+import com.erezer.admin.attendance.RemoteDtos.PersonCard;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
@@ -70,6 +72,43 @@ public class AttendanceExportService {
             }
             s.createRow(r + 1).createCell(0).setCellValue(
                     "P present · L late · E left early · LE both · NC no check-out · A absent · Off weekly off");
+            workbook.write(out);
+            return out.toByteArray();
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
+    }
+
+    private static final String[] REMOTE_TITLES = {"Moderator", "Hours", "Days worked", "Late days", "Left early", "Not turned off",
+            "Late fees"};
+
+    /** Remote attendance for a month: one row per person with the card totals. */
+    public byte[] exportRemote(String month, List<PersonCard> rows) {
+        try (SXSSFWorkbook workbook = new SXSSFWorkbook(100); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Sheet s = workbook.createSheet("Remote " + month);
+            Font bold = workbook.createFont();
+            bold.setBold(true);
+            bold.setColor(IndexedColors.WHITE.getIndex());
+            CellStyle header = workbook.createCellStyle();
+            header.setFont(bold);
+            header.setFillForegroundColor(IndexedColors.BLACK.getIndex());
+            header.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            Row head = s.createRow(0);
+            for (int c = 0; c < REMOTE_TITLES.length; c++) {
+                set(head, c, REMOTE_TITLES[c], header);
+                s.setColumnWidth(c, (c == 0 ? 24 : 14) * 256);
+            }
+            int r = 1;
+            for (PersonCard row : rows) {
+                Row line = s.createRow(r++);
+                line.createCell(0).setCellValue(row.fullName());
+                line.createCell(1).setCellValue(Math.round(row.workedMinutes() / 6.0) / 10.0);
+                line.createCell(2).setCellValue(row.daysWorked());
+                line.createCell(3).setCellValue(row.lateDays());
+                line.createCell(4).setCellValue(row.earlyDays());
+                line.createCell(5).setCellValue(row.notTurnedOff());
+                line.createCell(6).setCellValue(row.lateFees().doubleValue());
+            }
             workbook.write(out);
             return out.toByteArray();
         } catch (IOException ex) {

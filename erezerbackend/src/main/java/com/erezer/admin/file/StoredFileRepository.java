@@ -20,6 +20,7 @@ public interface StoredFileRepository extends JpaRepository<StoredFile, Long> {
               and not exists (select 1 from Expense e where e.receipt = f)
               and not exists (select 1 from Asset a where a.photo = f or a.receipt = f)
               and not exists (select 1 from AttendanceRecord r where r.checkInPhoto = f)
+              and not exists (select 1 from RemoteSessionImage s where s.image = f)
               and not exists (select 1 from DailyExpense d where d.receipt = f)
               and not exists (select 1 from Employee e where e.photo = f or e.nidImage = f or e.idCardImage = f)
             """)

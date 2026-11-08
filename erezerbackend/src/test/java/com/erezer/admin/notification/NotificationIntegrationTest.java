@@ -49,7 +49,7 @@ class NotificationIntegrationTest extends IntegrationTest {
     private static final Set<String> NOT_ACTIONS = Set.of(
             "/api/auth/login", "/api/auth/refresh", "/api/auth/logout", "/api/auth/forgot-password",
             "/api/files/images", "/api/files/receipts", "/api/files/employee-images", "/api/files/selfies",
-            "/api/files/daily-expense-receipts",
+            "/api/files/daily-expense-receipts", "/api/files/remote-images",
             "/api/webhooks/steadfast", "/api/courier/settings/test", "/api/courier/preview",
             "/api/notifications/{id}/read", "/api/notifications/read-all", "/api/notifications/devices",
             "/api/notifications/devices/remove", "/api/notifications/settings/test");

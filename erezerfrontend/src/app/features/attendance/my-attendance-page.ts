@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { rxResource } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
+import { AuthService } from '../../core/auth/auth.service';
 import { errorMessage, toProblem } from '../../core/http/api-error';
 import { ToastService } from '../../core/notify/toast.service';
 import { BdDatePipe, bdToday } from '../../shared/ui/bd-date.pipe';
@@ -9,6 +10,8 @@ import { TakaPipe } from '../../shared/ui/taka.pipe';
 import { isoDate } from '../../shared/date-range';
 import { AttendanceApi } from './data/attendance.api';
 import { currentPosition, DAY_STATUS_CLASSES, DAY_STATUS_CODES, DAY_STATUS_LABELS, Position, time12 } from './data/attendance.models';
+import { RemoteApi } from './data/remote.api';
+import { RemoteMe } from './remote-me';
 import { SelfieCamera } from './selfie-camera';
 
 /** A check-in or check-out waiting for the reason the server asked for. */
@@ -22,11 +25,22 @@ interface PendingMark {
 /** The employee's own page: check in with a selfie and location, check out, and see the month. */
 @Component({
   selector: 'app-my-attendance-page',
-  imports: [BdDatePipe, FormsModule, SelfieCamera, TakaPipe],
+  imports: [BdDatePipe, FormsModule, RemoteMe, SelfieCamera, TakaPipe],
   template: `
     <h1 class="page-title">My Attendance</h1>
     <p class="page-subtitle">{{ today() | bdDate: 'EEEE, d MMMM y' }}</p>
 
+    @if (mode.isLoading()) {
+      <p class="card mt-6 p-5 text-slate-400"><i class="fas fa-circle-notch fa-spin"></i> Loading…</p>
+    } @else if (remote()) {
+      @if (canReply) {
+        <app-remote-me />
+      } @else {
+        <p class="card mt-6 p-5 text-slate-200"><i class="fas fa-info-circle mr-1 text-sky-300"></i>You work remotely, but you can't Reply On yet. Ask an admin for the remote attendance permission.</p>
+      }
+    } @else if (!canCheckIn) {
+      <p class="card mt-6 p-5 text-slate-200"><i class="fas fa-info-circle mr-1 text-sky-300"></i>You give attendance at the office, but you can't check in yet. Ask an admin for the attendance permission.</p>
+    } @else {
     <section class="card mt-6 p-5">
       @if (data.isLoading() && !info()) {
         <p class="text-slate-400"><i class="fas fa-circle-notch fa-spin"></i> Loading…</p>
@@ -103,6 +117,7 @@ interface PendingMark {
         <p class="mt-3 text-xs text-slate-500">P present · L late · E left early · LE both · NC no check-out · A absent</p>
       }
     </section>
+    }
 
     @if (showCamera()) {
       <app-selfie-camera (captured)="photoTaken($event)" (cancelled)="showCamera.set(false)" />
@@ -141,8 +156,20 @@ export class MyAttendancePage {
   protected readonly pending = signal<PendingMark | null>(null);
   protected reason = '';
 
-  protected readonly data = rxResource({ stream: () => this.api.today() });
-  private readonly monthData = rxResource({ params: () => this.month(), stream: ({ params }) => this.api.myMonth(params) });
+  private readonly auth = inject(AuthService);
+  private readonly remoteApi = inject(RemoteApi);
+  protected readonly canCheckIn = this.auth.hasPermission('ATTENDANCE_MARK');
+  protected readonly canReply = this.auth.hasPermission('REMOTE_MARK');
+  /** Office or remote decides which page shows; the office data loads only for the office. */
+  protected readonly mode = rxResource({ stream: () => this.remoteApi.myMode() });
+  protected readonly remote = computed(() => this.mode.hasValue() && this.mode.value().remote);
+  private readonly office = computed(() => this.mode.hasValue() && !this.mode.value().remote && this.canCheckIn);
+
+  protected readonly data = rxResource({ params: () => (this.office() ? true : undefined), stream: () => this.api.today() });
+  private readonly monthData = rxResource({
+    params: () => (this.office() ? this.month() : undefined),
+    stream: ({ params }) => this.api.myMonth(params),
+  });
 
   protected readonly info = computed(() => (this.data.hasValue() ? this.data.value() : undefined));
   protected readonly shift = computed(() => this.info()?.shift);

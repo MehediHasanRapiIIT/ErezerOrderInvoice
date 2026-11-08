@@ -6,6 +6,7 @@ import { ConfirmService } from '../../shared/ui/confirm-dialog';
 import { Pagination } from '../../shared/ui/pagination';
 import { AttendanceSpecialHours } from './attendance-special-hours';
 import { AttendanceApi, LocationRequest } from './data/attendance.api';
+import { RemoteApi } from './data/remote.api';
 import { currentPosition, Shift, WEEK_DAYS, WeekDay, WorkLocation } from './data/attendance.models';
 
 const PAGE_SIZE = 10;
@@ -19,6 +20,8 @@ interface ShiftDraft {
   weeklyOff: WeekDay[];
   saved: boolean;
   canCheckIn: boolean;
+  remote: boolean;
+  canReply: boolean;
 }
 
 interface LocationDraft {
@@ -39,16 +42,25 @@ interface LocationDraft {
     <section class="card overflow-hidden">
       <div class="border-b border-line p-4">
         <h2 class="text-lg font-semibold text-white">Employees</h2>
-        <p class="text-sm text-slate-400">Set each person's check-in and check-out time and their days off.</p>
+        <p class="text-sm text-slate-400">Set each person's hours and days off, and whether they work at the office or remotely. For remote workers the hours are optional.</p>
       </div>
       <div class="divide-y divide-line/60">
         @for (s of shiftsOnPage(); track s.userId) {
           <div class="grid gap-3 p-4 lg:grid-cols-[minmax(0,1fr)_8rem_8rem_6rem_auto_auto] lg:items-end">
-            <p class="font-medium text-white lg:self-center">
-              {{ s.fullName }}
-              @if (!s.saved) { <span class="block text-xs font-normal text-amber-300">No hours set yet</span> }
-              @if (s.saved && !s.canCheckIn) { <span class="block text-xs font-normal text-amber-300">Can't check in: give them the attendance permission in Staff Management</span> }
-            </p>
+            <div class="lg:self-center">
+              <p class="font-medium text-white">{{ s.fullName }}</p>
+              <select class="field mt-1 w-auto py-1 text-sm" [attr.aria-label]="'Where ' + s.fullName + ' works'" [ngModel]="s.remote" (ngModelChange)="setMode(s, $event)" [name]="'mode' + s.userId">
+                <option [ngValue]="false">Office (check in)</option>
+                <option [ngValue]="true">Remote (Reply On / Off)</option>
+              </select>
+              @if (s.remote) {
+                @if (!s.saved) { <span class="block text-xs text-slate-500">No fixed hours: nothing counts as late</span> }
+                @if (!s.canReply) { <span class="block text-xs text-amber-300">Can't Reply On: give them the remote attendance permission in Staff Management</span> }
+              } @else {
+                @if (!s.saved) { <span class="block text-xs text-amber-300">No hours set yet</span> }
+                @if (s.saved && !s.canCheckIn) { <span class="block text-xs text-amber-300">Can't check in: give them the attendance permission in Staff Management</span> }
+              }
+            </div>
             <div><label class="field-label" [for]="'in-' + s.userId">Check in</label><input [id]="'in-' + s.userId" type="time" class="field" [name]="'in' + s.userId" [(ngModel)]="s.checkIn" /></div>
             <div><label class="field-label" [for]="'out-' + s.userId">Check out</label><input [id]="'out-' + s.userId" type="time" class="field" [name]="'out' + s.userId" [(ngModel)]="s.checkOut" /></div>
             <div><label class="field-label" [for]="'grace-' + s.userId">Grace (min)</label><input [id]="'grace-' + s.userId" type="number" min="0" max="240" class="field" [name]="'grace' + s.userId" [(ngModel)]="s.graceMinutes" /></div>
@@ -122,6 +134,7 @@ interface LocationDraft {
 })
 export class AttendanceSettingsTab {
   private readonly api = inject(AttendanceApi);
+  private readonly remoteApi = inject(RemoteApi);
   private readonly toast = inject(ToastService);
   private readonly confirm = inject(ConfirmService);
 
@@ -180,6 +193,20 @@ export class AttendanceSettingsTab {
         },
         error: (err: unknown) => this.toast.error(errorMessage(err)),
       });
+  }
+
+  protected setMode(s: ShiftDraft, remote: boolean): void {
+    this.remoteApi.setMode(s.userId, remote).subscribe({
+      next: () => {
+        this.toast.success(`${s.fullName} now works ${remote ? 'remotely' : 'at the office'}`);
+        this.loadShifts();
+        this.changed.emit();
+      },
+      error: (err: unknown) => {
+        this.toast.error(errorMessage(err));
+        this.loadShifts();
+      },
+    });
   }
 
   protected async removeShift(s: ShiftDraft): Promise<void> {
@@ -259,5 +286,7 @@ function toShiftDraft(s: Shift): ShiftDraft {
     weeklyOff: s.weeklyOff ?? [],
     saved: !!s.checkIn,
     canCheckIn: s.canCheckIn,
+    remote: s.remote,
+    canReply: s.canReply,
   };
 }

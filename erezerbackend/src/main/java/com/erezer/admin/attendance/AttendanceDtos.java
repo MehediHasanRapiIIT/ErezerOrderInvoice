@@ -110,9 +110,11 @@ public final class AttendanceDtos {
      * An employee's shift; times are null while none is set.
      *
      * @param canCheckIn they hold the attendance permission, which only an admin decides
+     * @param remote     they work from home and use Reply On and Off instead of checking in
+     * @param canReply   they hold the remote attendance permission
      */
     public record ShiftView(long userId, String fullName, LocalTime checkIn, LocalTime checkOut, int graceMinutes,
-            Set<DayOfWeek> weeklyOff, boolean canCheckIn) {
+            Set<DayOfWeek> weeklyOff, boolean canCheckIn, boolean remote, boolean canReply) {
     }
 
     /** What an employee's own page shows today. */

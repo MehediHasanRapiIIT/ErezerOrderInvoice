@@ -73,6 +73,10 @@ class NotificationRecorder implements HandlerInterceptor, WebMvcConfigurer {
                 id = idOf(request.getAttribute(BODY));
             }
             String summary = request.getAttribute(SUMMARY) instanceof String text ? text : null;
+            if (request.getAttribute(Notifies.Context.TARGET) instanceof Long target) {
+                id = target;
+                summary = null;
+            }
             if (summary == null && id != null) {
                 summary = notifications.describe(action.target(), id);
             }

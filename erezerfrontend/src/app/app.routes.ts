@@ -98,13 +98,13 @@ export const routes: Routes = [
       {
         path: 'my-attendance',
         title: 'My Attendance',
-        canActivate: [requirePermission('ATTENDANCE_MARK')],
+        canActivate: [requirePermission('ATTENDANCE_MARK', 'REMOTE_MARK')],
         loadComponent: () => import('./features/attendance/my-attendance-page').then((m) => m.MyAttendancePage),
       },
       {
         path: 'attendance',
         title: 'Attendance',
-        canActivate: [requirePermission('ATTENDANCE_VIEW')],
+        canActivate: [requirePermission('ATTENDANCE_VIEW', 'REMOTE_VIEW')],
         loadComponent: () => import('./features/attendance/attendance-page').then((m) => m.AttendancePage),
       },
       {
