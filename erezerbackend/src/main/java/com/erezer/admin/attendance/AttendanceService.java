@@ -114,8 +114,8 @@ public class AttendanceService {
     public MyToday today(long userId) {
         LocalDate date = today();
         Optional<Shift> shift = shiftOf(userId);
-        RecordView view = records.findByUserIdAndWorkDate(userId, date).map(r -> toViews(List.of(r)).getFirst()).orElse(null);
         Optional<Day> day = shift.map(s -> dayOf(s, date, specials()));
+        RecordView view = currentRecord(userId, day.map(Day::checkIn).orElse(null)).map(r -> toViews(List.of(r)).getFirst()).orElse(null);
         return new MyToday(date, shift.map(AttendanceService::toView).orElse(null), day.isPresent() && day.get().off(), view,
                 day.map(Day::checkIn).orElse(null), day.map(Day::checkOut).orElse(null));
     }
@@ -146,14 +146,16 @@ public class AttendanceService {
     @Transactional
     public RecordView checkOut(long userId, CheckOutRequest request) {
         Shift shift = requireEmployee(userId);
-        AttendanceRecord record = records.findByUserIdAndWorkDate(userId, today())
+        Day hours = dayOf(shift, today(), specials());
+        AttendanceRecord record = currentRecord(userId, hours.checkIn())
                 .orElseThrow(() -> ApiException.conflict("NOT_CHECKED_IN", "Check in first"));
         if (record.getCheckOutAt() != null) {
             throw ApiException.conflict("ALREADY_CHECKED_OUT", "You have already checked out today");
         }
         AttendanceRecord.Place place = place(request.latitude(), request.longitude());
         LocalTime now = nowTime();
-        boolean early = !dayOf(shift, today(), specials()).off() && now.isBefore(record.getShiftEnd());
+        // Checking out after midnight on yesterday's day is never early.
+        boolean early = record.getWorkDate().equals(today()) && !hours.off() && now.isBefore(record.getShiftEnd());
         int earlyMinutes = early ? minutes(now, record.getShiftEnd()) : 0;
         String reason = blankToNull(request.reason());
         if ((early || !place.inRange()) && reason == null) {
@@ -163,12 +165,26 @@ public class AttendanceService {
         return toViews(List.of(record)).getFirst();
     }
 
+    /**
+     * Today's record, or yesterday's while it is still open and today's hours haven't started: someone who works past
+     * midnight checks out on the day they checked in.
+     */
+    private Optional<AttendanceRecord> currentRecord(long userId, LocalTime todayStart) {
+        LocalDate date = today();
+        Optional<AttendanceRecord> current = records.findByUserIdAndWorkDate(userId, date);
+        if (current.isPresent() || (todayStart != null && !nowTime().isBefore(todayStart))) {
+            return current;
+        }
+        return records.findByUserIdAndWorkDate(userId, date.minusDays(1))
+                .filter(r -> r.getCheckInAt() != null && r.getCheckOutAt() == null);
+    }
+
     /** One employee's month, for their own page. */
     @Transactional(readOnly = true)
     public MonthRow myMonth(long userId, YearMonth month) {
         Optional<Shift> shift = shiftOf(userId);
         if (shift.isEmpty()) {
-            return new MonthRow(userId, "", List.of(), 0, 0, 0, 0, 0, BigDecimal.ZERO, 0);
+            return new MonthRow(userId, "", List.of(), 0, 0, 0, 0, 0, BigDecimal.ZERO, 0, 0);
         }
         return monthRow(shift.get(), month, records.findByUserIdAndWorkDateBetween(userId, month.atDay(1), month.atEndOfMonth()), specials());
     }
@@ -210,7 +226,7 @@ public class AttendanceService {
         List<AttendanceRecord> list = userId == null
                 ? records.findByWorkDateBetween(month.atDay(1), month.atEndOfMonth())
                 : records.findByUserIdAndWorkDateBetween(userId, month.atDay(1), month.atEndOfMonth());
-        return new Summary(workedMinutes(list), lateFees(list));
+        return new Summary(workedMinutes(list), extraMinutes(list), lateFees(list));
     }
 
     /** Everyone on one day. */
@@ -548,7 +564,7 @@ public class AttendanceService {
                     r == null ? null : r.getCheckOutAt()));
         }
         return new MonthRow(shift.userId(), shift.fullName(), cells, present, late, early, absent, off, lateFees(list),
-                workedMinutes(list));
+                workedMinutes(list), extraMinutes(list));
     }
 
     private Map<Long, List<AttendanceRecord>> monthRecords(YearMonth month) {
@@ -568,6 +584,18 @@ public class AttendanceService {
     private static Integer workedMinutes(AttendanceRecord r) {
         return r.getCheckInAt() == null || r.getCheckOutAt() == null ? null
                 : (int) Duration.between(r.getCheckInAt(), r.getCheckOutAt()).toMinutes();
+    }
+
+    private long extraMinutes(List<AttendanceRecord> list) {
+        return list.stream().mapToLong(this::extraMinutes).sum();
+    }
+
+    /** Time after the check-out time, for someone who stayed late. Nothing until they check out. */
+    private int extraMinutes(AttendanceRecord r) {
+        if (r.getCheckOutAt() == null || r.getShiftEnd() == null) {
+            return 0;
+        }
+        return (int) Math.max(0, Duration.between(instant(r.getWorkDate(), r.getShiftEnd()), r.getCheckOutAt()).toMinutes());
     }
 
     private static BigDecimal lateFees(List<AttendanceRecord> list) {
@@ -763,7 +791,7 @@ public class AttendanceService {
                 r.getCheckOutDistanceM(), r.isCheckOutInRange(), r.getCheckOutLatitude(), r.getCheckOutLongitude(),
                 r.getCheckOutReason(), r.getEarlyMinutes(), r.getReviewStatus().name(), r.getLateFee(),
                 r.getReviewedBy() == null ? null : UserDirectory.nameOf(names, r.getReviewedBy()), r.getReviewedAt(),
-                r.getReviewNote(), r.getEditNote(), workedMinutes(r)))
+                r.getReviewNote(), r.getEditNote(), workedMinutes(r), extraMinutes(r)))
                 .toList();
     }
 

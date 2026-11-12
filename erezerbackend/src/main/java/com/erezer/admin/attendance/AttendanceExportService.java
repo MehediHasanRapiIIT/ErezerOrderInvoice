@@ -27,7 +27,7 @@ public class AttendanceExportService {
     private static final Map<String, String> CODES = Map.of(
             "PRESENT", "P", "LATE", "L", "EARLY", "E", "LATE_EARLY", "LE", "NO_CHECK_OUT", "NC",
             "ABSENT", "A", "OFF", "Off");
-    private static final String[] TOTALS = {"Present", "Late", "Early", "Absent", "Off", "Hours", "Late fees"};
+    private static final String[] TOTALS = {"Present", "Late", "Early", "Absent", "Off", "Hours", "Extra hours", "Late fees"};
 
     public byte[] export(MonthSheet sheet) {
         try (SXSSFWorkbook workbook = new SXSSFWorkbook(100); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
@@ -68,6 +68,7 @@ public class AttendanceExportService {
                 line.createCell(c++).setCellValue(row.absent());
                 line.createCell(c++).setCellValue(row.off());
                 line.createCell(c++).setCellValue(Math.round(row.workedMinutes() / 6.0) / 10.0);
+                line.createCell(c++).setCellValue(Math.round(row.extraMinutes() / 6.0) / 10.0);
                 line.createCell(c).setCellValue(row.lateFees().doubleValue());
             }
             s.createRow(r + 1).createCell(0).setCellValue(
@@ -79,7 +80,7 @@ public class AttendanceExportService {
         }
     }
 
-    private static final String[] REMOTE_TITLES = {"Moderator", "Hours", "Days worked", "Late days", "Left early", "Not turned off",
+    private static final String[] REMOTE_TITLES = {"Moderator", "Hours", "Extra hours", "Days worked", "Late days", "Left early", "Not turned off",
             "Late fees"};
 
     /** Remote attendance for a month: one row per person with the card totals. */
@@ -103,11 +104,12 @@ public class AttendanceExportService {
                 Row line = s.createRow(r++);
                 line.createCell(0).setCellValue(row.fullName());
                 line.createCell(1).setCellValue(Math.round(row.workedMinutes() / 6.0) / 10.0);
-                line.createCell(2).setCellValue(row.daysWorked());
-                line.createCell(3).setCellValue(row.lateDays());
-                line.createCell(4).setCellValue(row.earlyDays());
-                line.createCell(5).setCellValue(row.notTurnedOff());
-                line.createCell(6).setCellValue(row.lateFees().doubleValue());
+                line.createCell(2).setCellValue(Math.round(row.extraMinutes() / 6.0) / 10.0);
+                line.createCell(3).setCellValue(row.daysWorked());
+                line.createCell(4).setCellValue(row.lateDays());
+                line.createCell(5).setCellValue(row.earlyDays());
+                line.createCell(6).setCellValue(row.notTurnedOff());
+                line.createCell(7).setCellValue(row.lateFees().doubleValue());
             }
             workbook.write(out);
             return out.toByteArray();

@@ -53,7 +53,7 @@ public final class RemoteDtos {
      */
     public record DayView(Long id, long userId, String fullName, LocalDate date, LocalTime shiftStart, LocalTime shiftEnd,
             String status, int lateMinutes, int earlyMinutes, String lateReason, String earlyReason, boolean notTurnedOff,
-            String reviewStatus, BigDecimal lateFee, String reviewedBy, String reviewNote, long workedMinutes, boolean on,
+            String reviewStatus, BigDecimal lateFee, String reviewedBy, String reviewNote, long workedMinutes, long extraMinutes, boolean on,
             List<SessionView> sessions) {
     }
 
@@ -65,8 +65,8 @@ public final class RemoteDtos {
     public record MonthCell(LocalDate date, String status, long workedMinutes, BigDecimal lateFee) {
     }
 
-    /** The cards. */
-    public record Summary(long workedMinutes, long daysWorked, long lateDays, long earlyDays, long notTurnedOff,
+    /** The cards. Extra is time worked before the start or after the end of the set hours. */
+    public record Summary(long workedMinutes, long extraMinutes, long daysWorked, long lateDays, long earlyDays, long notTurnedOff,
             BigDecimal lateFees) {
     }
 
@@ -74,7 +74,7 @@ public final class RemoteDtos {
     }
 
     /** One card per moderator. */
-    public record PersonCard(long userId, String fullName, boolean on, Instant onSince, long workedMinutes, long daysWorked,
+    public record PersonCard(long userId, String fullName, boolean on, Instant onSince, long workedMinutes, long extraMinutes, long daysWorked,
             long lateDays, long earlyDays, long notTurnedOff, BigDecimal lateFees) {
     }
 

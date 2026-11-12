@@ -84,6 +84,8 @@ export interface RemoteDay {
   reviewedBy?: string;
   reviewNote?: string;
   workedMinutes: number;
+  /** Time before the start or after the end of the set hours; a forgotten Reply Off never counts. */
+  extraMinutes: number;
   on: boolean;
   sessions: RemoteSession[];
 }
@@ -102,6 +104,7 @@ export interface RemoteMe {
 
 export interface RemoteSummary {
   workedMinutes: number;
+  extraMinutes: number;
   daysWorked: number;
   lateDays: number;
   earlyDays: number;
@@ -127,6 +130,7 @@ export interface RemotePerson {
   on: boolean;
   onSince?: string;
   workedMinutes: number;
+  extraMinutes: number;
   daysWorked: number;
   lateDays: number;
   earlyDays: number;

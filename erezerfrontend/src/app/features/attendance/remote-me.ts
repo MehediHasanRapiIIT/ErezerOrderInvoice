@@ -75,7 +75,7 @@ interface Pending {
               <i class="fas fa-flag-checkered"></i> Reply Off · Done for today
             </button>
           </div>
-          <p class="mt-2 text-center text-xs text-slate-500">A break never needs a reason. Finishing before your end time does.</p>
+          <p class="mt-2 text-center text-xs text-slate-500">A break never needs a reason. Finishing before your end time does. Time before your start or after your end counts as extra.</p>
         }
         @if (busy()) { <p class="mt-3 text-center text-sm text-slate-400"><i class="fas fa-circle-notch fa-spin"></i> {{ busy() }}</p> }
 
@@ -83,6 +83,7 @@ interface Pending {
           <div class="mt-5 space-y-1 text-sm">
             @if (d.lateMinutes) { <p class="text-amber-300">{{ d.lateMinutes }} minutes late{{ d.lateReason ? ': ' + d.lateReason : '' }}</p> }
             @if (d.earlyMinutes) { <p class="text-amber-300">Finished {{ d.earlyMinutes }} minutes early{{ d.earlyReason ? ': ' + d.earlyReason : '' }}</p> }
+            @if (d.extraMinutes) { <p class="text-emerald-300">{{ hours(d.extraMinutes) }} extra (outside your hours)</p> }
             @if (d.notTurnedOff) { <p class="text-sky-300">You forgot Reply Off; the system closed it.</p> }
             @if (d.reviewStatus === 'PENDING') { <p class="text-slate-400">Waiting for the admin's approval</p> }
             @if (d.reviewStatus === 'APPROVED') { <p class="text-emerald-300">Approved</p> }
@@ -114,8 +115,9 @@ interface Pending {
         <input type="month" class="field w-auto" [ngModel]="month()" (ngModelChange)="setMonth($event)" aria-label="Month" />
       </div>
       @if (monthSummary(); as mm) {
-        <div class="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
+        <div class="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-6">
           <p class="text-slate-400">Hours <b class="block text-lg text-white">{{ hours(mm.summary.workedMinutes) }}</b></p>
+          <p class="text-slate-400">Extra time <b class="block text-lg text-emerald-300">{{ hours(mm.summary.extraMinutes) }}</b></p>
           <p class="text-slate-400">Days worked <b class="block text-lg text-white">{{ mm.summary.daysWorked }}</b></p>
           <p class="text-slate-400">Late <b class="block text-lg text-white">{{ mm.summary.lateDays }}</b></p>
           <p class="text-slate-400">Finished early <b class="block text-lg text-white">{{ mm.summary.earlyDays }}</b></p>

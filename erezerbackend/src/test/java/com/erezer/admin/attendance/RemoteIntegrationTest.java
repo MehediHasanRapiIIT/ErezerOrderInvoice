@@ -162,6 +162,35 @@ class RemoteIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void workingPastTheEndStaysOnAndCountsAsExtra() throws Exception {
+        Staff person = remote(ALL_LATE);
+        on(person, "\"Late start\"").andExpect(status().isOk());
+        // The hours ended at 00:01, but nothing closes the session before midnight.
+        remoteService.closeDue();
+        mvc.perform(get("/api/remote/me").header(HttpHeaders.AUTHORIZATION, person.bearer()))
+                .andExpect(jsonPath("$.on").value(true));
+        jdbc.sql("update remote_sessions set on_at = on_at - interval '90 minutes' where user_id = :u").param("u", person.id()).update();
+        MvcResult off = off(person, true, null).andExpect(status().isOk())
+                .andExpect(jsonPath("$.day.earlyMinutes").value(0))
+                .andExpect(jsonPath("$.day.notTurnedOff").value(false))
+                .andReturn();
+        int worked = read(off, "$.day.workedMinutes");
+        int extra = read(off, "$.day.extraMinutes");
+        assertThat(extra).isPositive().isLessThanOrEqualTo(worked);
+        mvc.perform(get("/api/remote/summary").param("month", YearMonth.now(DHAKA).toString()).param("userId", String.valueOf(person.id()))
+                        .header(HttpHeaders.AUTHORIZATION, admin))
+                .andExpect(jsonPath("$.extraMinutes").value(extra));
+    }
+
+    @Test
+    void startingBeforeTheStartCountsAsExtra() throws Exception {
+        Staff person = remote(NEVER_LATE);
+        on(person, null).andExpect(status().isOk()).andExpect(jsonPath("$.day.lateMinutes").value(0));
+        jdbc.sql("update remote_sessions set on_at = on_at - interval '30 minutes' where user_id = :u").param("u", person.id()).update();
+        off(person, false, null).andExpect(status().isOk()).andExpect(jsonPath("$.day.extraMinutes").value(30));
+    }
+
+    @Test
     void aForgottenReplyOffIsClosedAtMidnightAndFlagged() throws Exception {
         Staff person = staff(Permission.REMOTE_MARK);
         setMode(person.id(), true).andExpect(status().isNoContent());
@@ -182,6 +211,7 @@ class RemoteIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.content[0].notTurnedOff").value(true))
                 .andExpect(jsonPath("$.content[0].reviewStatus").value("PENDING"))
                 .andExpect(jsonPath("$.content[0].workedMinutes").value(240))
+                .andExpect(jsonPath("$.content[0].extraMinutes").value(0))
                 .andExpect(jsonPath("$.content[0].sessions[0].autoClosed").value(true));
     }
 

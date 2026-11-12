@@ -46,8 +46,9 @@ interface SessionDraft {
       </button>
     </div>
 
-    <div class="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-6">
+    <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-7">
       <div class="card p-4"><p class="text-xs text-slate-400"><i class="fas fa-clock mr-1 text-sky-300"></i>Hours worked</p><p class="mt-1 text-xl font-bold text-white">{{ hours(summary()?.workedMinutes ?? 0) }}</p></div>
+      <div class="card p-4"><p class="text-xs text-slate-400"><i class="fas fa-business-time mr-1 text-emerald-300"></i>Extra time</p><p class="mt-1 text-xl font-bold text-white">{{ hours(summary()?.extraMinutes ?? 0) }}</p></div>
       <div class="card p-4"><p class="text-xs text-slate-400"><i class="fas fa-calendar-check mr-1 text-emerald-300"></i>Days worked</p><p class="mt-1 text-xl font-bold text-white">{{ summary()?.daysWorked ?? 0 }}</p></div>
       <div class="card p-4"><p class="text-xs text-slate-400"><i class="fas fa-hourglass-start mr-1 text-amber-300"></i>Late days</p><p class="mt-1 text-xl font-bold text-white">{{ summary()?.lateDays ?? 0 }}</p></div>
       <div class="card p-4"><p class="text-xs text-slate-400"><i class="fas fa-door-open mr-1 text-amber-300"></i>Finished early</p><p class="mt-1 text-xl font-bold text-white">{{ summary()?.earlyDays ?? 0 }}</p></div>
@@ -79,6 +80,7 @@ interface SessionDraft {
                 </div>
                 <dl class="mt-3 grid grid-cols-3 gap-2 text-xs text-slate-400">
                   <div><dt>Hours</dt><dd class="text-sm font-semibold text-white">{{ hours(p.workedMinutes) }}</dd></div>
+                  <div><dt>Extra</dt><dd class="text-sm font-semibold text-emerald-300">{{ hours(p.extraMinutes) }}</dd></div>
                   <div><dt>Days</dt><dd class="text-sm font-semibold text-white">{{ p.daysWorked }}</dd></div>
                   <div><dt>Late</dt><dd class="text-sm font-semibold text-white">{{ p.lateDays }}</dd></div>
                   <div><dt>Early</dt><dd class="text-sm font-semibold text-white">{{ p.earlyDays }}</dd></div>
@@ -108,7 +110,9 @@ interface SessionDraft {
                   <span class="rounded-full border px-2 py-0.5 text-xs" [class]="statusClasses[d.status]">{{ statusLabels[d.status] }}</span>
                   @if (d.reviewStatus === 'PENDING') { <span class="rounded-full border border-amber-500/40 px-2 py-0.5 text-xs text-amber-300">Needs approval</span> }
                   @if (d.lateFee > 0) { <span class="text-xs text-rose-300">Fee {{ d.lateFee | taka }}</span> }
-                  <span class="ml-auto text-sm text-slate-300">{{ hours(d.workedMinutes) }}</span>
+                  <span class="ml-auto text-sm text-slate-300">{{ hours(d.workedMinutes) }}
+                    @if (d.extraMinutes) { <span class="text-xs text-emerald-300">+{{ hours(d.extraMinutes) }} extra</span> }
+                  </span>
                 </div>
                 <p class="mt-1 text-xs text-slate-500">Hours: {{ d.shiftStart ? time(d.shiftStart) + ' – ' + time(d.shiftEnd) : 'not fixed' }}</p>
                 @if (d.lateMinutes) { <p class="mt-1 text-sm text-amber-300">{{ d.lateMinutes }} min late{{ d.lateReason ? ': ' + d.lateReason : '' }}</p> }

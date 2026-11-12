@@ -599,6 +599,42 @@ class AttendanceIntegrationTest extends IntegrationTest {
                 .header(HttpHeaders.AUTHORIZATION, employee.bearer()));
     }
 
+    @Test
+    void stayingLateCountsAsExtraTime() throws Exception {
+        Staff employee = employee(ALL_LATE, "[]");
+        checkIn(employee, inRange(selfie(employee), "Bus")).andExpect(status().isOk());
+        MvcResult out = checkOut(employee, "null").andExpect(status().isOk())
+                .andExpect(jsonPath("$.earlyMinutes").value(0))
+                .andReturn();
+        // The shift ended at 00:01, so everything since then is extra.
+        int extra = read(out, "$.extraMinutes");
+        assertThat(extra).isPositive();
+        mvc.perform(get("/api/attendance/summary").param("month", YearMonth.now(DHAKA).toString())
+                        .param("userId", String.valueOf(employee.id())).header(HttpHeaders.AUTHORIZATION, admin))
+                .andExpect(jsonPath("$.extraMinutes").value(extra));
+        mvc.perform(get("/api/attendance/month").param("month", YearMonth.now(DHAKA).toString()).param("size", "100")
+                        .header(HttpHeaders.AUTHORIZATION, admin))
+                .andExpect(jsonPath("$.rows[?(@.userId == " + employee.id() + ")].extraMinutes").value(hasItem(extra)));
+    }
+
+    @Test
+    void workingPastMidnightChecksOutOnTheDayChecked() throws Exception {
+        // Today's hours start at 23:58, so it's still yesterday's shift for this employee.
+        Staff employee = employee(NEVER_LATE, "[]");
+        String yesterday = today().minusDays(1).toString();
+        correct(admin, employee.id(), yesterday, "\"23:58\"", "null", "Night work").andExpect(status().isNoContent());
+
+        mvc.perform(get("/api/attendance/me").header(HttpHeaders.AUTHORIZATION, employee.bearer()))
+                .andExpect(jsonPath("$.record.date").value(yesterday));
+        checkOut(employee, "null").andExpect(status().isOk())
+                .andExpect(jsonPath("$.date").value(yesterday))
+                .andExpect(jsonPath("$.earlyMinutes").value(0))
+                .andExpect(jsonPath("$.reviewStatus").value("NONE"));
+        // Today's own day is untouched: they can still check in for it.
+        mvc.perform(get("/api/attendance/me").header(HttpHeaders.AUTHORIZATION, employee.bearer()))
+                .andExpect(jsonPath("$.record").doesNotExist());
+    }
+
     private ResultActions checkOut(Staff employee, String reason) throws Exception {
         return mvc.perform(post("/api/attendance/check-out").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"latitude\":" + latitude + ",\"longitude\":" + longitude + ",\"reason\":" + reason + "}")

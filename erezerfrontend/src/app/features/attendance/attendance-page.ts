@@ -43,11 +43,16 @@ const TABS: readonly { value: Tab; label: string; icon: string; permission: Perm
         <input type="month" class="field w-full sm:w-auto" [ngModel]="month()" (ngModelChange)="setMonth($event)" aria-label="Month" />
       </div>
 
-      <div class="mt-4 grid gap-4 sm:grid-cols-2">
+      <div class="mt-4 grid gap-4 sm:grid-cols-3">
         <div class="card p-5">
           <p class="text-sm text-slate-400"><i class="fas fa-clock mr-1 text-sky-300"></i>Total working hours</p>
           <p class="mt-1 text-2xl font-bold text-white">{{ hours(summary()?.workedMinutes ?? 0) }}</p>
           <p class="mt-1 text-xs text-slate-500">{{ scope() }} · {{ month() + '-01' | bdDate: 'MMMM y' }}</p>
+        </div>
+        <div class="card p-5">
+          <p class="text-sm text-slate-400"><i class="fas fa-business-time mr-1 text-emerald-300"></i>Total extra time</p>
+          <p class="mt-1 text-2xl font-bold text-white">{{ hours(summary()?.extraMinutes ?? 0) }}</p>
+          <p class="mt-1 text-xs text-slate-500">Stayed after check-out time · {{ scope() }}</p>
         </div>
         <div class="card p-5">
           <p class="text-sm text-slate-400"><i class="fas fa-coins mr-1 text-rose-300"></i>Total late fee</p>

@@ -9,7 +9,7 @@ import { BdDatePipe, bdToday } from '../../shared/ui/bd-date.pipe';
 import { TakaPipe } from '../../shared/ui/taka.pipe';
 import { isoDate } from '../../shared/date-range';
 import { AttendanceApi } from './data/attendance.api';
-import { currentPosition, DAY_STATUS_CLASSES, DAY_STATUS_CODES, DAY_STATUS_LABELS, Position, time12 } from './data/attendance.models';
+import { currentPosition, DAY_STATUS_CLASSES, hoursLabel, DAY_STATUS_CODES, DAY_STATUS_LABELS, Position, time12 } from './data/attendance.models';
 import { RemoteApi } from './data/remote.api';
 import { RemoteMe } from './remote-me';
 import { SelfieCamera } from './selfie-camera';
@@ -67,6 +67,8 @@ interface PendingMark {
               }
               @if (r.lateMinutes) { <p class="mt-1 text-amber-300">{{ r.lateMinutes }} minutes late</p> }
               @if (r.earlyMinutes) { <p class="mt-1 text-amber-300">Left {{ r.earlyMinutes }} minutes early</p> }
+              @if (r.extraMinutes) { <p class="mt-1 text-emerald-300">Stayed {{ hours(r.extraMinutes) }} extra</p> }
+              @if (r.date !== today()) { <p class="mt-1 text-sky-300">From {{ r.date | bdDate: 'EEE, d MMM' }}: check out to finish that day</p> }
               @if (r.reviewStatus === 'PENDING') { <p class="mt-1 text-slate-400">Waiting for the admin's approval</p> }
               @if (r.reviewStatus === 'APPROVED') {
                 <p class="mt-1 text-emerald-300">Approved</p>
@@ -97,8 +99,9 @@ interface PendingMark {
         <input type="month" class="field w-auto" [ngModel]="month()" (ngModelChange)="setMonth($event)" aria-label="Month" />
       </div>
       @if (summary(); as m) {
-        <div class="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
+        <div class="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-6">
           <p class="text-slate-400">Present <b class="block text-lg text-white">{{ m.present }}</b></p>
+          <p class="text-slate-400">Extra time <b class="block text-lg text-emerald-300">{{ hours(m.extraMinutes) }}</b></p>
           <p class="text-slate-400">Late <b class="block text-lg text-white">{{ m.late }}</b></p>
           <p class="text-slate-400">Left early <b class="block text-lg text-white">{{ m.early }}</b></p>
           <p class="text-slate-400">Absent <b class="block text-lg text-white">{{ m.absent }}</b></p>
@@ -149,6 +152,7 @@ export class MyAttendancePage {
   protected readonly statusCodes = DAY_STATUS_CODES;
   protected readonly weekHeads = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   protected readonly time = time12;
+  protected readonly hours = hoursLabel;
   protected readonly today = signal(isoDate(bdToday()));
   protected readonly month = signal(this.today().slice(0, 7));
   protected readonly showCamera = signal(false);

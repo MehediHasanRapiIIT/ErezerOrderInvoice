@@ -34,6 +34,7 @@ const PAGE_SIZE = 20;
               <th class="px-1 py-2 font-semibold">Absent</th>
               <th class="px-1 py-2 font-semibold">Off</th>
               <th class="px-1 py-2 font-semibold">Hours</th>
+              <th class="px-1 py-2 font-semibold">Extra</th>
               <th class="whitespace-nowrap px-3 py-2 text-right font-semibold">Late fees</th>
             </tr>
           </thead>
@@ -54,6 +55,7 @@ const PAGE_SIZE = 20;
                 <td class="px-1 py-2 text-slate-200">{{ row.absent }}</td>
                 <td class="px-1 py-2 text-slate-200">{{ row.off }}</td>
                 <td class="whitespace-nowrap px-1 py-2 text-slate-200">{{ hours(row.workedMinutes) }}</td>
+                <td class="whitespace-nowrap px-1 py-2 text-emerald-300">{{ row.extraMinutes ? hours(row.extraMinutes) : '–' }}</td>
                 <td class="whitespace-nowrap px-3 py-2 text-right font-semibold text-white">{{ row.lateFees | taka }}</td>
               </tr>
             } @empty {

@@ -70,7 +70,10 @@ const PAGE_SIZE = 20;
                     <span class="block text-xs" [class]="placeClass(row.record!, 'out')">{{ place(row.record!, 'out') }}</span>
                   } @else { – }
                 </td>
-                <td class="cell-inline whitespace-nowrap px-4 py-3 text-slate-200" data-label="Hours">{{ row.record?.workedMinutes != null ? hours(row.record!.workedMinutes!) : '–' }}</td>
+                <td class="cell-inline whitespace-nowrap px-4 py-3 text-slate-200" data-label="Hours">
+                  {{ row.record?.workedMinutes != null ? hours(row.record!.workedMinutes!) : '–' }}
+                  @if (row.record?.extraMinutes) { <span class="block text-xs text-emerald-300">+{{ hours(row.record!.extraMinutes) }} extra</span> }
+                </td>
                 <td class="cell-inline px-4 py-3" data-label="Status">
                   <span class="whitespace-nowrap rounded-full border px-2 py-0.5 text-xs" [class]="statusClasses[row.status]">{{ statusLabels[row.status] }}</span>
                   @if (row.record?.reviewStatus === 'PENDING') { <span class="mt-1 block text-xs text-amber-300">Waiting for approval</span> }

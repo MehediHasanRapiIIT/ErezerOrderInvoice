@@ -227,12 +227,13 @@ public class RemoteService {
                 .forEach(this::recalc);
     }
 
-    /** Closes a session left open past the end of its hours, or past midnight without hours, and flags the day. */
+    /**
+     * Closes a session still open at midnight and flags the day. Working past the end of the hours is allowed, so only
+     * midnight shows that Reply Off was forgotten; the time it was left open never counts as extra.
+     */
     private void closeIfDue(Session session, Instant now) {
         Day day = loadDay(session.dayId());
-        Instant endOfHours = day.shiftEnd() == null ? null : instant(day.date(), day.shiftEnd());
-        Instant midnight = day.date().plusDays(1).atStartOfDay(appProperties.zoneId()).toInstant();
-        Instant cutoff = endOfHours != null && endOfHours.isAfter(session.onAt()) ? endOfHours : midnight;
+        Instant cutoff = day.date().plusDays(1).atStartOfDay(appProperties.zoneId()).toInstant();
         if (now.isBefore(cutoff)) {
             return;
         }
@@ -290,8 +291,8 @@ public class RemoteService {
         List<PersonCard> cards = workers().stream().map(w -> {
             Summary s = summarize(byUser.getOrDefault(w.getKey(), List.of()));
             Instant since = openSince.get(w.getKey());
-            return new PersonCard(w.getKey(), w.getValue(), since != null, since, s.workedMinutes(), s.daysWorked(), s.lateDays(),
-                    s.earlyDays(), s.notTurnedOff(), s.lateFees());
+            return new PersonCard(w.getKey(), w.getValue(), since != null, since, s.workedMinutes(), s.extraMinutes(), s.daysWorked(),
+                    s.lateDays(), s.earlyDays(), s.notTurnedOff(), s.lateFees());
         }).toList();
         return slice(cards, page, size);
     }
@@ -519,12 +520,13 @@ public class RemoteService {
 
     private static Summary summarize(List<DayView> days) {
         long worked = days.stream().mapToLong(DayView::workedMinutes).sum();
+        long extra = days.stream().mapToLong(DayView::extraMinutes).sum();
         long daysWorked = days.stream().filter(d -> !d.sessions().isEmpty()).count();
         long late = days.stream().filter(d -> d.lateMinutes() > 0).count();
         long early = days.stream().filter(d -> d.earlyMinutes() > 0).count();
         long forgot = days.stream().filter(DayView::notTurnedOff).count();
         BigDecimal fees = days.stream().map(DayView::lateFee).reduce(BigDecimal.ZERO, BigDecimal::add);
-        return new Summary(worked, daysWorked, late, early, forgot, fees);
+        return new Summary(worked, extra, daysWorked, late, early, forgot, fees);
     }
 
     /** A day with nothing recorded: off, still to come, missed, or nothing expected without hours. */
@@ -547,7 +549,7 @@ public class RemoteService {
         Optional<AttendanceService.Hours> hours = attendance.hoursFor(userId, date);
         return new DayView(null, userId, name, date, hours.map(AttendanceService.Hours::start).orElse(null),
                 hours.map(AttendanceService.Hours::end).orElse(null), emptyStatus(userId, date), 0, 0, null, null, false, "NONE",
-                BigDecimal.ZERO, null, null, 0, false, List.of());
+                BigDecimal.ZERO, null, null, 0, 0, false, List.of());
     }
 
     private List<DayView> views(List<Day> days) {
@@ -570,12 +572,37 @@ public class RemoteService {
             List<Session> list = byDay.getOrDefault(d.id(), List.of()).stream().sorted(Comparator.comparing(Session::onAt)).toList();
             boolean on = list.stream().anyMatch(s -> s.offAt() == null);
             long worked = list.stream().mapToLong(s -> s.minutes(now)).sum();
+            long extra = list.stream().mapToLong(s -> extraMinutes(d, s, now)).sum();
             return new DayView(d.id(), d.userId(), UserDirectory.nameOf(names, d.userId()), d.date(), d.shiftStart(), d.shiftEnd(),
                     status(d, on), d.lateMinutes(), d.earlyMinutes(), d.lateReason(), d.earlyReason(), d.notTurnedOff(), d.reviewStatus(),
-                    d.lateFee(), d.reviewedBy() == null ? null : UserDirectory.nameOf(names, d.reviewedBy()), d.reviewNote(), worked, on,
+                    d.lateFee(), d.reviewedBy() == null ? null : UserDirectory.nameOf(names, d.reviewedBy()), d.reviewNote(), worked, extra, on,
                     list.stream().map(s -> new SessionView(s.id(), s.onAt(), s.offAt(), s.minutes(now), s.autoClosed(),
                             s.image() == null ? null : files.url(s.image()), s.note(), s.offNote(), s.editNote())).toList());
         }).toList();
+    }
+
+    /**
+     * Time a session spent before the start or after the end of the day's hours. Nothing without hours, and nothing
+     * for a session the system had to close, until an admin fixes its times.
+     */
+    private long extraMinutes(Day d, Session s, Instant now) {
+        if (d.shiftStart() == null || s.autoClosed()) {
+            return 0;
+        }
+        Instant start = instant(d.date(), d.shiftStart());
+        Instant end = instant(d.date(), d.shiftEnd());
+        Instant off = s.offAt() == null ? now : s.offAt();
+        long before = Math.max(0, Duration.between(s.onAt(), min(off, start)).toMinutes());
+        long after = Math.max(0, Duration.between(max(s.onAt(), end), off).toMinutes());
+        return before + after;
+    }
+
+    private static Instant min(Instant a, Instant b) {
+        return a.isBefore(b) ? a : b;
+    }
+
+    private static Instant max(Instant a, Instant b) {
+        return a.isAfter(b) ? a : b;
     }
 
     private static String status(Day d, boolean on) {

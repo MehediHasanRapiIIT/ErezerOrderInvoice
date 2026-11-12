@@ -103,7 +103,8 @@ public final class AttendanceDtos {
             Instant reviewedAt,
             String reviewNote,
             String editNote,
-            Integer workedMinutes) {
+            Integer workedMinutes,
+            int extraMinutes) {
     }
 
     /**
@@ -136,7 +137,7 @@ public final class AttendanceDtos {
     }
 
     public record MonthRow(long userId, String fullName, List<DayCell> days, int present, int late, int early,
-            int absent, int off, BigDecimal lateFees, long workedMinutes) {
+            int absent, int off, BigDecimal lateFees, long workedMinutes, long extraMinutes) {
     }
 
     public record MonthSheet(String month, List<LocalDate> dates, List<MonthRow> rows, int page, int size,
@@ -148,6 +149,7 @@ public final class AttendanceDtos {
     }
 
     /** The cards above the lists. Only days with both a check-in and a check-out count as hours worked. */
-    public record Summary(long workedMinutes, BigDecimal lateFees) {
+    /** @param extraMinutes time worked after the check-out time */
+    public record Summary(long workedMinutes, long extraMinutes, BigDecimal lateFees) {
     }
 }

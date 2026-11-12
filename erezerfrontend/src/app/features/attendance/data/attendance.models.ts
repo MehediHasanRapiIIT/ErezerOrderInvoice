@@ -82,6 +82,8 @@ export interface AttendanceRecord {
   editNote?: string;
   /** Only once the day has both a check-in and a check-out. */
   workedMinutes?: number;
+  /** Time after the check-out time, for staying late. */
+  extraMinutes: number;
 }
 
 export interface Shift {
@@ -174,6 +176,7 @@ export interface MonthRow {
   off: number;
   lateFees: number;
   workedMinutes: number;
+  extraMinutes: number;
 }
 
 export interface MonthSheet {
@@ -193,6 +196,8 @@ export interface EmployeeOption {
 
 export interface AttendanceSummary {
   workedMinutes: number;
+  /** Time after the check-out time, for staying late. */
+  extraMinutes: number;
   lateFees: number;
 }
 
