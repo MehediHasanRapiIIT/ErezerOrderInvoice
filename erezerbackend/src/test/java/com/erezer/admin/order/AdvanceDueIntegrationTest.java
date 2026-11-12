@@ -9,7 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.erezer.admin.support.IntegrationTest;
 import java.util.List;
-import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -63,7 +63,9 @@ class AdvanceDueIntegrationTest extends IntegrationTest {
 
     @Test
     void filterByAdvancePaidOrDue() throws Exception {
-        String tag = UUID.randomUUID().toString().substring(0, 6);
+        // Letters only: digits in the search also match phone numbers, which other tests' orders share.
+        String tag = ThreadLocalRandom.current().ints(8, 'a', 'z' + 1)
+                .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append).toString();
         long partly = create(1000, 60, 300, tag);
         long fullyPaid = create(1000, 60, 1060, tag);
         long nothingPaid = create(1000, 60, null, tag);
