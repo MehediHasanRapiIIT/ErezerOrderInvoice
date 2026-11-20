@@ -45,6 +45,10 @@ public class Order extends AuditableEntity {
     @Column(name = "customer_phone_key", insertable = false, updatable = false, length = 30)
     private String customerPhoneKey;
 
+    /** When the order was entered, set by the database; unlike the order date it never changes. Read-only. */
+    @Column(name = "entered_at", insertable = false, updatable = false)
+    private Instant enteredAt;
+
     @Column(name = "customer_email", length = 160)
     private String customerEmail;
 
@@ -475,6 +479,10 @@ public class Order extends AuditableEntity {
 
     public Instant getReturnedAt() {
         return returnedAt;
+    }
+
+    public Instant getEnteredAt() {
+        return enteredAt;
     }
 
     public BigDecimal getCourierCharge() {

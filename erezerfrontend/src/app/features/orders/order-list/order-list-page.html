@@ -95,6 +95,11 @@
         <option value="SALE" [selected]="'SALE' === type()">Sales</option>
         <option value="EXCHANGE" [selected]="'EXCHANGE' === type()">Exchanges</option>
       </select>
+      <select class="field w-auto" (change)="setFilter('sort', $any($event.target).value)" aria-label="Sort orders">
+        @for (s of sortOptions; track s.value) {
+          <option [value]="s.value" [selected]="s.value === sort()">Sort: {{ s.label }}</option>
+        }
+      </select>
       @if (hasFilters()) {
         <button type="button" class="cursor-pointer px-2 text-sm text-slate-400 hover:text-white" (click)="clearFilters()">
           <i class="fas fa-times mr-1"></i>Clear filters
@@ -358,6 +363,9 @@
   } @else {
     <p class="text-slate-200">{{ order.createdAt | bdDate: 'd MMM y' }}</p>
     <p class="text-xs text-slate-400">{{ order.createdAt | bdDate: 'h:mm a' }}</p>
+  }
+  @if (enteredElsewhere(order)) {
+    <p class="text-[11px] text-sky-300" title="When the order was entered">Entered {{ order.enteredAt | bdDate: 'd MMM, h:mm a' }}</p>
   }
 </ng-template>
 

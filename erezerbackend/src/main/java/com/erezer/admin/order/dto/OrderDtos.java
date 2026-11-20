@@ -204,7 +204,8 @@ public final class OrderDtos {
             BigDecimal due,
             PaymentMethod paymentMethod,
             OrderStatus status,
-            Instant createdAt) {
+            Instant createdAt,
+            Instant enteredAt) {
     }
 
     public record OrderDetail(

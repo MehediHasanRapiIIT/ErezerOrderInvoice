@@ -172,7 +172,8 @@ public class OrderQueryService {
 
     private static OrderSummary toSummary(Order o) {
         return new OrderSummary(o.getId(), o.getOrderNumber(), o.getOrderType(), o.getCustomerName(), o.getCustomerPhone(),
-                o.getTotal(), o.getAdvanceAmount(), o.getDueAmount(), o.getPaymentMethod(), o.getStatus(), o.getCreatedAt());
+                o.getTotal(), o.getAdvanceAmount(), o.getDueAmount(), o.getPaymentMethod(), o.getStatus(), o.getCreatedAt(),
+                o.getEnteredAt());
     }
 
     private static UserRef userRef(Map<Long, String> names, Long id) {

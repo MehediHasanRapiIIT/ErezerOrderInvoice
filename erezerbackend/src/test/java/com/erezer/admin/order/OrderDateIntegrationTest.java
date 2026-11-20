@@ -1,5 +1,6 @@
 package com.erezer.admin.order;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -12,6 +13,8 @@ import com.erezer.admin.security.Role;
 import com.erezer.admin.support.IntegrationTest;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -40,6 +43,26 @@ class OrderDateIntegrationTest extends IntegrationTest {
         edit(admin, id, lastWeek).andExpect(status().isOk())
                 .andExpect(jsonPath("$.createdAt").value(lastWeek.toString()))
                 .andExpect(jsonPath("$.notes[0].body").value(startsWith("Order date changed from")));
+    }
+
+    @Test
+    void theEntryTimeStaysWhenTheOrderDateChangesAndTheListSortsByIt() throws Exception {
+        String tag = "Entry " + ThreadLocalRandom.current().ints(8, 'a', 'z' + 1)
+                .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append);
+        long first = id(createNamed(tag, null));
+        Instant fiveDaysAgo = Instant.now().minus(5, ChronoUnit.DAYS).truncatedTo(ChronoUnit.SECONDS);
+        long second = id(createNamed(tag, fiveDaysAgo));
+
+        // By order date the backdated one is last; by entry it is the newest.
+        assertThat(listIds(tag, null)).containsExactly(first, second);
+        assertThat(listIds(tag, "entered,desc")).containsExactly(second, first);
+        assertThat(listIds(tag, "entered,asc")).containsExactly(first, second);
+
+        MvcResult list = mvc.perform(get("/api/orders").param("q", tag).param("sort", "entered,desc").header("Authorization", admin))
+                .andExpect(jsonPath("$.content[0].createdAt").value(fiveDaysAgo.toString()))
+                .andReturn();
+        Instant entered = Instant.parse(read(list, "$.content[0].enteredAt"));
+        assertThat(entered).isAfter(Instant.now().minus(5, ChronoUnit.MINUTES));
     }
 
     @Test
@@ -124,6 +147,21 @@ class OrderDateIntegrationTest extends IntegrationTest {
     private ResultActions delivered(String bearer, long id, Instant when) throws Exception {
         return mvc.perform(put("/api/orders/" + id + "/delivered-date").header("Authorization", bearer)
                 .contentType(MediaType.APPLICATION_JSON).content("{\"deliveredAt\":\"" + when + "\"}"));
+    }
+
+    private MvcResult createNamed(String name, Instant orderedAt) throws Exception {
+        return mvc.perform(post("/api/orders").header("Authorization", admin).contentType(MediaType.APPLICATION_JSON)
+                        .content(json(orderedAt, null).replace("Date Test", name)))
+                .andExpect(status().isCreated()).andReturn();
+    }
+
+    private List<Long> listIds(String q, String sort) throws Exception {
+        var request = get("/api/orders").param("q", q).header("Authorization", admin);
+        if (sort != null) {
+            request = request.param("sort", sort);
+        }
+        List<Number> ids = read(mvc.perform(request).andExpect(status().isOk()).andReturn(), "$.content[*].id");
+        return ids.stream().map(Number::longValue).toList();
     }
 
     private ResultActions create(String bearer, Instant orderedAt) throws Exception {

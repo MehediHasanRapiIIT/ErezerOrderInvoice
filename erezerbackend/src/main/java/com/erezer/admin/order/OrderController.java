@@ -45,8 +45,10 @@ class OrderController {
 
     private static final int MAX_PAGE_SIZE = 100;
     /** API sort keys mapped to entity properties; anything else is rejected. */
+    /** "entered" sorts by entry: ids are given out in the order orders are entered, old ones included. */
     private static final Map<String, String> SORTABLE = Map.of(
             "createdAt", "createdAt",
+            "entered", "id",
             "total", "total",
             "orderNumber", "orderNumber",
             "customerName", "customerName");

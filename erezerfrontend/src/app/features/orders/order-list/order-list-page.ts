@@ -30,6 +30,13 @@ const SEARCH_DEBOUNCE_MS = 350;
 
 /** Order list. All filter state lives in the URL, so reload, back/forward and shared links keep it. */
 const BALANCE_FILTERS: readonly string[] = ['ADVANCE', 'DUE'];
+/** "Entry" is when the order was typed in, which a changed order date doesn't affect. */
+const SORT_OPTIONS: readonly { value: string; label: string }[] = [
+  { value: '', label: 'Order date, newest' },
+  { value: 'createdAt,asc', label: 'Order date, oldest' },
+  { value: 'entered,desc', label: 'Entry, newest' },
+  { value: 'entered,asc', label: 'Entry, oldest' },
+];
 
 @Component({
   selector: 'app-order-list-page',
@@ -65,6 +72,8 @@ export class OrderListPage {
   protected readonly payment = computed(() => this.params().get('payment') ?? '');
   protected readonly type = computed(() => (this.params().get('type') as OrderType | null) ?? '');
   protected readonly range = computed<DateRange>(() => (this.params().get('range') as DateRange | null) ?? 'all');
+  protected readonly sort = computed(() => this.params().get('sort') ?? '');
+  protected readonly sortOptions = SORT_OPTIONS;
   protected readonly page = computed(() => Math.max(0, Number(this.params().get('page') ?? 0) || 0));
   protected readonly tabStatuses = computed(() => TAB_STATUSES[this.tab()]);
   protected readonly hasFilters = computed(
@@ -80,6 +89,7 @@ export class OrderListPage {
     balance: BALANCE_FILTERS.includes(this.payment()) ? (this.payment() as 'ADVANCE' | 'DUE') : undefined,
     type: this.type() || undefined,
     ...dateBounds(this.range()),
+    sort: this.sort() || undefined,
     page: this.page(),
     size: PAGE_SIZE,
   }));
@@ -277,7 +287,12 @@ export class OrderListPage {
     this.searchTimer = setTimeout(() => this.updateParams({ q: value.trim() || null, page: null }), SEARCH_DEBOUNCE_MS);
   }
 
-  protected setFilter(key: 'status' | 'payment' | 'type' | 'range', value: string): void {
+  /** Shows the entry time only when someone changed the order date away from it. */
+  protected enteredElsewhere(order: OrderSummary): boolean {
+    return Math.abs(Date.parse(order.enteredAt) - Date.parse(order.createdAt)) >= 60_000;
+  }
+
+  protected setFilter(key: 'status' | 'payment' | 'type' | 'range' | 'sort', value: string): void {
     this.updateParams({ [key]: value && value !== 'all' ? value : null, page: null });
   }
 

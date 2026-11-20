@@ -134,7 +134,7 @@ export class OrderApi {
 
 function filterParams(query: OrderQuery): HttpParams {
   let params = new HttpParams().set('tab', query.tab);
-  for (const key of ['q', 'status', 'paymentMethod', 'type', 'balance', 'from', 'to'] as const) {
+  for (const key of ['q', 'status', 'paymentMethod', 'type', 'balance', 'from', 'to', 'sort'] as const) {
     const value = query[key];
     if (value) {
       params = params.set(key, value);

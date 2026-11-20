@@ -35,6 +35,8 @@ export interface OrderSummary {
   paymentMethod: PaymentMethod;
   status: OrderStatus;
   createdAt: string;
+  /** When the order was actually entered; never changes, unlike the order date. */
+  enteredAt: string;
 }
 
 export interface OrderStats {
@@ -346,6 +348,8 @@ export interface OrderQuery {
   balance?: 'ADVANCE' | 'DUE';
   from?: string;
   to?: string;
+  /** e.g. "entered,desc"; empty is newest order date first. */
+  sort?: string;
   page: number;
   size: number;
 }
