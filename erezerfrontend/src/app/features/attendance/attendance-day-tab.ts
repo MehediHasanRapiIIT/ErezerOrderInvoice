@@ -85,7 +85,7 @@ const PAGE_SIZE = 20;
                 </td>
                 <td class="cell-actions px-4 py-3 text-right">
                   <div class="flex justify-end gap-2">
-                    @if (canApprove && row.record) {
+                    @if (canApprove && row.record && row.userId !== myId && (row.record.reviewStatus === 'PENDING' || canFee)) {
                       <button type="button" class="btn-secondary" (click)="reviewing.set(row.record)">{{ row.record.reviewStatus === 'PENDING' ? 'Review' : 'Late fee' }}</button>
                     }
                     @if (canEdit) {
@@ -156,6 +156,8 @@ export class AttendanceDayTab {
   protected readonly time = time12;
   protected readonly hours = hoursLabel;
   protected readonly canApprove = this.auth.hasPermission('ATTENDANCE_APPROVE');
+  protected readonly canFee = this.auth.hasPermission('LATE_FEE');
+  protected readonly myId = this.auth.user()?.id;
   protected readonly canEdit = this.auth.hasPermission('ATTENDANCE_EDIT');
   protected readonly canDelete = this.auth.hasPermission('ATTENDANCE_DELETE');
   /** Today in the current month, otherwise the 1st. */

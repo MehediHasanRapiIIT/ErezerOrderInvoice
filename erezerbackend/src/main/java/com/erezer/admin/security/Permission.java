@@ -14,6 +14,7 @@ public enum Permission {
     DASHBOARD_VIEW("Dashboard", "View dashboard", false),
 
     ORDER_VIEW("Orders", "View orders", false),
+    ORDER_EXPORT("Orders", "Export orders to Excel", false),
     ORDER_CREATE("Orders", "Create orders", false),
     ORDER_EDIT("Orders", "Edit orders", false),
     ORDER_STATUS_UPDATE("Orders", "Update order status", false),
@@ -26,6 +27,7 @@ public enum Permission {
     RETURN_CREATE("Orders", "Create returns", false),
 
     EXPENSE_VIEW("Expenses", "View expenses", false),
+    EXPENSE_EXPORT("Expenses", "Export expenses to Excel", false),
     EXPENSE_CREATE("Expenses", "Add expenses", false),
     EXPENSE_EDIT("Expenses", "Edit expenses", false),
     EXPENSE_DELETE("Expenses", "Delete expenses", false),
@@ -69,17 +71,21 @@ public enum Permission {
 
     ATTENDANCE_MARK("Attendance", "Check in and out (own attendance)", false),
     ATTENDANCE_VIEW("Attendance", "View everyone's attendance", false),
-    ATTENDANCE_APPROVE("Attendance", "Approve late / early days and add late fees", false),
+    ATTENDANCE_APPROVE("Attendance", "Approve late / early days", false),
+    LATE_FEE("Attendance", "Add, change or remove late fees (office and remote)", false),
+    ATTENDANCE_EXPORT("Attendance", "Export the monthly sheet to Excel", false),
     ATTENDANCE_EDIT("Attendance", "Correct attendance by hand", false),
     ATTENDANCE_DELETE("Attendance", "Delete attendance records", false),
     ATTENDANCE_SETTINGS("Attendance", "Manage shifts and locations", false),
 
     REMOTE_MARK("Remote attendance", "Reply On and Off (own remote attendance)", false),
     REMOTE_VIEW("Remote attendance", "View everyone's remote attendance", false),
-    REMOTE_APPROVE("Remote attendance", "Approve late / early days and add late fees", false),
+    REMOTE_APPROVE("Remote attendance", "Approve late / early days", false),
+    REMOTE_EXPORT("Remote attendance", "Export remote attendance to Excel", false),
     REMOTE_EDIT("Remote attendance", "Add, edit and delete remote sessions", false),
 
     SALES_VIEW("Sold products", "View sold products", false),
+    SALES_EXPORT("Sold products", "Export sold products to Excel", false),
 
     STOCK_VIEW("Stock", "View stock", false),
     STOCK_MANAGE("Stock", "Add and update stock", false),
@@ -123,15 +129,16 @@ public enum Permission {
     public Set<Permission> includes() {
         return switch (this) {
             case ORDER_EDIT, ORDER_STATUS_UPDATE, ORDER_NOTE_ADD, ORDER_COURIER_COST, ORDER_DELETE, ORDER_DATE_EDIT,
-                    EXCHANGE_CREATE, RETURN_CREATE, COURIER_SEND -> EnumSet.of(ORDER_VIEW);
+                    EXCHANGE_CREATE, RETURN_CREATE, COURIER_SEND, ORDER_EXPORT -> EnumSet.of(ORDER_VIEW);
             case ORDER_STATUS_OVERRIDE -> EnumSet.of(ORDER_VIEW, ORDER_STATUS_UPDATE);
-            case EXPENSE_CREATE, EXPENSE_EDIT, EXPENSE_DELETE -> EnumSet.of(EXPENSE_VIEW);
+            case EXPENSE_CREATE, EXPENSE_EDIT, EXPENSE_DELETE, EXPENSE_EXPORT -> EnumSet.of(EXPENSE_VIEW);
+            case SALES_EXPORT -> EnumSet.of(SALES_VIEW);
             case ASSET_COSTS_VIEW, ASSET_HISTORY_VIEW, ASSET_CREATE, ASSET_MANAGE, ASSET_STATUS, ASSET_REPAIRS,
                     ASSET_CATEGORIES, ASSET_EXPORT, ASSET_DELETE -> EnumSet.of(ASSET_VIEW);
             case STOCK_MANAGE, SIZE_MANAGE -> EnumSet.of(STOCK_VIEW);
             case CUSTOMER_EXPORT -> EnumSet.of(CUSTOMER_VIEW);
-            case ATTENDANCE_APPROVE, ATTENDANCE_EDIT, ATTENDANCE_DELETE, ATTENDANCE_SETTINGS -> EnumSet.of(ATTENDANCE_VIEW);
-            case REMOTE_APPROVE, REMOTE_EDIT -> EnumSet.of(REMOTE_VIEW);
+            case ATTENDANCE_APPROVE, ATTENDANCE_EDIT, ATTENDANCE_DELETE, ATTENDANCE_SETTINGS, ATTENDANCE_EXPORT -> EnumSet.of(ATTENDANCE_VIEW);
+            case REMOTE_APPROVE, REMOTE_EDIT, REMOTE_EXPORT -> EnumSet.of(REMOTE_VIEW);
             case EMPLOYEE_CREATE, EMPLOYEE_EDIT, EMPLOYEE_DELETE -> EnumSet.of(EMPLOYEE_VIEW);
             case DAILY_EXPENSE_APPROVE, DAILY_EXPENSE_EDIT, DAILY_EXPENSE_DELETE, DAILY_EXPENSE_CATEGORIES -> EnumSet.of(DAILY_EXPENSE_VIEW);
             case BOOST_COST_ADD, BOOST_BUY, BOOST_EDIT, BOOST_DELETE -> EnumSet.of(BOOST_VIEW);

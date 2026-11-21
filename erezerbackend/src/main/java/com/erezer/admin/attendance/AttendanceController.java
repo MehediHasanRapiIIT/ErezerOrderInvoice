@@ -21,6 +21,7 @@ import com.erezer.admin.common.web.PageResponse;
 import com.erezer.admin.notification.NotificationAction;
 import com.erezer.admin.notification.Notifies;
 import com.erezer.admin.security.CurrentUser;
+import com.erezer.admin.security.Permission;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -130,7 +131,7 @@ class AttendanceController {
     }
 
     @GetMapping("/month/export.xlsx")
-    @PreAuthorize("hasAuthority('ATTENDANCE_VIEW')")
+    @PreAuthorize("hasAuthority('ATTENDANCE_EXPORT')")
     ResponseEntity<byte[]> exportMonth(@RequestParam YearMonth month, @RequestParam(required = false) Long userId) {
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
@@ -151,7 +152,7 @@ class AttendanceController {
     @PostMapping("/records/{id}/review")
     @PreAuthorize("hasAuthority('ATTENDANCE_APPROVE')")
     RecordView review(@PathVariable long id, @Valid @RequestBody ReviewRequest request) {
-        return attendance.review(id, request, CurrentUser.id());
+        return attendance.review(id, request, CurrentUser.id(), CurrentUser.has(Permission.LATE_FEE));
     }
 
     @Notifies(NotificationAction.ATTENDANCE_DELETED)

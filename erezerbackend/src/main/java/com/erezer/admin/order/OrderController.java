@@ -115,7 +115,7 @@ class OrderController {
 
     /** Same filters as {@link #list}, as an .xlsx download of every matching order. */
     @GetMapping("/export.xlsx")
-    @PreAuthorize("hasAuthority('ORDER_VIEW')")
+    @PreAuthorize("hasAuthority('ORDER_EXPORT')")
     ResponseEntity<byte[]> export(
             @RequestParam(required = false) String tab,
             @RequestParam(required = false) List<OrderStatus> status,

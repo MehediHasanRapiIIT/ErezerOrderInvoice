@@ -15,6 +15,7 @@ import com.erezer.admin.common.web.PageResponse;
 import com.erezer.admin.notification.NotificationAction;
 import com.erezer.admin.notification.Notifies;
 import com.erezer.admin.security.CurrentUser;
+import com.erezer.admin.security.Permission;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -143,7 +144,7 @@ class RemoteController {
     @PostMapping("/api/remote/days/{id}/review")
     @PreAuthorize("hasAuthority('REMOTE_APPROVE')")
     DayView review(@PathVariable long id, @Valid @RequestBody ReviewRequest request) {
-        return remote.review(id, request.lateFee(), request.note(), CurrentUser.id());
+        return remote.review(id, request.lateFee(), request.note(), CurrentUser.id(), CurrentUser.has(Permission.LATE_FEE));
     }
 
     @Notifies(NotificationAction.REMOTE_DAY_DELETED)
@@ -183,7 +184,7 @@ class RemoteController {
     }
 
     @GetMapping("/api/remote/month/export.xlsx")
-    @PreAuthorize("hasAuthority('REMOTE_VIEW')")
+    @PreAuthorize("hasAuthority('REMOTE_EXPORT')")
     ResponseEntity<byte[]> exportMonth(@RequestParam YearMonth month) {
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))

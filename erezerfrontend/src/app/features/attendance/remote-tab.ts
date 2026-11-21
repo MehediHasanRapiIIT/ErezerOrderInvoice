@@ -41,9 +41,11 @@ interface SessionDraft {
         }
       </select>
       <input type="month" class="field w-full sm:w-auto" [ngModel]="month()" (ngModelChange)="setMonth($event)" aria-label="Month" />
-      <button type="button" class="btn-secondary" (click)="exportExcel()" [disabled]="exporting()">
-        <i class="fas" [class.fa-file-excel]="!exporting()" [class.text-emerald-400]="!exporting()" [class.fa-circle-notch]="exporting()" [class.fa-spin]="exporting()"></i> Export
-      </button>
+      @if (canExport) {
+        <button type="button" class="btn-secondary" (click)="exportExcel()" [disabled]="exporting()">
+          <i class="fas" [class.fa-file-excel]="!exporting()" [class.text-emerald-400]="!exporting()" [class.fa-circle-notch]="exporting()" [class.fa-spin]="exporting()"></i> Export
+        </button>
+      }
     </div>
 
     <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-7">
@@ -140,7 +142,7 @@ interface SessionDraft {
                   </ul>
                 }
                 <div class="mt-3 flex flex-wrap gap-2">
-                  @if (canApprove && d.id) {
+                  @if (canApprove && d.id && d.userId !== myId && (d.reviewStatus === 'PENDING' || canFee)) {
                     <button type="button" class="btn-secondary" (click)="startReview(d)"><i class="fas fa-check"></i> {{ d.reviewStatus === 'PENDING' ? 'Approve' : 'Late fee' }}</button>
                   }
                   @if (canEdit) {
@@ -196,13 +198,17 @@ interface SessionDraft {
             @if (d.earlyReason) { <p class="text-slate-200"><span class="text-slate-400">Reason:</span> {{ d.earlyReason }}</p> }
             @if (d.notTurnedOff) { <p class="text-sky-300">Forgot Reply Off; the system closed it.</p> }
           </div>
-          <label class="field-label mt-4 block" for="remote-fee">Late fee (leave 0 for none)</label>
-          <input id="remote-fee" name="lateFee" type="number" min="0" step="1" class="field" [(ngModel)]="fee" />
+          @if (canFee) {
+            <label class="field-label mt-4 block" for="remote-fee">Late fee (leave 0 for none)</label>
+            <input id="remote-fee" name="lateFee" type="number" min="0" step="1" class="field" [(ngModel)]="fee" />
+          } @else if (d.lateFee > 0) {
+            <p class="mt-4 text-sm text-rose-300">Late fee: {{ d.lateFee | taka }} (only an admin can change it)</p>
+          }
           <label class="field-label mt-3 block" for="remote-review-note">Note (optional)</label>
           <input id="remote-review-note" name="note" class="field" maxlength="500" [(ngModel)]="reviewNote" />
           <div class="mt-5 flex flex-wrap justify-end gap-2">
             <button type="button" class="btn-secondary" (click)="reviewing.set(null)">Cancel</button>
-            @if (d.lateFee > 0) { <button type="button" class="btn-secondary text-red-300" [disabled]="saving()" (click)="saveReview(0)">Remove fee</button> }
+            @if (canFee && d.lateFee > 0) { <button type="button" class="btn-secondary text-red-300" [disabled]="saving()" (click)="saveReview(0)">Remove fee</button> }
             <button type="submit" class="btn-primary" [disabled]="saving()">{{ d.reviewStatus !== 'PENDING' ? 'Save fee' : (fee || 0) > 0 ? 'Add fee & approve' : 'Approve' }}</button>
           </div>
         </form>
@@ -239,6 +245,9 @@ export class RemoteTab {
 
   protected readonly canApprove = this.auth.hasPermission('REMOTE_APPROVE');
   protected readonly canEdit = this.auth.hasPermission('REMOTE_EDIT');
+  protected readonly canFee = this.auth.hasPermission('LATE_FEE');
+  protected readonly canExport = this.auth.hasPermission('REMOTE_EXPORT');
+  protected readonly myId = this.auth.user()?.id;
   protected readonly views: readonly { value: View; label: string }[] = [
     { value: 'people', label: 'Moderators' },
     { value: 'days', label: 'Daily' },

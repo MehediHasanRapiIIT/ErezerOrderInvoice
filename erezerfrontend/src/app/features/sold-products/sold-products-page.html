@@ -3,7 +3,7 @@
     <h1 class="page-title">Sold Products</h1>
     <p class="page-subtitle">Delivered sales by category (the product name on the order). Discount, delivery charge and courier cost are shared by pieces.</p>
   </div>
-  <button type="button" class="btn-secondary" (click)="exportExcel()" [disabled]="exporting()" title="Export the filtered list to Excel">
+  <button *appHasPermission="'SALES_EXPORT'" type="button" class="btn-secondary" (click)="exportExcel()" [disabled]="exporting()" title="Export the filtered list to Excel">
     <i class="fas" [class.fa-file-excel]="!exporting()" [class.text-emerald-400]="!exporting()" [class.fa-circle-notch]="exporting()" [class.fa-spin]="exporting()"></i> Export
   </button>
 </div>

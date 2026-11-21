@@ -89,6 +89,8 @@ The schema is managed only by Flyway (`erezerbackend/src/main/resources/db/migra
 
 ### Invoices and exports
 
+**Who can export:** each Excel export has its own permission, separate from viewing: *Export orders to Excel* (`ORDER_EXPORT`), *Export sold products to Excel* (`SALES_EXPORT`), *Export expenses to Excel* (`EXPENSE_EXPORT`), *Export the monthly sheet to Excel* (`ATTENDANCE_EXPORT`), *Export remote attendance to Excel* (`REMOTE_EXPORT`), plus the existing *Export to Excel* for assets and *Export customers*. Admins always have them; nobody else does until an admin ticks them in Staff Management. Without one, the Export button is hidden and the server refuses the download.
+
 - `GET /api/orders/{id}/invoice.pdf` renders the invoice on the server with OpenPDF. Add `?download=true` to get it as a file download.
   - Page 1 is the invoice itself.
   - From page 2, two product slots per page, each with up to two images side by side. A product with more images continues in the next slot.
@@ -196,6 +198,7 @@ Employees and moderators give attendance from their phones under **My Attendance
 - **Check in:** takes a live selfie (no gallery option), reads the phone's position and records the nearest location. Times come from the server in Bangladesh time, so the phone's clock has no effect. One check-in a day.
 - **Photos:** the image is stored in MinIO under `selfies/`, its details in `stored_files`, and the record links to it. Lists show it through a presigned link. A record that is deleted leaves its photo to the nightly orphan purge.
 - **Reasons:** being late (after check-in time + grace, counted from the check-in time), leaving before check-out time, or being outside every location's radius or having no position all need a reason, and the day then waits in **Approvals**.
+- **Late fees** (`LATE_FEE`, *Add, change or remove late fees (office and remote)*): only admins, unless an admin ticks it for someone. *Approve late / early days* alone approves without touching the fee; the fee box is hidden and the server refuses any change. Nobody's own row shows the approve or late fee button.
 - **Approval:** the admin sees the photo, reasons and location, and approves, with a late fee if they choose. An approved day leaves **Approvals** and stays in **Daily**, where **Late fee** changes or removes the fee at any time. Leaving early after an approved late arrival sends the day back for review and keeps the fee.
 - **Staying late:** check-out works any time after the check-out time, and the time after it counts as **extra time**, shown on the day, on Monthly (and in Excel) and in a **Total extra time** card above the lists. It is shown only on the Attendance page, not on the employee's own page. Checking in early doesn't count as extra. Someone still checked in after midnight checks out on the day they checked in, until that day's hours start.
 - **Days off** are never late or absent. Days before someone's shift was first set aren't counted. A day with a check-in and no check-out shows as **No check-out**; hours aren't guessed.
@@ -214,7 +217,7 @@ Shifts must end after they start on the same day, so overnight shifts aren't sup
 For people working from home: no camera and no location, just **Reply On** and **Reply Off** on My Attendance.
 
 - **Office or Remote** is chosen per person in Attendance → Settings (needs *Manage shifts and locations*), and can be switched at any time. A remote worker can't check in at the office and is left out of the office lists; past office days stay. Their hours and days off are set in the same row and are optional: without hours, nothing is late, early or extra. Special hours apply to them too.
-- **Permissions** (group *Remote attendance*): *Reply On and Off* (`REMOTE_MARK`, given to existing moderators by the migration), *View* (`REMOTE_VIEW`), *Approve and add late fees* (`REMOTE_APPROVE`) and *Add, edit and delete sessions* (`REMOTE_EDIT`). Admins hold all of them.
+- **Permissions** (group *Remote attendance*): *Reply On and Off* (`REMOTE_MARK`, given to existing moderators by the migration), *View* (`REMOTE_VIEW`), *Approve late / early days* (`REMOTE_APPROVE`; late fees need *Add, change or remove late fees*), *Export remote attendance to Excel* (`REMOTE_EXPORT`) and *Add, edit and delete sessions* (`REMOTE_EDIT`). Admins hold all of them.
 - **Reply On** takes an optional note and an optional image (stored in MinIO under `remote/`). Several On/Off sessions a day are allowed; only time On counts, so breaks don't. Pressing a button twice changes nothing.
 - **Reply Off** offers **Break** (never asks for a reason) or **Done for today**. Done before the end time needs a reason.
 - **Late:** the first Reply On of the day after start + grace needs a reason. Late or finished early sends the day to **Approvals**, where the admin approves with an optional late fee, and can later change or remove it. A break that never ends counts as finishing early once the hours are over.

@@ -8,7 +8,7 @@
     <button *appHasPermission="['EXPENSE_CREATE', 'EXPENSE_EDIT']" type="button" class="btn-secondary" (click)="showCategories.set(true)">
       <i class="fas fa-tags"></i> Categories
     </button>
-    <button type="button" class="btn-secondary" (click)="exportExcel()" [disabled]="exporting()">
+    <button *appHasPermission="'EXPENSE_EXPORT'" type="button" class="btn-secondary" (click)="exportExcel()" [disabled]="exporting()">
       <i class="fas" [class.fa-file-excel]="!exporting()" [class.text-emerald-400]="!exporting()" [class.fa-circle-notch]="exporting()" [class.fa-spin]="exporting()"></i> Export
     </button>
     <a *appHasPermission="'EXPENSE_CREATE'" routerLink="/expenses/new" class="btn-primary">

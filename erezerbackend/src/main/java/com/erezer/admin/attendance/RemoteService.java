@@ -327,14 +327,16 @@ public class RemoteService {
 
     /** Approves a day, with a late fee if given; also changes or removes (0) the fee of any day. */
     @Transactional
-    public DayView review(long dayId, BigDecimal fee, String note, long adminId) {
+    public DayView review(long dayId, BigDecimal requestedFee, String note, long adminId, boolean canSetFee) {
         Day day = requireDay(dayId);
         requireNotOwn(day.userId(), adminId);
+        BigDecimal fee = requestedFee == null ? day.lateFee() : requestedFee;
+        AttendanceService.requireFeeAllowed(day.lateFee(), fee, canSetFee);
         jdbc.sql("""
                         update remote_days set review_status = 'APPROVED', late_fee = :fee, review_note = :note, reviewed_by = :by,
                             reviewed_at = :now, updated_at = :now where id = :id
                         """)
-                .param("fee", (fee == null ? BigDecimal.ZERO : fee).setScale(2, RoundingMode.HALF_UP)).param("note", blankToNull(note))
+                .param("fee", fee.setScale(2, RoundingMode.HALF_UP)).param("note", blankToNull(note))
                 .param("by", adminId).param("now", Timestamp.from(clock.instant())).param("id", dayId).update();
         return views(List.of(loadDay(dayId))).getFirst();
     }

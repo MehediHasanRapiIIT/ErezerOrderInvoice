@@ -74,7 +74,7 @@ class ExpenseController {
     }
 
     @GetMapping("/export.xlsx")
-    @PreAuthorize("hasAuthority('EXPENSE_VIEW')")
+    @PreAuthorize("hasAuthority('EXPENSE_EXPORT')")
     ResponseEntity<byte[]> export(
             @RequestParam(required = false) String q,
             @RequestParam(required = false) Long categoryId,

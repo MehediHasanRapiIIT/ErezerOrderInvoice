@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, input, linkedSign
 import { rxResource } from '@angular/core/rxjs-interop';
 import { readBlobError } from '../../core/http/api-error';
 import { fileNameFrom, saveBlob } from '../../core/http/file-download';
+import { AuthService } from '../../core/auth/auth.service';
 import { ToastService } from '../../core/notify/toast.service';
 import { BdDatePipe } from '../../shared/ui/bd-date.pipe';
 import { Pagination } from '../../shared/ui/pagination';
@@ -18,9 +19,11 @@ const PAGE_SIZE = 20;
   template: `
     <section class="card overflow-hidden">
       <div class="flex flex-wrap items-center justify-end gap-3 border-b border-line p-4">
-        <button type="button" class="btn-secondary" (click)="exportExcel()" [disabled]="exporting()">
-          <i class="fas" [class.fa-file-excel]="!exporting()" [class.text-emerald-400]="!exporting()" [class.fa-circle-notch]="exporting()" [class.fa-spin]="exporting()"></i> Export
-        </button>
+        @if (canExport) {
+          <button type="button" class="btn-secondary" (click)="exportExcel()" [disabled]="exporting()">
+            <i class="fas" [class.fa-file-excel]="!exporting()" [class.text-emerald-400]="!exporting()" [class.fa-circle-notch]="exporting()" [class.fa-spin]="exporting()"></i> Export
+          </button>
+        }
       </div>
       <div class="overflow-x-auto">
         <table class="w-full text-center text-xs">
@@ -78,6 +81,7 @@ const PAGE_SIZE = 20;
 })
 export class AttendanceMonthTab {
   private readonly api = inject(AttendanceApi);
+  protected readonly canExport = inject(AuthService).hasPermission('ATTENDANCE_EXPORT');
   private readonly toast = inject(ToastService);
 
   protected readonly labels = DAY_STATUS_LABELS;

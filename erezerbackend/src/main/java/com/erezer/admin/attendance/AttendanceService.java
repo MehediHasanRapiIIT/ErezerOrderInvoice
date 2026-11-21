@@ -298,11 +298,12 @@ public class AttendanceService {
 
     /** Approves a day, with a late fee if given. Also changes or removes (0) the fee of any day, at any time. */
     @Transactional
-    public RecordView review(long id, ReviewRequest request, long adminId) {
+    public RecordView review(long id, ReviewRequest request, long adminId, boolean canSetFee) {
         AttendanceRecord record = records.findById(id).orElseThrow(() -> ApiException.notFound("Attendance record", id));
         requireNotOwn(record.getUserId(), adminId);
-        record.review(request.lateFee() == null ? BigDecimal.ZERO : request.lateFee(), blankToNull(request.note()),
-                adminId, clock.instant());
+        BigDecimal fee = request.lateFee() == null ? record.getLateFee() : request.lateFee();
+        requireFeeAllowed(record.getLateFee(), fee, canSetFee);
+        record.review(fee, blankToNull(request.note()), adminId, clock.instant());
         return toViews(List.of(record)).getFirst();
     }
 
@@ -654,6 +655,13 @@ public class AttendanceService {
         }
         return shiftOf(userId).orElseThrow(() ->
                 ApiException.conflict("NO_SHIFT", "Your working hours haven't been set yet. Ask an admin."));
+    }
+
+    /** Approving alone can't change a late fee: that needs the late fee permission. Shared with remote attendance. */
+    static void requireFeeAllowed(BigDecimal current, BigDecimal requested, boolean canSetFee) {
+        if (!canSetFee && requested.compareTo(current) != 0) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "LATE_FEE_NOT_ALLOWED", "Only an admin can add, change or remove late fees");
+        }
     }
 
     /** Nobody approves or corrects their own attendance. */

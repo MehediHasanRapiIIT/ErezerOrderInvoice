@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
+import { HasPermissionDirective } from '../../shared/has-permission.directive';
 import { readBlobError } from '../../core/http/api-error';
 import { fileNameFrom, saveBlob } from '../../core/http/file-download';
 import { ToastService } from '../../core/notify/toast.service';
@@ -31,7 +32,7 @@ const PRESETS: { value: Preset; label: string }[] = [
  */
 @Component({
   selector: 'app-sold-products-page',
-  imports: [RouterLink, BdDatePipe, TakaPipe, Pagination],
+  imports: [RouterLink, BdDatePipe, HasPermissionDirective, TakaPipe, Pagination],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './sold-products-page.html',
 })

@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject, input, OnInit, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { errorMessage } from '../../core/http/api-error';
+import { AuthService } from '../../core/auth/auth.service';
 import { ToastService } from '../../core/notify/toast.service';
 import { BdDatePipe } from '../../shared/ui/bd-date.pipe';
 import { AttendanceApi } from './data/attendance.api';
@@ -36,13 +37,17 @@ import { AttendanceRecord, mapLink } from './data/attendance.models';
         @if (record().checkInReason) { <p class="mt-3 text-sm text-slate-200"><span class="text-slate-400">Check-in reason:</span> {{ record().checkInReason }}</p> }
         @if (record().checkOutReason) { <p class="mt-2 text-sm text-slate-200"><span class="text-slate-400">Check-out reason:</span> {{ record().checkOutReason }}</p> }
 
-        <label class="field-label mt-4 block" for="late-fee">Late fee (leave 0 for none)</label>
-        <input id="late-fee" name="lateFee" type="number" min="0" step="1" class="field" [(ngModel)]="fee" />
+        @if (canFee) {
+          <label class="field-label mt-4 block" for="late-fee">Late fee (leave 0 for none)</label>
+          <input id="late-fee" name="lateFee" type="number" min="0" step="1" class="field" [(ngModel)]="fee" />
+        } @else if (record().lateFee > 0) {
+          <p class="mt-4 text-sm text-rose-300">Late fee: ৳{{ record().lateFee }} (only an admin can change it)</p>
+        }
         <label class="field-label mt-3 block" for="review-note">Note (optional)</label>
         <input id="review-note" name="note" class="field" maxlength="500" [(ngModel)]="note" />
         <div class="mt-5 flex justify-end gap-2">
           <button type="button" class="btn-secondary" (click)="closed.emit(false)">Cancel</button>
-          @if (record().lateFee > 0) {
+          @if (canFee && record().lateFee > 0) {
             <button type="button" class="btn-secondary text-red-300" [disabled]="saving()" (click)="removeFee()">Remove fee</button>
           }
           <button type="submit" class="btn-primary" [disabled]="saving()">{{ !pending ? 'Save fee' : (fee || 0) > 0 ? 'Add fee & approve' : 'Approve' }}</button>
@@ -54,6 +59,7 @@ import { AttendanceRecord, mapLink } from './data/attendance.models';
 })
 export class AttendanceReviewDialog implements OnInit {
   private readonly api = inject(AttendanceApi);
+  protected readonly canFee = inject(AuthService).hasPermission('LATE_FEE');
   private readonly toast = inject(ToastService);
 
   readonly record = input.required<AttendanceRecord>();

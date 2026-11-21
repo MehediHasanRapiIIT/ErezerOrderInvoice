@@ -98,6 +98,35 @@ class AttendanceIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void approvingAloneCannotSetALateFeeAndExportNeedsItsOwnPermission() throws Exception {
+        Staff employee = employee(ALL_LATE, "[]");
+        int id = read(checkIn(employee, inRange(selfie(employee), "Bus")).andExpect(status().isOk()).andReturn(), "$.id");
+        Staff approver = staff(Role.MODERATOR, Permission.ATTENDANCE_APPROVE);
+
+        reviewAs(approver.bearer(), id, "100").andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("LATE_FEE_NOT_ALLOWED"));
+        reviewAs(approver.bearer(), id, "0").andExpect(status().isOk()).andExpect(jsonPath("$.reviewStatus").value("APPROVED"));
+
+        Staff feeSetter = staff(Role.MODERATOR, Permission.ATTENDANCE_APPROVE, Permission.LATE_FEE);
+        reviewAs(feeSetter.bearer(), id, "100").andExpect(status().isOk()).andExpect(jsonPath("$.lateFee").value(100));
+        // The approver can still save a note without touching the fee.
+        reviewAs(approver.bearer(), id, "100").andExpect(status().isOk());
+        reviewAs(approver.bearer(), id, "0").andExpect(status().isForbidden());
+
+        String month = YearMonth.now(DHAKA).toString();
+        mvc.perform(get("/api/attendance/month/export.xlsx").param("month", month).header(HttpHeaders.AUTHORIZATION, approver.bearer()))
+                .andExpect(status().isForbidden());
+        Staff exporter = staff(Role.MODERATOR, Permission.ATTENDANCE_EXPORT);
+        mvc.perform(get("/api/attendance/month/export.xlsx").param("month", month).header(HttpHeaders.AUTHORIZATION, exporter.bearer()))
+                .andExpect(status().isOk());
+    }
+
+    private ResultActions reviewAs(String bearer, int id, String fee) throws Exception {
+        return mvc.perform(post("/api/attendance/records/" + id + "/review").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"lateFee\":" + fee + "}").header(HttpHeaders.AUTHORIZATION, bearer));
+    }
+
+    @Test
     void lateNeedsAReasonAndTheAdminCanAddAFee() throws Exception {
         Staff employee = employee(ALL_LATE, "[]");
         long photo = selfie(employee);

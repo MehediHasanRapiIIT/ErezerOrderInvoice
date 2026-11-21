@@ -73,7 +73,7 @@ class SoldProductController {
     }
 
     @GetMapping("/api/sold-products/export.xlsx")
-    @PreAuthorize("hasAuthority('SALES_VIEW')")
+    @PreAuthorize("hasAuthority('SALES_EXPORT')")
     ResponseEntity<byte[]> export(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
