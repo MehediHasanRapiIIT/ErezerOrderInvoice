@@ -71,11 +71,25 @@
       />
     </div>
     <div class="flex flex-wrap items-center gap-2">
-      <select class="field w-auto" (change)="setFilter('range', $any($event.target).value)" aria-label="Date range">
+      <select class="field w-auto" (change)="setDateRange($any($event.target).value)" aria-label="Date range">
         @for (r of dateRanges; track r.value) {
-          <option [value]="r.value" [selected]="r.value === range()">Date: {{ r.label }}</option>
+          <option [value]="r.value" [selected]="!day() && r.value === range()">Date: {{ r.label }}</option>
         }
+        <option value="day" [selected]="!!day()">Date: Pick a day…</option>
       </select>
+      @if (day()) {
+        <div class="flex items-center gap-1">
+          <button type="button" class="btn-secondary px-2" (click)="shiftDay(-1)" title="Previous day" aria-label="Previous day"><i class="fas fa-chevron-left"></i></button>
+          <input type="date" class="field w-auto" [value]="day()" (change)="setDay($any($event.target).value)" aria-label="Day" />
+          <button type="button" class="btn-secondary px-2" (click)="shiftDay(1)" title="Next day" aria-label="Next day"><i class="fas fa-chevron-right"></i></button>
+        </div>
+      }
+      @if (dateFiltered()) {
+        <select class="field w-auto" (change)="setDateBy($any($event.target).value)" aria-label="Which date">
+          <option value="ORDER" [selected]="dateBy() === 'ORDER'">By order date</option>
+          <option value="ENTRY" [selected]="dateBy() === 'ENTRY'">By entry date</option>
+        </select>
+      }
       <select class="field w-auto" (change)="setFilter('status', $any($event.target).value)" aria-label="Status">
         <option value="" [selected]="'' === status()">Status: All</option>
         @for (s of tabStatuses(); track s) {
@@ -107,6 +121,25 @@
       }
     </div>
   </div>
+
+  @if (hasFilters() && totals.hasValue()) {
+    @let t = totals.value();
+    <div class="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-line bg-white/[0.03] px-4 py-3 text-sm">
+      <p class="font-semibold text-white">
+        <i class="fas mr-1 text-sky-300" [class.fa-calendar-day]="dateFiltered()" [class.fa-filter]="!dateFiltered()"></i>
+        @if (day()) { {{ day() | bdDate: 'EEEE, d MMM y' }} } @else if (dateFiltered()) { {{ totalsLabel() }} } @else { Matching orders }
+        @if (dateFiltered()) {
+          <span class="ml-1 text-xs font-normal text-slate-400">({{ dateBy() === 'ENTRY' ? 'by entry date' : 'by order date' }})</span>
+        }
+      </p>
+      <p class="text-slate-300"><b class="text-lg text-white">{{ t.orders }}</b> {{ t.orders === 1 ? 'order' : 'orders' }}@if (t.cancelled) { <span class="text-xs text-slate-500"> ({{ t.cancelled }} cancelled, not in the total)</span> }</p>
+      <p class="text-slate-300">Total <b class="text-lg text-white">{{ t.total | taka }}</b></p>
+      @if (t.advance > 0) {
+        <p class="text-emerald-300">Advance {{ t.advance | taka }}</p>
+        <p class="text-amber-300">Due {{ t.due | taka }}</p>
+      }
+    </div>
+  }
 
   @if (orders.error()) {
     <div class="flex flex-col items-center gap-3 px-6 py-16 text-center">

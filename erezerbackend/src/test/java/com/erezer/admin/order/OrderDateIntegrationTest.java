@@ -12,6 +12,8 @@ import com.erezer.admin.security.Permission;
 import com.erezer.admin.security.Role;
 import com.erezer.admin.support.IntegrationTest;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
@@ -63,6 +65,40 @@ class OrderDateIntegrationTest extends IntegrationTest {
                 .andReturn();
         Instant entered = Instant.parse(read(list, "$.content[0].enteredAt"));
         assertThat(entered).isAfter(Instant.now().minus(5, ChronoUnit.MINUTES));
+    }
+
+    @Test
+    void aDayCanBeChosenByOrderDateOrEntryWithItsTotals() throws Exception {
+        String tag = "Day " + ThreadLocalRandom.current().ints(8, 'a', 'z' + 1)
+                .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append);
+        ZoneId dhaka = ZoneId.of("Asia/Dhaka");
+        Instant fiveDaysAgo = Instant.now().minus(5, ChronoUnit.DAYS).truncatedTo(ChronoUnit.SECONDS);
+        String thatDay = LocalDate.ofInstant(fiveDaysAgo, dhaka).toString();
+        String today = LocalDate.now(dhaka).toString();
+        long backdated = id(createNamed(tag, fiveDaysAgo));
+        long cancelled = id(createNamed(tag, null));
+        long kept = id(createNamed(tag, null));
+        mvc.perform(post("/api/orders/" + cancelled + "/status").header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"CANCELLED\"}")).andExpect(status().isOk());
+
+        assertThat(dayIds(tag, thatDay, "ORDER")).containsExactly(backdated);
+        assertThat(dayIds(tag, today, "ORDER")).containsExactlyInAnyOrder(cancelled, kept);
+        assertThat(dayIds(tag, today, "ENTRY")).containsExactlyInAnyOrder(backdated, cancelled, kept);
+
+        // Each order is 900 + 60 delivery; the cancelled one is counted but not in the money.
+        mvc.perform(get("/api/orders/totals").param("tab", "all").param("q", tag).param("from", today).param("to", today)
+                        .param("dateBy", "ENTRY").header("Authorization", admin))
+                .andExpect(jsonPath("$.orders").value(3))
+                .andExpect(jsonPath("$.cancelled").value(1))
+                .andExpect(jsonPath("$.total").value(1920.0))
+                .andExpect(jsonPath("$.due").value(1920.0));
+    }
+
+    private List<Long> dayIds(String q, String day, String dateBy) throws Exception {
+        MvcResult result = mvc.perform(get("/api/orders").param("tab", "all").param("q", q).param("from", day).param("to", day)
+                .param("dateBy", dateBy).header("Authorization", admin)).andExpect(status().isOk()).andReturn();
+        List<Number> ids = read(result, "$.content[*].id");
+        return ids.stream().map(Number::longValue).toList();
     }
 
     @Test

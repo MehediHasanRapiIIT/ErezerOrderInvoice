@@ -14,6 +14,13 @@ import com.erezer.admin.order.dto.OrderDtos.OrderSummary;
 import com.erezer.admin.order.dto.OrderDtos.StatusChange;
 import com.erezer.admin.order.dto.OrderDtos.UserRef;
 import com.erezer.admin.user.UserDirectory;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Tuple;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -38,9 +45,12 @@ public class OrderQueryService {
     private final AppProperties appProperties;
     private final ExchangeItemRepository exchangeItems;
     private final ReturnService returnService;
+    private final EntityManager entityManager;
 
     OrderQueryService(OrderRepository orders, OrderNoteRepository notes, UserDirectory userDirectory,
-            FileService files, AppProperties appProperties, ExchangeItemRepository exchangeItems, ReturnService returnService) {
+            FileService files, AppProperties appProperties, ExchangeItemRepository exchangeItems, ReturnService returnService,
+            EntityManager entityManager) {
+        this.entityManager = entityManager;
         this.exchangeItems = exchangeItems;
         this.returnService = returnService;
         this.orders = orders;
@@ -70,8 +80,9 @@ public class OrderQueryService {
                         OrderSpecifications.paymentMethod(filter.paymentMethod()),
                         OrderSpecifications.type(filter.type()),
                         OrderSpecifications.balance(filter.balance()),
-                        OrderSpecifications.createdFrom(startOfDay(filter.from())),
-                        OrderSpecifications.createdBefore(startOfDay(filter.to() == null ? null : filter.to().plusDays(1))),
+                        OrderSpecifications.createdFrom(dateProperty(filter), startOfDay(filter.from())),
+                        OrderSpecifications.createdBefore(dateProperty(filter),
+                                startOfDay(filter.to() == null ? null : filter.to().plusDays(1))),
                         OrderSpecifications.search(filter.query()))
                 .filter(Objects::nonNull)
                 .toList();
@@ -180,6 +191,42 @@ public class OrderQueryService {
         return id == null ? null : new UserRef(id, UserDirectory.nameOf(names, id));
     }
 
+    private static String dateProperty(OrderFilter filter) {
+        return filter.dateBy() == DateBy.ENTRY ? "enteredAt" : "createdAt";
+    }
+
+    /** Totals of every order matching the filter, not just one page. */
+    public OrderTotals totals(OrderFilter filter) {
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        CriteriaQuery<Tuple> query = cb.createTupleQuery();
+        Root<Order> root = query.from(Order.class);
+        Predicate where = specification(filter).toPredicate(root, query, cb);
+        if (where != null) {
+            query.where(where);
+        }
+        Predicate counted = cb.notEqual(root.get("status"), OrderStatus.CANCELLED);
+        query.multiselect(
+                cb.count(root),
+                cb.sum(cb.<Long>selectCase().when(counted, 0L).otherwise(1L)),
+                cb.sum(cb.<BigDecimal>selectCase().when(counted, root.<BigDecimal>get("total")).otherwise(BigDecimal.ZERO)),
+                cb.sum(cb.<BigDecimal>selectCase().when(counted, root.<BigDecimal>get("advanceAmount")).otherwise(BigDecimal.ZERO)));
+        Tuple row = entityManager.createQuery(query).getSingleResult();
+        BigDecimal total = orZero(row.get(2, BigDecimal.class));
+        BigDecimal advance = orZero(row.get(3, BigDecimal.class));
+        Long cancelled = row.get(1, Long.class);
+        return new OrderTotals(row.get(0, Long.class), cancelled == null ? 0 : cancelled, total, advance, total.subtract(advance));
+    }
+
+    private static BigDecimal orZero(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
+    }
+
+    /** @param cancelled included in {@code orders} but not in the amounts */
+    public record OrderTotals(long orders, long cancelled, BigDecimal total, BigDecimal advance, BigDecimal due) {
+
+        static final OrderTotals NONE = new OrderTotals(0, 0, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
+    }
+
     private Instant startOfDay(LocalDate date) {
         return date == null ? null : date.atStartOfDay(appProperties.zoneId()).toInstant();
     }
@@ -190,7 +237,13 @@ public class OrderQueryService {
      * @param to       inclusive business-day end (Asia/Dhaka)
      */
     public record OrderFilter(Collection<OrderStatus> statuses, PaymentMethod paymentMethod, LocalDate from,
-            LocalDate to, String query, OrderType type, Balance balance) {
+            LocalDate to, String query, OrderType type, Balance balance, DateBy dateBy) {
+    }
+
+    /** Which date the from / to filter reads: the order date, or when the order was entered. */
+    public enum DateBy {
+        ORDER,
+        ENTRY
     }
 
     /** {@code ADVANCE}: an advance was paid; {@code DUE}: something is still to be collected. */

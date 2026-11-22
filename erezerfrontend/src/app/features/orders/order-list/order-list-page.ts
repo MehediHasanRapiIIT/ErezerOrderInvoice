@@ -10,7 +10,7 @@ import { ToastService } from '../../../core/notify/toast.service';
 import { HasPermissionDirective } from '../../../shared/has-permission.directive';
 import { ConfirmService } from '../../../shared/ui/confirm-dialog';
 import { Pagination } from '../../../shared/ui/pagination';
-import { DATE_RANGES, dateBounds, DateRange } from '../../../shared/date-range';
+import { DATE_RANGES, dateBounds, DateRange, isoDate } from '../../../shared/date-range';
 import { TakaPipe } from '../../../shared/ui/taka.pipe';
 import { OrderApi } from '../data/order.api';
 import { isEditableStatus, PAYMENT_LABELS, PAYMENT_METHODS, STATUS_LABELS, TAB_STATUSES } from '../data/order-labels';
@@ -19,7 +19,7 @@ import { StatusBadge } from '../status-badge';
 import { CourierApi, SENDABLE_STATUSES, SendResult } from '../../courier/courier.api';
 import { SendToCourierDialog } from '../../courier/send-to-courier-dialog';
 import { showBlobInTab } from '../../../core/http/file-download';
-import { BdDatePipe } from '../../../shared/ui/bd-date.pipe';
+import { BdDatePipe, bdToday } from '../../../shared/ui/bd-date.pipe';
 import { FormsModule } from '@angular/forms';
 import { NgTemplateOutlet } from '@angular/common';
 import { DateTimePicker } from '../../../shared/ui/date-time-picker';
@@ -72,12 +72,19 @@ export class OrderListPage {
   protected readonly payment = computed(() => this.params().get('payment') ?? '');
   protected readonly type = computed(() => (this.params().get('type') as OrderType | null) ?? '');
   protected readonly range = computed<DateRange>(() => (this.params().get('range') as DateRange | null) ?? 'all');
+  /** One chosen day (YYYY-MM-DD), which replaces the range presets. */
+  protected readonly day = computed(() => {
+    const day = this.params().get('day') ?? '';
+    return /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : '';
+  });
+  protected readonly dateBy = computed<'ORDER' | 'ENTRY'>(() => (this.params().get('dateBy') === 'ENTRY' ? 'ENTRY' : 'ORDER'));
+  protected readonly dateFiltered = computed(() => !!this.day() || this.range() !== 'all');
   protected readonly sort = computed(() => this.params().get('sort') ?? '');
   protected readonly sortOptions = SORT_OPTIONS;
   protected readonly page = computed(() => Math.max(0, Number(this.params().get('page') ?? 0) || 0));
   protected readonly tabStatuses = computed(() => TAB_STATUSES[this.tab()]);
   protected readonly hasFilters = computed(
-    () => !!this.search() || !!this.status() || !!this.payment() || !!this.type() || this.range() !== 'all',
+    () => !!this.search() || !!this.status() || !!this.payment() || !!this.type() || this.dateFiltered(),
   );
 
   private readonly query = computed<OrderQuery>(() => ({
@@ -88,7 +95,8 @@ export class OrderListPage {
     paymentMethod: this.payment() && !BALANCE_FILTERS.includes(this.payment()) ? (this.payment() as PaymentMethod) : undefined,
     balance: BALANCE_FILTERS.includes(this.payment()) ? (this.payment() as 'ADVANCE' | 'DUE') : undefined,
     type: this.type() || undefined,
-    ...dateBounds(this.range()),
+    ...(this.day() ? { from: this.day(), to: this.day() } : dateBounds(this.range())),
+    dateBy: this.dateFiltered() && this.dateBy() === 'ENTRY' ? 'ENTRY' : undefined,
     sort: this.sort() || undefined,
     page: this.page(),
     size: PAGE_SIZE,
@@ -100,6 +108,15 @@ export class OrderListPage {
   });
 
   protected readonly stats = rxResource({ stream: () => this.api.stats() });
+
+  /** Count and money of every order matching the filters, shown above the list whenever one is set. */
+  protected readonly totals = rxResource({
+    params: () => (this.hasFilters() ? { ...this.query(), page: 0 } : undefined),
+    stream: ({ params }) => this.api.totals(params),
+  });
+  protected readonly totalsLabel = computed(() =>
+    this.day() || !this.dateFiltered() ? '' : (DATE_RANGES.find((r) => r.value === this.range())?.label ?? ''),
+  );
 
   protected readonly statCards = computed(() => {
     const stats = this.stats.hasValue() ? this.stats.value() : null;
@@ -296,8 +313,31 @@ export class OrderListPage {
     this.updateParams({ [key]: value && value !== 'all' ? value : null, page: null });
   }
 
+  protected setDateRange(value: string): void {
+    if (value === 'day') {
+      this.updateParams({ range: null, day: this.day() || isoDate(bdToday()), page: null });
+    } else {
+      this.updateParams({ range: value !== 'all' ? value : null, day: null, page: null });
+    }
+  }
+
+  protected setDay(value: string): void {
+    if (value) this.updateParams({ range: null, day: value, page: null });
+  }
+
+  /** Moves the chosen day by whole days (−1 is the day before). */
+  protected shiftDay(days: number): void {
+    const date = new Date(`${this.day()}T00:00:00Z`);
+    date.setUTCDate(date.getUTCDate() + days);
+    this.setDay(date.toISOString().slice(0, 10));
+  }
+
+  protected setDateBy(value: string): void {
+    this.updateParams({ dateBy: value === 'ENTRY' ? 'ENTRY' : null, page: null });
+  }
+
   protected clearFilters(): void {
-    this.updateParams({ q: null, status: null, payment: null, type: null, range: null, page: null });
+    this.updateParams({ q: null, status: null, payment: null, type: null, range: null, day: null, dateBy: null, page: null });
   }
 
   protected goToPage(page: number): void {

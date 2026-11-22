@@ -338,6 +338,15 @@ export interface StatusChangeRequest {
   returnReason?: ReturnReason | null;
 }
 
+/** Every order matching the filters; cancelled ones are counted but left out of the amounts. */
+export interface OrderTotals {
+  orders: number;
+  cancelled: number;
+  total: number;
+  advance: number;
+  due: number;
+}
+
 export interface OrderQuery {
   tab: OrderTab;
   q?: string;
@@ -350,6 +359,8 @@ export interface OrderQuery {
   to?: string;
   /** e.g. "entered,desc"; empty is newest order date first. */
   sort?: string;
+  /** Which date from / to read: the order date (default) or when the order was entered. */
+  dateBy?: 'ORDER' | 'ENTRY';
   page: number;
   size: number;
 }

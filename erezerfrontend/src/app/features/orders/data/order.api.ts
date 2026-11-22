@@ -14,6 +14,7 @@ import {
   ExchangeRequest,
   OrderDetail,
   OrderQuery,
+  OrderTotals,
   OrderRequest,
   OrderStats,
   OrderSummary,
@@ -32,6 +33,10 @@ export class OrderApi {
   }
 
   /** Every order matching the list filters, as an .xlsx file. */
+  totals(query: OrderQuery): Observable<OrderTotals> {
+    return this.http.get<OrderTotals>(`${this.baseUrl}/totals`, { params: filterParams(query) });
+  }
+
   exportExcel(query: OrderQuery): Observable<HttpResponse<Blob>> {
     return this.http.get(`${this.baseUrl}/export.xlsx`, {
       params: filterParams(query),
@@ -134,7 +139,7 @@ export class OrderApi {
 
 function filterParams(query: OrderQuery): HttpParams {
   let params = new HttpParams().set('tab', query.tab);
-  for (const key of ['q', 'status', 'paymentMethod', 'type', 'balance', 'from', 'to', 'sort'] as const) {
+  for (const key of ['q', 'status', 'paymentMethod', 'type', 'balance', 'from', 'to', 'sort', 'dateBy'] as const) {
     const value = query[key];
     if (value) {
       params = params.set(key, value);

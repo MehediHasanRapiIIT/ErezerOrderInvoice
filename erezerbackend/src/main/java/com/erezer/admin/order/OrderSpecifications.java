@@ -37,12 +37,13 @@ final class OrderSpecifications {
         return type == null ? null : (root, query, cb) -> cb.equal(root.get("orderType"), type);
     }
 
-    static Specification<Order> createdFrom(Instant from) {
-        return from == null ? null : (root, query, cb) -> cb.greaterThanOrEqualTo(root.get("createdAt"), from);
+    /** {@code property} is {@code createdAt} (the order date) or {@code enteredAt} (when it was entered). */
+    static Specification<Order> createdFrom(String property, Instant from) {
+        return from == null ? null : (root, query, cb) -> cb.greaterThanOrEqualTo(root.get(property), from);
     }
 
-    static Specification<Order> createdBefore(Instant before) {
-        return before == null ? null : (root, query, cb) -> cb.lessThan(root.get("createdAt"), before);
+    static Specification<Order> createdBefore(String property, Instant before) {
+        return before == null ? null : (root, query, cb) -> cb.lessThan(root.get(property), before);
     }
 
     /** Matches order number, customer name, phone (in any formatting), email or any line item's product code. */
