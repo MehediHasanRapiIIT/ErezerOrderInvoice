@@ -22,7 +22,8 @@ record InvoiceData(
         BigDecimal advance,
         String courier,
         String trackingNumber,
-        Exchange exchange) {
+        Exchange exchange,
+        boolean urgent) {
 
     /** Present on exchange invoices: what the exchange replaces and how the money works out. */
     record Exchange(

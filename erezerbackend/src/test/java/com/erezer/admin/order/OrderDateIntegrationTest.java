@@ -102,6 +102,30 @@ class OrderDateIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void anOrderCanBeMarkedUrgentAndFilteredBy() throws Exception {
+        String tag = "Urgent " + ThreadLocalRandom.current().ints(8, 'a', 'z' + 1)
+                .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append);
+        long urgent = id(mvc.perform(post("/api/orders").header("Authorization", admin).contentType(MediaType.APPLICATION_JSON)
+                        .content(json(null, null).replace("Date Test", tag).replace("\"paymentMethod\"", "\"urgent\":true,\"paymentMethod\"")))
+                .andExpect(status().isCreated()).andReturn());
+        long normal = id(createNamed(tag, null));
+
+        mvc.perform(get("/api/orders/" + urgent).header("Authorization", admin)).andExpect(jsonPath("$.urgent").value(true));
+
+        List<Number> urgentOnly = read(mvc.perform(get("/api/orders").param("tab", "all").param("q", tag).param("urgent", "true")
+                .header("Authorization", admin)).andReturn(), "$.content[*].id");
+        assertThat(urgentOnly.stream().map(Number::longValue).toList()).containsExactly(urgent);
+        List<Number> others = read(mvc.perform(get("/api/orders").param("tab", "all").param("q", tag).param("urgent", "false")
+                .header("Authorization", admin)).andReturn(), "$.content[*].id");
+        assertThat(others.stream().map(Number::longValue).toList()).containsExactly(normal);
+        mvc.perform(get("/api/orders").param("tab", "all").param("q", tag).header("Authorization", admin))
+                .andExpect(jsonPath("$.content[?(@.id == " + urgent + ")].urgent").value(org.hamcrest.Matchers.hasItem(true)));
+
+        // Editing without saying anything about it keeps it.
+        edit(admin, urgent, null).andExpect(status().isOk()).andExpect(jsonPath("$.urgent").value(true));
+    }
+
+    @Test
     void withoutThePermissionTheDateCannotBeChosen() throws Exception {
         String clerk = bearer(Role.MODERATOR, Permission.ORDER_VIEW, Permission.ORDER_CREATE, Permission.ORDER_EDIT);
         create(clerk, Instant.now().minus(1, ChronoUnit.DAYS)).andExpect(status().isForbidden());

@@ -8,6 +8,7 @@ import { ConfirmService } from '../../shared/ui/confirm-dialog';
 import { Pagination } from '../../shared/ui/pagination';
 import { EmployeeApi } from './data/employee.api';
 import { EmployeeSummary } from './data/employee.models';
+import { SearchPage } from '../../shared/search-page';
 
 const PAGE_SIZE = 20;
 const DEBOUNCE_MS = 350;
@@ -107,6 +108,8 @@ export class EmployeeListPage {
   protected readonly rows = computed(() => this.result()?.content ?? []);
 
   private timer: ReturnType<typeof setTimeout> | undefined;
+  /** Brings the list back to its page when the search box is cleared. */
+  private readonly searchPage = new SearchPage();
 
   constructor() {
     inject(DestroyRef).onDestroy(() => clearTimeout(this.timer));
@@ -114,7 +117,11 @@ export class EmployeeListPage {
 
   protected debounced(value: string): void {
     clearTimeout(this.timer);
-    this.timer = setTimeout(() => this.updateParams({ q: value.trim() || null, page: null }), DEBOUNCE_MS);
+    this.timer = setTimeout(() => {
+      const q = value.trim();
+      const page = this.searchPage.pageFor(this.search(), q, this.page());
+      this.updateParams({ q: q || null, page: page || null });
+    }, DEBOUNCE_MS);
   }
 
   protected goToPage(page: number): void {

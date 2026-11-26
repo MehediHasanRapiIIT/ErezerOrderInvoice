@@ -61,7 +61,9 @@ public final class OrderDtos {
             /** A typed name, for someone who isn't on the staff list; replaces {@code acceptedBy}. */
             @Size(max = 120) String acceptedByOther,
             /** What "Other" means, when the platform is Other. */
-            @Size(max = 80) String platformOther) {
+            @Size(max = 80) String platformOther,
+            /** Urgent delivery; left out, it stays as it is (a new order is not urgent). */
+            Boolean urgent) {
     }
 
     public record CustomerRequest(
@@ -205,7 +207,8 @@ public final class OrderDtos {
             PaymentMethod paymentMethod,
             OrderStatus status,
             Instant createdAt,
-            Instant enteredAt) {
+            Instant enteredAt,
+            boolean urgent) {
     }
 
     public record OrderDetail(
@@ -247,7 +250,8 @@ public final class OrderDtos {
             UserRef acceptedBy,
             OrderPlatform platform,
             String acceptedByOther,
-            String platformOther) {
+            String platformOther,
+            boolean urgent) {
     }
 
     /** Set the delivered date by hand. */

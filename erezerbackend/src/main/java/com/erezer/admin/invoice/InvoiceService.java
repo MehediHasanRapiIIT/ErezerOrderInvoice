@@ -64,7 +64,7 @@ public class InvoiceService {
                 order.getCustomerEmail(), order.getCustomerAddress(), lines, order.getSubtotal(), order.getDiscount(),
                 order.getDeliveryCharge(), order.getTotal(), order.getAdvanceAmount(), order.getCourier(),
                 order.getTrackingNumber(),
-                exchange(order));
+                exchange(order), order.isUrgent());
     }
 
     private InvoiceData.Exchange exchange(Order order) {

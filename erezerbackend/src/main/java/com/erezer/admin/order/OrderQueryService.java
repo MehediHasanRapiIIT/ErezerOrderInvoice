@@ -80,6 +80,7 @@ public class OrderQueryService {
                         OrderSpecifications.paymentMethod(filter.paymentMethod()),
                         OrderSpecifications.type(filter.type()),
                         OrderSpecifications.balance(filter.balance()),
+                        OrderSpecifications.urgent(filter.urgent()),
                         OrderSpecifications.createdFrom(dateProperty(filter), startOfDay(filter.from())),
                         OrderSpecifications.createdBefore(dateProperty(filter),
                                 startOfDay(filter.to() == null ? null : filter.to().plusDays(1))),
@@ -155,7 +156,7 @@ public class OrderQueryService {
                 returns, order.getStatus() == OrderStatus.DELIVERED
                         && returns.stream().anyMatch(r -> r.active() && r.kind() == ReturnKind.AFTER_DELIVERY),
                 order.getDeliveredAt(), userRef(names, order.getAcceptedBy()), order.getPlatform(),
-                order.getAcceptedByOther(), order.getPlatformOther());
+                order.getAcceptedByOther(), order.getPlatformOther(), order.isUrgent());
     }
 
     /** The normal next steps, or every other status for users who may change it freely. */
@@ -184,7 +185,7 @@ public class OrderQueryService {
     private static OrderSummary toSummary(Order o) {
         return new OrderSummary(o.getId(), o.getOrderNumber(), o.getOrderType(), o.getCustomerName(), o.getCustomerPhone(),
                 o.getTotal(), o.getAdvanceAmount(), o.getDueAmount(), o.getPaymentMethod(), o.getStatus(), o.getCreatedAt(),
-                o.getEnteredAt());
+                o.getEnteredAt(), o.isUrgent());
     }
 
     private static UserRef userRef(Map<Long, String> names, Long id) {
@@ -237,7 +238,7 @@ public class OrderQueryService {
      * @param to       inclusive business-day end (Asia/Dhaka)
      */
     public record OrderFilter(Collection<OrderStatus> statuses, PaymentMethod paymentMethod, LocalDate from,
-            LocalDate to, String query, OrderType type, Balance balance, DateBy dateBy) {
+            LocalDate to, String query, OrderType type, Balance balance, DateBy dateBy, Boolean urgent) {
     }
 
     /** Which date the from / to filter reads: the order date, or when the order was entered. */

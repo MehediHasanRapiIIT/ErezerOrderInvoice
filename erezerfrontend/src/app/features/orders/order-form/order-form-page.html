@@ -206,6 +206,14 @@
             }
           </label>
         }
+        <label class="flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition"
+               [class]="form.controls.urgent.value ? 'border-red-500/60 bg-red-500/10' : 'border-line hover:border-slate-500'">
+          <input type="checkbox" formControlName="urgent" class="mt-0.5 h-4 w-4 cursor-pointer accent-red-600" />
+          <span>
+            <span class="block font-medium" [class]="form.controls.urgent.value ? 'text-red-300' : 'text-white'"><i class="fas fa-bolt mr-1"></i>Urgent delivery</span>
+            <span class="block text-xs text-slate-400">Marked in the order list and printed on the invoice.</span>
+          </span>
+        </label>
       </section>
 
       <section class="card space-y-4 p-5" formGroupName="customer">

@@ -13,6 +13,7 @@ import { StaffApi } from '../data/staff.api';
 import { PasswordRequest, PermissionInfo, StaffMember } from '../data/staff.models';
 import { ResetPasswordDialog } from './reset-password-dialog';
 import { BdDatePipe } from '../../../shared/ui/bd-date.pipe';
+import { SearchPage } from '../../../shared/search-page';
 
 const PAGE_SIZE = 20;
 
@@ -65,6 +66,8 @@ export class StaffListPage {
   });
 
   private timer: ReturnType<typeof setTimeout> | undefined;
+  /** Brings the list back to its page when the search box is cleared. */
+  private readonly searchPage = new SearchPage();
 
   constructor() {
     inject(DestroyRef).onDestroy(() => clearTimeout(this.timer));
@@ -84,7 +87,11 @@ export class StaffListPage {
 
   protected onSearch(value: string): void {
     clearTimeout(this.timer);
-    this.timer = setTimeout(() => this.updateParams({ q: value.trim() || null, page: null }), 350);
+    this.timer = setTimeout(() => {
+      const q = value.trim();
+      const page = this.searchPage.pageFor(this.search(), q, this.page());
+      this.updateParams({ q: q || null, page: page || null });
+    }, 350);
   }
 
   protected setFilter(key: 'role' | 'status', value: string): void {

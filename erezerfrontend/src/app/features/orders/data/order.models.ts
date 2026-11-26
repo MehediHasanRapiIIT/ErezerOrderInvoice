@@ -37,6 +37,8 @@ export interface OrderSummary {
   createdAt: string;
   /** When the order was actually entered; never changes, unlike the order date. */
   enteredAt: string;
+  /** To be delivered urgently; printed on the invoice. */
+  urgent: boolean;
 }
 
 export interface OrderStats {
@@ -116,6 +118,7 @@ export interface OrderDetail {
   acceptedByOther?: string | null;
   /** What "Other" means for this order's platform. */
   platformOther?: string | null;
+  urgent: boolean;
   customer: { name: string; phone: string; email?: string; address: string };
   items: OrderItem[];
   subtotal: number;
@@ -325,6 +328,7 @@ export interface OrderRequest {
   platform: OrderPlatform | null;
   acceptedByOther: string | null;
   platformOther: string | null;
+  urgent: boolean;
 }
 
 export interface StatusChangeRequest {
@@ -361,6 +365,8 @@ export interface OrderQuery {
   sort?: string;
   /** Which date from / to read: the order date (default) or when the order was entered. */
   dateBy?: 'ORDER' | 'ENTRY';
+  /** "true": only urgent orders; "false": only the others. */
+  urgent?: 'true' | 'false';
   page: number;
   size: number;
 }

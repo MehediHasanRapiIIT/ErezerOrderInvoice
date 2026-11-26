@@ -24,6 +24,7 @@ import { FormsModule } from '@angular/forms';
 import { NgTemplateOutlet } from '@angular/common';
 import { DateTimePicker } from '../../../shared/ui/date-time-picker';
 import { toBdInputValue } from '../../../shared/bd-datetime-input';
+import { SearchPage } from '../../../shared/search-page';
 
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 350;
@@ -71,6 +72,10 @@ export class OrderListPage {
   protected readonly status = computed(() => (this.params().get('status') as OrderStatus | null) ?? '');
   protected readonly payment = computed(() => this.params().get('payment') ?? '');
   protected readonly type = computed(() => (this.params().get('type') as OrderType | null) ?? '');
+  protected readonly urgent = computed(() => {
+    const value = this.params().get('urgent');
+    return value === 'true' || value === 'false' ? value : '';
+  });
   protected readonly range = computed<DateRange>(() => (this.params().get('range') as DateRange | null) ?? 'all');
   /** One chosen day (YYYY-MM-DD), which replaces the range presets. */
   protected readonly day = computed(() => {
@@ -84,7 +89,7 @@ export class OrderListPage {
   protected readonly page = computed(() => Math.max(0, Number(this.params().get('page') ?? 0) || 0));
   protected readonly tabStatuses = computed(() => TAB_STATUSES[this.tab()]);
   protected readonly hasFilters = computed(
-    () => !!this.search() || !!this.status() || !!this.payment() || !!this.type() || this.dateFiltered(),
+    () => !!this.search() || !!this.status() || !!this.payment() || !!this.type() || !!this.urgent() || this.dateFiltered(),
   );
 
   private readonly query = computed<OrderQuery>(() => ({
@@ -95,6 +100,7 @@ export class OrderListPage {
     paymentMethod: this.payment() && !BALANCE_FILTERS.includes(this.payment()) ? (this.payment() as PaymentMethod) : undefined,
     balance: BALANCE_FILTERS.includes(this.payment()) ? (this.payment() as 'ADVANCE' | 'DUE') : undefined,
     type: this.type() || undefined,
+    urgent: this.urgent() || undefined,
     ...(this.day() ? { from: this.day(), to: this.day() } : dateBounds(this.range())),
     dateBy: this.dateFiltered() && this.dateBy() === 'ENTRY' ? 'ENTRY' : undefined,
     sort: this.sort() || undefined,
@@ -289,6 +295,8 @@ export class OrderListPage {
   }
 
   private searchTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Brings the list back to its page when the search box is cleared. */
+  private readonly searchPage = new SearchPage();
 
   constructor() {
     inject(DestroyRef).onDestroy(() => clearTimeout(this.searchTimer));
@@ -301,7 +309,11 @@ export class OrderListPage {
 
   protected onSearch(value: string): void {
     clearTimeout(this.searchTimer);
-    this.searchTimer = setTimeout(() => this.updateParams({ q: value.trim() || null, page: null }), SEARCH_DEBOUNCE_MS);
+    this.searchTimer = setTimeout(() => {
+      const q = value.trim();
+      const page = this.searchPage.pageFor(this.search(), q, this.page());
+      this.updateParams({ q: q || null, page: page || null });
+    }, SEARCH_DEBOUNCE_MS);
   }
 
   /** Shows the entry time only when someone changed the order date away from it. */
@@ -309,7 +321,7 @@ export class OrderListPage {
     return Math.abs(Date.parse(order.enteredAt) - Date.parse(order.createdAt)) >= 60_000;
   }
 
-  protected setFilter(key: 'status' | 'payment' | 'type' | 'range' | 'sort', value: string): void {
+  protected setFilter(key: 'status' | 'payment' | 'type' | 'range' | 'sort' | 'urgent', value: string): void {
     this.updateParams({ [key]: value && value !== 'all' ? value : null, page: null });
   }
 
@@ -337,7 +349,8 @@ export class OrderListPage {
   }
 
   protected clearFilters(): void {
-    this.updateParams({ q: null, status: null, payment: null, type: null, range: null, day: null, dateBy: null, page: null });
+    this.searchPage.reset();
+    this.updateParams({ q: null, status: null, payment: null, type: null, urgent: null, range: null, day: null, dateBy: null, page: null });
   }
 
   protected goToPage(page: number): void {

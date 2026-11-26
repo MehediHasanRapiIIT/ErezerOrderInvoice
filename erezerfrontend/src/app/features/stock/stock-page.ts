@@ -12,6 +12,7 @@ import { ConfirmService } from '../../shared/ui/confirm-dialog';
 import { Pagination } from '../../shared/ui/pagination';
 import { Size, SizeQuantity, StockApi, StockMode, StockMovement, Variant, VariantSize } from './stock.api';
 import { VariantPicker } from './variant-picker';
+import { SearchPage } from '../../shared/search-page';
 
 const PAGE_SIZE = 20;
 
@@ -61,6 +62,8 @@ export class StockPage {
   protected readonly page = signal(0);
   protected readonly sort = signal('name,asc');
   private searchTimer?: ReturnType<typeof setTimeout>;
+  /** Brings the list back to its page when the search box is cleared. */
+  private readonly searchPage = new SearchPage();
 
   protected readonly list = rxResource({
     params: () => ({ q: this.search(), low: this.lowOnly(), page: this.page(), size: PAGE_SIZE, sort: this.sort() }),
@@ -120,8 +123,10 @@ export class StockPage {
   protected onSearch(value: string): void {
     clearTimeout(this.searchTimer);
     this.searchTimer = setTimeout(() => {
-      this.search.set(value.trim());
-      this.page.set(0);
+      const q = value.trim();
+      const page = this.searchPage.pageFor(this.search(), q, this.page());
+      this.search.set(q);
+      this.page.set(page);
     }, 250);
   }
 

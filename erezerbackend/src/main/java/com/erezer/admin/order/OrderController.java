@@ -83,10 +83,11 @@ class OrderController {
             @RequestParam(required = false) OrderType type,
             @RequestParam(required = false) OrderQueryService.Balance balance,
             @RequestParam(defaultValue = "ORDER") OrderQueryService.DateBy dateBy,
+            @RequestParam(required = false) Boolean urgent,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "createdAt,desc") String sort) {
-        OrderFilter filter = filter(tab, status, paymentMethod, from, to, q, type, balance, dateBy);
+        OrderFilter filter = filter(tab, status, paymentMethod, from, to, q, type, balance, dateBy, urgent);
         if (filter.statuses().isEmpty()) {
             return new PageResponse<>(List.of(), page, size, 0, 0);
         }
@@ -106,8 +107,9 @@ class OrderController {
             @RequestParam(required = false) String q,
             @RequestParam(required = false) OrderType type,
             @RequestParam(required = false) OrderQueryService.Balance balance,
-            @RequestParam(defaultValue = "ORDER") OrderQueryService.DateBy dateBy) {
-        OrderFilter filter = filter(tab, status, paymentMethod, from, to, q, type, balance, dateBy);
+            @RequestParam(defaultValue = "ORDER") OrderQueryService.DateBy dateBy,
+            @RequestParam(required = false) Boolean urgent) {
+        OrderFilter filter = filter(tab, status, paymentMethod, from, to, q, type, balance, dateBy, urgent);
         if (filter.statuses().isEmpty()) {
             return OrderQueryService.OrderTotals.NONE;
         }
@@ -127,8 +129,9 @@ class OrderController {
             @RequestParam(required = false) OrderType type,
             @RequestParam(required = false) OrderQueryService.Balance balance,
             @RequestParam(defaultValue = "ORDER") OrderQueryService.DateBy dateBy,
+            @RequestParam(required = false) Boolean urgent,
             @RequestParam(defaultValue = "createdAt,desc") String sort) {
-        OrderFilter filter = filter(tab, status, paymentMethod, from, to, q, type, balance, dateBy);
+        OrderFilter filter = filter(tab, status, paymentMethod, from, to, q, type, balance, dateBy, urgent);
         if (filter.statuses().isEmpty()) {
             return new OrderQueryService.MatchingIds(List.of(), 0);
         }
@@ -148,8 +151,9 @@ class OrderController {
             @RequestParam(required = false) OrderType type,
             @RequestParam(required = false) OrderQueryService.Balance balance,
             @RequestParam(defaultValue = "ORDER") OrderQueryService.DateBy dateBy,
+            @RequestParam(required = false) Boolean urgent,
             @RequestParam(defaultValue = "createdAt,desc") String sort) {
-        byte[] workbook = exportService.export(filter(tab, status, paymentMethod, from, to, q, type, balance, dateBy), parseSort(sort));
+        byte[] workbook = exportService.export(filter(tab, status, paymentMethod, from, to, q, type, balance, dateBy, urgent), parseSort(sort));
         String fileName = "orders-" + LocalDate.now(appProperties.zoneId()) + ".xlsx";
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
@@ -250,7 +254,7 @@ class OrderController {
     /** Combines the tab with an optional status narrowing; an empty status set means "nothing matches". */
     private static OrderFilter filter(String tab, List<OrderStatus> status, PaymentMethod paymentMethod,
             LocalDate from, LocalDate to, String q, OrderType type, OrderQueryService.Balance balance,
-            OrderQueryService.DateBy dateBy) {
+            OrderQueryService.DateBy dateBy, Boolean urgent) {
         Set<OrderStatus> statuses = statusesFor(tab);
         if (status != null && !status.isEmpty()) {
             statuses.retainAll(status);
@@ -258,7 +262,7 @@ class OrderController {
         if (from != null && to != null && from.isAfter(to)) {
             throw ApiException.badRequest("INVALID_DATE_RANGE", "The start date must be on or before the end date");
         }
-        return new OrderFilter(statuses, paymentMethod, from, to, q, type, balance, dateBy);
+        return new OrderFilter(statuses, paymentMethod, from, to, q, type, balance, dateBy, urgent);
     }
 
     private static Set<OrderStatus> statusesFor(String tab) {

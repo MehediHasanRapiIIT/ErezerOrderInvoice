@@ -16,6 +16,7 @@ import { TakaPipe } from '../../../shared/ui/taka.pipe';
 import { AssetCategoriesDialog } from '../asset-categories/asset-categories-dialog';
 import { AssetApi } from '../data/asset.api';
 import { Asset, ASSET_STATUS_CLASSES, ASSET_STATUS_LABELS, ASSET_STATUSES, AssetQuery } from '../data/asset.models';
+import { SearchPage } from '../../../shared/search-page';
 
 const PAGE_SIZE = 20;
 const DEBOUNCE_MS = 350;
@@ -96,6 +97,8 @@ export class AssetListPage {
   protected readonly categoryOptions = computed(() => (this.categories.hasValue() ? this.categories.value() : []));
 
   private timer: ReturnType<typeof setTimeout> | undefined;
+  /** Brings the list back to its page when the search box is cleared. */
+  private readonly searchPage = new SearchPage();
 
   constructor() {
     inject(DestroyRef).onDestroy(() => clearTimeout(this.timer));
@@ -103,7 +106,11 @@ export class AssetListPage {
 
   protected debounced(value: string): void {
     clearTimeout(this.timer);
-    this.timer = setTimeout(() => this.updateParams({ q: value.trim() || null, page: null }), DEBOUNCE_MS);
+    this.timer = setTimeout(() => {
+      const q = value.trim();
+      const page = this.searchPage.pageFor(this.search(), q, this.page());
+      this.updateParams({ q: q || null, page: page || null });
+    }, DEBOUNCE_MS);
   }
 
   protected setFilter(key: 'category' | 'status' | 'location' | 'warranty' | 'range' | 'from' | 'to', value: string): void {

@@ -369,6 +369,9 @@ public class OrderService {
         Long acceptedBy = acceptedByOther != null ? null : acceptedBy(order, request.acceptedBy());
         boolean keepTyped = acceptedByOther == null && request.acceptedBy() == null;
         order.setSource(acceptedBy, keepTyped ? order.getAcceptedByOther() : acceptedByOther, request.platform(), platformOther);
+        if (request.urgent() != null) {
+            order.setUrgent(request.urgent());
+        }
 
         List<Long> imageIds = request.items().stream()
                 .flatMap(i -> i.imageIds() == null ? Stream.<Long>empty() : i.imageIds().stream())

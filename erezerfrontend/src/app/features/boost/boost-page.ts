@@ -13,6 +13,7 @@ import { TakaPipe } from '../../shared/ui/taka.pipe';
 import { BoostBuyDialog } from './boost-buy-dialog';
 import { BoostCostDialog } from './boost-cost-dialog';
 import { BoostApi, BoostCost, BoostFilter, BoostPurchase } from './data/boost.api';
+import { SearchPage } from '../../shared/search-page';
 
 const PAGE_SIZE = 20;
 const DEBOUNCE_MS = 350;
@@ -230,6 +231,8 @@ export class BoostPage {
   protected readonly summary = computed(() => (this.totals.hasValue() ? this.totals.value() : undefined));
 
   private timer: ReturnType<typeof setTimeout> | undefined;
+  /** Brings the list back to its page when the search box is cleared. */
+  private readonly searchPage = new SearchPage();
 
   constructor() {
     inject(DestroyRef).onDestroy(() => clearTimeout(this.timer));
@@ -237,7 +240,12 @@ export class BoostPage {
 
   protected debounced(value: string): void {
     clearTimeout(this.timer);
-    this.timer = setTimeout(() => this.search.set(value.trim()), DEBOUNCE_MS);
+    this.timer = setTimeout(() => {
+      const q = value.trim();
+      const page = this.searchPage.pageFor(this.search(), q, this.page());
+      this.search.set(q);
+      this.page.set(page);
+    }, DEBOUNCE_MS);
   }
 
   private refresh(): void {

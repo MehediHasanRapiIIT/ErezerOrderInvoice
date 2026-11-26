@@ -9,6 +9,7 @@ import { ConfirmService } from '../../shared/ui/confirm-dialog';
 import { Pagination } from '../../shared/ui/pagination';
 import { Reject, REJECT_KIND_LABELS, REJECT_KINDS, RejectApi, RejectFilter, RejectKind } from './data/reject.api';
 import { RejectFormDialog } from './reject-form-dialog';
+import { SearchPage } from '../../shared/search-page';
 
 const PAGE_SIZE = 20;
 const DEBOUNCE_MS = 350;
@@ -176,6 +177,8 @@ export class RejectPage {
   protected readonly summary = computed(() => (this.totals.hasValue() ? this.totals.value() : undefined));
 
   private timer: ReturnType<typeof setTimeout> | undefined;
+  /** Brings the list back to its page when the search box is cleared. */
+  private readonly searchPage = new SearchPage();
 
   constructor() {
     inject(DestroyRef).onDestroy(() => clearTimeout(this.timer));
@@ -183,7 +186,12 @@ export class RejectPage {
 
   protected debounced(value: string): void {
     clearTimeout(this.timer);
-    this.timer = setTimeout(() => this.search.set(value.trim()), DEBOUNCE_MS);
+    this.timer = setTimeout(() => {
+      const q = value.trim();
+      const page = this.searchPage.pageFor(this.search(), q, this.page());
+      this.search.set(q);
+      this.page.set(page);
+    }, DEBOUNCE_MS);
   }
 
   private refresh(): void {

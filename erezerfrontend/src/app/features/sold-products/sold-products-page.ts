@@ -10,6 +10,7 @@ import { BdDatePipe, bdToday } from '../../shared/ui/bd-date.pipe';
 import { Pagination } from '../../shared/ui/pagination';
 import { TakaPipe } from '../../shared/ui/taka.pipe';
 import { SoldProductsApi, SoldQuery } from './sold-products.api';
+import { SearchPage } from '../../shared/search-page';
 
 const PAGE_SIZE = 20;
 
@@ -49,6 +50,8 @@ export class SoldProductsPage {
   protected readonly page = signal(0);
   protected readonly exporting = signal(false);
   private searchTimer?: ReturnType<typeof setTimeout>;
+  /** Brings the list back to its page when the search box is cleared. */
+  private readonly searchPage = new SearchPage();
 
   protected readonly range = computed(() => {
     const today = bdToday();
@@ -99,8 +102,10 @@ export class SoldProductsPage {
   protected onSearch(value: string): void {
     clearTimeout(this.searchTimer);
     this.searchTimer = setTimeout(() => {
-      this.search.set(value.trim());
-      this.page.set(0);
+      const q = value.trim();
+      const page = this.searchPage.pageFor(this.search(), q, this.page());
+      this.search.set(q);
+      this.page.set(page);
     }, 300);
   }
 

@@ -124,6 +124,7 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
     platform: this.fb.control<OrderPlatform | null>(null),
     acceptedByOther: ['', Validators.maxLength(120)],
     platformOther: ['', Validators.maxLength(80)],
+    urgent: [false],
     customer: this.fb.group({
       name: ['', [Validators.required, Validators.maxLength(120)]],
       phone: ['', [Validators.required, Validators.pattern(PHONE_PATTERN)]],
@@ -423,6 +424,7 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
       acceptedByOther: order.acceptedByOther ?? '',
       platform: order.platform ?? null,
       platformOther: order.platformOther ?? '',
+      urgent: order.urgent,
       customer: { ...order.customer, email: order.customer.email ?? '' },
       deliveryCharge: order.deliveryCharge,
       discount: order.discount,
@@ -507,6 +509,7 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
       acceptedByOther: v.acceptedBy === OTHER_PERSON ? v.acceptedByOther.trim() : null,
       platform: v.platform,
       platformOther: v.platform === 'OTHER' ? v.platformOther.trim() || null : null,
+      urgent: v.urgent,
       customer: {
         name: v.customer.name.trim(),
         phone: v.customer.phone.trim(),

@@ -118,6 +118,10 @@ public class Order extends AuditableEntity {
     @Column(name = "platform_other", length = 80)
     private String platformOther;
 
+    /** To be delivered urgently: flagged in the list and on the invoice, not sent to the courier. */
+    @Column(name = "urgent", nullable = false)
+    private boolean urgent;
+
     @CreatedBy
     @Column(name = "created_by", updatable = false)
     private Long createdBy;
@@ -499,6 +503,14 @@ public class Order extends AuditableEntity {
 
     public String getPlatformOther() {
         return platformOther;
+    }
+
+    public boolean isUrgent() {
+        return urgent;
+    }
+
+    void setUrgent(boolean urgent) {
+        this.urgent = urgent;
     }
 
     public OrderPlatform getPlatform() {

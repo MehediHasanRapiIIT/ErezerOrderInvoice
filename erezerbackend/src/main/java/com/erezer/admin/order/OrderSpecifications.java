@@ -21,6 +21,11 @@ final class OrderSpecifications {
         return method == null ? null : (root, query, cb) -> cb.equal(root.get("paymentMethod"), method);
     }
 
+    /** True: only urgent orders; false: only the others. */
+    static Specification<Order> urgent(Boolean urgent) {
+        return urgent == null ? null : (root, query, cb) -> cb.equal(root.get("urgent"), urgent);
+    }
+
     static Specification<Order> balance(OrderQueryService.Balance balance) {
         if (balance == null) {
             return null;

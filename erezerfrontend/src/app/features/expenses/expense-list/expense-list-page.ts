@@ -16,6 +16,7 @@ import { ExpenseApi } from '../data/expense.api';
 import { Expense, ExpenseQuery } from '../data/expense.models';
 import { ExpenseCategoriesDialog } from '../expense-categories/expense-categories-dialog';
 import { BdDatePipe } from '../../../shared/ui/bd-date.pipe';
+import { SearchPage } from '../../../shared/search-page';
 
 const PAGE_SIZE = 20;
 const DEBOUNCE_MS = 350;
@@ -93,6 +94,8 @@ export class ExpenseListPage {
   });
 
   private timer: ReturnType<typeof setTimeout> | undefined;
+  /** Brings the list back to its page when the search box is cleared. */
+  private readonly searchPage = new SearchPage();
 
   constructor() {
     inject(DestroyRef).onDestroy(() => clearTimeout(this.timer));
@@ -100,7 +103,11 @@ export class ExpenseListPage {
 
   protected debounced(key: 'q' | 'min' | 'max', value: string): void {
     clearTimeout(this.timer);
-    this.timer = setTimeout(() => this.updateParams({ [key]: value.trim() || null, page: null }), DEBOUNCE_MS);
+    this.timer = setTimeout(() => {
+      const text = value.trim();
+      const page = key === 'q' ? this.searchPage.pageFor(this.search(), text, this.page()) : 0;
+      this.updateParams({ [key]: text || null, page: page || null });
+    }, DEBOUNCE_MS);
   }
 
   protected setFilter(key: 'category' | 'payment' | 'range' | 'from' | 'to', value: string): void {

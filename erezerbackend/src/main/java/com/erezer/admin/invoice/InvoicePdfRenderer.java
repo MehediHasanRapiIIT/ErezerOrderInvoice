@@ -55,6 +55,7 @@ class InvoicePdfRenderer {
     private static final Color BAND_KEY = new Color(168, 162, 158);
     private static final Color BAND_RULE = new Color(42, 39, 36);
     private static final Color DISCOUNT = new Color(185, 28, 28);
+    private static final Color URGENT = new Color(220, 38, 38);
 
     static final String BRAND_TITLE = "Erezer - Erase the Ordinary";
     static final String TAGLINE = "Erase the Ordinary";
@@ -494,6 +495,10 @@ class InvoicePdfRenderer {
             canvas.addImage(wordmarkImage, markWidth, 0, 0, markHeight, left, top - 30 - markHeight);
             ColumnText.showTextAligned(canvas, Element.ALIGN_LEFT, italic(TAGLINE, 9.5f, SOFT), left, top - 64, 0);
 
+            if (invoice.urgent()) {
+                drawUrgent(canvas, (left + right) / 2, top - 52);
+            }
+
             String title = invoice.exchange() == null ? "INVOICE" : "EXCHANGE";
             ColumnText.showTextAligned(canvas, Element.ALIGN_RIGHT, spaced(title, 24, true, INK, 4),
                     right, top - 48, 0);
@@ -530,6 +535,18 @@ class InvoicePdfRenderer {
                 x += w;
             }
             canvas.restoreState();
+        }
+
+        /** A red "URGENT DELIVERY" badge centred on {@code centerX}, so whoever packs the parcel sees it first. */
+        private void drawUrgent(PdfContentByte canvas, float centerX, float baseline) {
+            Phrase text = spaced("URGENT DELIVERY", 10, true, Color.WHITE, 1.5f);
+            float width = ColumnText.getWidth(text) + 24;
+            canvas.saveState();
+            canvas.setColorFill(URGENT);
+            canvas.roundRectangle(centerX - width / 2, baseline - 7, width, 22, 4);
+            canvas.fill();
+            canvas.restoreState();
+            ColumnText.showTextAligned(canvas, Element.ALIGN_CENTER, text, centerX, baseline, 0);
         }
 
         private void drawAccent(PdfContentByte canvas, Rectangle page) {

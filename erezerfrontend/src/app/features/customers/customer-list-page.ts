@@ -10,6 +10,7 @@ import { Pagination } from '../../shared/ui/pagination';
 import { TakaPipe } from '../../shared/ui/taka.pipe';
 import { Customer, CustomerApi, CustomerQuery, CustomerSegment, CustomerSort } from './customer.api';
 import { BdDatePipe } from '../../shared/ui/bd-date.pipe';
+import { SearchPage } from '../../shared/search-page';
 
 const PAGE_SIZE = 20;
 
@@ -56,6 +57,8 @@ export class CustomerListPage {
   protected readonly rows = computed(() => this.result()?.content ?? []);
 
   private timer: ReturnType<typeof setTimeout> | undefined;
+  /** Brings the list back to its page when the search box is cleared. */
+  private readonly searchPage = new SearchPage();
 
   constructor() {
     inject(DestroyRef).onDestroy(() => clearTimeout(this.timer));
@@ -63,7 +66,11 @@ export class CustomerListPage {
 
   protected onSearch(value: string): void {
     clearTimeout(this.timer);
-    this.timer = setTimeout(() => this.updateParams({ q: value.trim() || null, page: null }), 350);
+    this.timer = setTimeout(() => {
+      const q = value.trim();
+      const page = this.searchPage.pageFor(this.search(), q, this.page());
+      this.updateParams({ q: q || null, page: page || null });
+    }, 350);
   }
 
   protected setSegment(segment: CustomerSegment | ''): void {

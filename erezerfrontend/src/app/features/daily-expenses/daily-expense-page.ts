@@ -21,6 +21,7 @@ import {
   DailyFilter,
   OTHER_CATEGORY,
 } from './data/daily-expense.models';
+import { SearchPage } from '../../shared/search-page';
 
 const PAGE_SIZE = 20;
 const DEBOUNCE_MS = 350;
@@ -236,6 +237,8 @@ export class DailyExpensePage {
   protected readonly people = computed(() => (this.peopleList.hasValue() ? this.peopleList.value() : []));
 
   private timer: ReturnType<typeof setTimeout> | undefined;
+  /** Brings the list back to its page when the search box is cleared. */
+  private readonly searchPage = new SearchPage();
 
   constructor() {
     inject(DestroyRef).onDestroy(() => clearTimeout(this.timer));
@@ -243,7 +246,12 @@ export class DailyExpensePage {
 
   protected debounced(value: string): void {
     clearTimeout(this.timer);
-    this.timer = setTimeout(() => this.search.set(value.trim()), DEBOUNCE_MS);
+    this.timer = setTimeout(() => {
+      const q = value.trim();
+      const page = this.searchPage.pageFor(this.search(), q, this.page());
+      this.search.set(q);
+      this.page.set(page);
+    }, DEBOUNCE_MS);
   }
 
   private refresh(): void {
