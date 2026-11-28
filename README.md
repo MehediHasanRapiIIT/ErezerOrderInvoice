@@ -298,7 +298,7 @@ Each product image can have a description of up to 500 characters, printed in bo
 
 ### Order status, order date, notes and courier cost permissions
 
-- **Flow:** Placed → Accepted → Call confirmation → Processing → Shipped → Out for delivery → Delivered, plus Cancelled and Returned. *Call confirmation* means the customer confirmed the order on the phone; like any step it can be skipped, and such orders can already be sent to the courier. *In production* is retired: its orders became Processing, and old timeline entries still show it.
+- **Flow:** Placed → Accepted → Call confirmation → Hold → Processing → Shipped → Out for delivery → Delivered, plus Cancelled and Returned. *Call confirmation* means the customer confirmed the order on the phone; like any step it can be skipped, and such orders can already be sent to the courier. *Hold* is for orders that must wait (e.g. for the customer or stock); a held order can't be sent to the courier until it moves on. *In production* is retired: its orders became Processing, and old timeline entries still show it.
 - **Change status freely** (`ORDER_STATUS_OVERRIDE`; admins always): move an order to **any** status at any time, backwards and after Cancelled or Delivered.
   - The change is logged as "Status changed manually".
   - The delivered/returned/cancelled dates follow the new status, so the dashboard and Sold Products stay right. Moving back before delivery removes the sale; undoing a mistaken return keeps the original delivery date.

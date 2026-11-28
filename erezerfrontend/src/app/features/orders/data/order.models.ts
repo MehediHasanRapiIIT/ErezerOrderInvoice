@@ -4,6 +4,7 @@ export type OrderStatus =
   | 'PLACED'
   | 'ACCEPTED'
   | 'CALL_CONFIRMED'
+  | 'ON_HOLD'
   | 'IN_PRODUCTION'
   | 'PROCESSING'
   | 'SHIPPED'

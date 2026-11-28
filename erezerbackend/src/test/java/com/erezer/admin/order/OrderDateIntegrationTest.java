@@ -138,11 +138,18 @@ class OrderDateIntegrationTest extends IntegrationTest {
         moveTo(id, "CALL_CONFIRMED");
         mvc.perform(get("/api/orders/" + id).header("Authorization", clerk))
                 .andExpect(jsonPath("$.status").value("CALL_CONFIRMED"))
-                .andExpect(jsonPath("$.allowedNextStatuses[0]").value("PROCESSING"));
+                .andExpect(jsonPath("$.allowedNextStatuses[0]").value("ON_HOLD"));
 
         List<Number> confirmed = read(mvc.perform(get("/api/orders").param("tab", "active").param("q", tag)
                 .param("status", "CALL_CONFIRMED").header("Authorization", admin)).andReturn(), "$.content[*].id");
         assertThat(confirmed.stream().map(Number::longValue).toList()).containsExactly(id);
+        moveTo(id, "ON_HOLD");
+        mvc.perform(get("/api/orders/" + id).header("Authorization", clerk))
+                .andExpect(jsonPath("$.status").value("ON_HOLD"))
+                .andExpect(jsonPath("$.allowedNextStatuses[0]").value("PROCESSING"));
+        List<Number> held = read(mvc.perform(get("/api/orders").param("tab", "active").param("q", tag)
+                .param("status", "ON_HOLD").header("Authorization", admin)).andReturn(), "$.content[*].id");
+        assertThat(held.stream().map(Number::longValue).toList()).containsExactly(id);
         moveTo(id, "PROCESSING");
     }
 

@@ -56,6 +56,7 @@ class ParcelPlanner {
         } else if (!SENDABLE.contains(order.getStatus())) {
             blocked = switch (order.getStatus()) {
                 case PLACED -> "Accept the order before sending it to the courier";
+                case ON_HOLD -> "The order is on hold";
                 case SHIPPED, OUT_FOR_DELIVERY -> "Already shipped";
                 default -> "A " + order.getStatus().name().toLowerCase().replace('_', ' ') + " order cannot be sent";
             };
