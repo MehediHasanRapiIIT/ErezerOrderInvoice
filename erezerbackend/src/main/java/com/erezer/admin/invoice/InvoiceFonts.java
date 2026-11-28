@@ -4,19 +4,23 @@ import java.awt.Color;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import org.openpdf.text.Font;
 import org.openpdf.text.Phrase;
 import org.openpdf.text.pdf.BaseFont;
 import org.openpdf.text.pdf.FontSelector;
+import org.openpdf.text.pdf.LayoutProcessor;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
 /**
  * Embedded Noto fonts. Latin text uses Noto Sans; characters it lacks (the taka sign ৳ and Bangla
- * letters) fall back to Noto Sans Bengali, glyph by glyph.
+ * letters) fall back to Noto Sans Bengali.
  *
- * <p>Limitation: OpenPDF does not shape complex scripts, so Bangla conjuncts in names or addresses
- * may print as separate letters. Latin text and the ৳ sign render correctly.
+ * <p>Bangla is shaped through Java's font engine ({@link LayoutProcessor}): vowel signs go before
+ * their letter (ডে, not ডএ) and conjuncts join (প্ল). Without shaping each character would be
+ * written on its own, in typing order.
  */
 @Component
 class InvoiceFonts {
@@ -27,10 +31,11 @@ class InvoiceFonts {
     private final BaseFont bengaliBold;
 
     InvoiceFonts() {
-        this.latin = load("fonts/NotoSans-Regular.ttf");
-        this.latinBold = load("fonts/NotoSans-Bold.ttf");
-        this.bengali = load("fonts/NotoSansBengali-Regular.ttf");
-        this.bengaliBold = load("fonts/NotoSansBengali-Bold.ttf");
+        LayoutProcessor.enable();
+        this.latin = load("fonts/NotoSans-Regular.ttf", false);
+        this.latinBold = load("fonts/NotoSans-Bold.ttf", false);
+        this.bengali = load("fonts/NotoSansBengali-Regular.ttf", true);
+        this.bengaliBold = load("fonts/NotoSansBengali-Bold.ttf", true);
     }
 
     Phrase phrase(String text, float size, boolean bold, Color color) {
@@ -44,10 +49,18 @@ class InvoiceFonts {
         return latin;
     }
 
-    private static BaseFont load(String path) {
+    /** @param shaped shape text in this font (Bangla); the layout engine reads the font from a file */
+    private static BaseFont load(String path, boolean shaped) {
         try (InputStream in = new ClassPathResource(path).getInputStream()) {
             byte[] bytes = in.readAllBytes();
-            return BaseFont.createFont(path, BaseFont.IDENTITY_H, BaseFont.EMBEDDED, true, bytes, null);
+            BaseFont font = BaseFont.createFont(path, BaseFont.IDENTITY_H, BaseFont.EMBEDDED, true, bytes, null);
+            if (shaped) {
+                Path file = Files.createTempFile("invoice-font-", ".ttf");
+                Files.write(file, bytes);
+                file.toFile().deleteOnExit();
+                LayoutProcessor.loadFont(font, file.toString());
+            }
+            return font;
         } catch (IOException ex) {
             throw new UncheckedIOException("Cannot load font " + path, ex);
         }

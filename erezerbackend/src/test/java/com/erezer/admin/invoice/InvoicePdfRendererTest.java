@@ -121,7 +121,8 @@ class InvoicePdfRendererTest {
         BigDecimal delivery = new BigDecimal("60.00");
         BigDecimal discount = lines.size() > 1 ? new BigDecimal("2700.00") : BigDecimal.ZERO;
         return new InvoiceData("EZ-583882", ZonedDateTime.of(2026, 10, 9, 23, 1, 0, 0, ZoneId.of("Asia/Dhaka")),
-                "Cash on delivery", "Mehedi Hasan", "01646065553", "m@example.com", "Mirpur-2, Dhaka", lines,
+                "Cash on delivery", "Mehedi Hasan", "01646065553", "m@example.com",
+                "ডেমরা, কোনাপাড়া, সরকার প্লাজা, Mirpur-2, Dhaka", lines,
                 subtotal, discount, delivery, subtotal.subtract(discount).add(delivery),
                 lines.size() > 1 ? new BigDecimal("500.00") : BigDecimal.ZERO, "Pathao", "PT123", null,
                 lines.size() > 1); // the sample for inspection shows the urgent badge
