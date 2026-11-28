@@ -13,6 +13,7 @@ import { ConfirmService } from '../../../shared/ui/confirm-dialog';
 import { TakaPipe } from '../../../shared/ui/taka.pipe';
 import { AssetApi } from '../data/asset.api';
 import { Asset, ASSET_STATUS_CLASSES, ASSET_STATUS_LABELS, ASSET_STATUSES, AssetEvent, AssetEventKind, AssetStatus } from '../data/asset.models';
+import { BackToList, ListMemory } from '../../../core/list-memory';
 
 const EVENT_ICONS: Record<AssetEventKind, string> = {
   CREATED: 'fa-plus text-emerald-300',
@@ -25,7 +26,7 @@ const EVENT_ICONS: Record<AssetEventKind, string> = {
 /** One asset: details, status changes, repair / service records and the full history. */
 @Component({
   selector: 'app-asset-detail-page',
-  imports: [BdDatePipe, FormsModule, RouterLink, HasPermissionDirective, TakaPipe],
+  imports: [BackToList, BdDatePipe, FormsModule, RouterLink, HasPermissionDirective, TakaPipe],
   templateUrl: './asset-detail-page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -34,6 +35,7 @@ export class AssetDetailPage {
 
   private readonly api = inject(AssetApi);
   private readonly router = inject(Router);
+  private readonly lists = inject(ListMemory);
   private readonly toast = inject(ToastService);
   private readonly confirm = inject(ConfirmService);
   protected readonly auth = inject(AuthService);
@@ -152,7 +154,7 @@ export class AssetDetailPage {
     this.api.delete(a.id).subscribe({
       next: () => {
         this.toast.success('Asset deleted');
-        void this.router.navigate(['/assets']);
+        void this.lists.backTo('/assets');
       },
       error: (err: unknown) => this.toast.error(errorMessage(err)),
     });

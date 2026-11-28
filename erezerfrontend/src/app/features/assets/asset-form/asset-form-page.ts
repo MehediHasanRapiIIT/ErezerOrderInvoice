@@ -13,6 +13,7 @@ import { TakaPipe } from '../../../shared/ui/taka.pipe';
 import { HasUnsavedChanges } from '../../../shared/unsaved-changes.guard';
 import { AssetApi } from '../data/asset.api';
 import { Asset, ASSET_STATUS_LABELS, AssetFile, AssetRequest, AssetStatus, OWNED_STATUSES } from '../data/asset.models';
+import { BackToList, ListMemory } from '../../../core/list-memory';
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -20,7 +21,7 @@ const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 /** Add (/assets/new) and edit (/assets/:id/edit) form. */
 @Component({
   selector: 'app-asset-form-page',
-  imports: [ReactiveFormsModule, RouterLink, TakaPipe],
+  imports: [BackToList, ReactiveFormsModule, RouterLink, TakaPipe],
   templateUrl: './asset-form-page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -29,6 +30,7 @@ export class AssetFormPage implements OnInit, HasUnsavedChanges {
 
   private readonly api = inject(AssetApi);
   private readonly router = inject(Router);
+  private readonly lists = inject(ListMemory);
   private readonly toast = inject(ToastService);
   private readonly fb = inject(NonNullableFormBuilder);
 
@@ -97,7 +99,7 @@ export class AssetFormPage implements OnInit, HasUnsavedChanges {
         },
         error: (err: unknown) => {
           this.toast.error(errorMessage(err));
-          void this.router.navigate(['/assets']);
+          void this.lists.backTo('/assets');
         },
       });
     }

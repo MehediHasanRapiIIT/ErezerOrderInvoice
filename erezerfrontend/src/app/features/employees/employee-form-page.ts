@@ -6,6 +6,7 @@ import { ToastService } from '../../core/notify/toast.service';
 import { HasUnsavedChanges } from '../../shared/unsaved-changes.guard';
 import { EmployeeApi } from './data/employee.api';
 import { ACCOUNT_TYPE_LABELS, ACCOUNT_TYPES, AccountType, Employee, EmployeeFile, EmployeeRequest, SalaryAccount } from './data/employee.models';
+import { BackToList } from '../../core/list-memory';
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -24,12 +25,18 @@ const IMAGE_LABELS: Record<ImageKind, string> = {
 /** Register (/employees/new) and edit (/employees/:id/edit) form. */
 @Component({
   selector: 'app-employee-form-page',
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [BackToList, ReactiveFormsModule, RouterLink],
   template: `
     <div class="mx-auto max-w-3xl">
-      <a [routerLink]="isEdit() ? ['/employees', id()] : ['/employees']" class="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white">
+      @if (isEdit()) {
+        <a [routerLink]="['/employees', id()]" class="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white">
         <i class="fas fa-arrow-left text-xs"></i> {{ isEdit() ? 'Employee' : 'Employees' }}
       </a>
+      } @else {
+        <a appBackTo="/employees" class="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white">
+        <i class="fas fa-arrow-left text-xs"></i> {{ isEdit() ? 'Employee' : 'Employees' }}
+      </a>
+      }
       <h1 class="page-title">{{ isEdit() ? 'Edit Employee' : 'Register Employee' }}</h1>
       <p class="page-subtitle">Fields marked * are required.</p>
 

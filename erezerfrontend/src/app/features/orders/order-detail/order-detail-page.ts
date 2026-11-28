@@ -19,6 +19,7 @@ import { ShipmentCard } from '../../courier/shipment-card';
 import { BdDatePipe } from '../../../shared/ui/bd-date.pipe';
 import { DateTimePicker } from '../../../shared/ui/date-time-picker';
 import { fromBdInputValue, toBdInputValue } from '../../../shared/bd-datetime-input';
+import { BackToList, ListMemory } from '../../../core/list-memory';
 
 export interface TimelineStep {
   status: OrderStatus;
@@ -29,7 +30,7 @@ export interface TimelineStep {
 
 @Component({
   selector: 'app-order-detail-page',
-  imports: [BdDatePipe, FormsModule, ReactiveFormsModule, RouterLink, HasPermissionDirective, StatusBadge, TakaPipe, SendToCourierDialog, ShipmentCard, DateTimePicker],
+  imports: [BackToList, BdDatePipe, FormsModule, ReactiveFormsModule, RouterLink, HasPermissionDirective, StatusBadge, TakaPipe, SendToCourierDialog, ShipmentCard, DateTimePicker],
   templateUrl: './order-detail-page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -39,6 +40,7 @@ export class OrderDetailPage {
 
   private readonly api = inject(OrderApi);
   private readonly router = inject(Router);
+  private readonly lists = inject(ListMemory);
   private readonly toast = inject(ToastService);
   private readonly confirm = inject(ConfirmService);
   private readonly fb = inject(NonNullableFormBuilder);
@@ -361,7 +363,7 @@ export class OrderDetailPage {
     this.api.delete(order.id).subscribe({
       next: () => {
         this.toast.success(`Order ${order.orderNumber} deleted`);
-        void this.router.navigate(['/orders']);
+        void this.lists.backTo('/orders');
       },
       error: (err: unknown) => this.toast.error(errorMessage(err)),
     });

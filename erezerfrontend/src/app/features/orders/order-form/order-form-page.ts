@@ -35,6 +35,7 @@ import {
   StaffOption,
 } from '../data/order.models';
 import { BdDatePipe } from '../../../shared/ui/bd-date.pipe';
+import { BackToList, ListMemory } from '../../../core/list-memory';
 
 /** The Accepted by list's value for "Other". */
 const OTHER_PERSON = -1;
@@ -65,7 +66,7 @@ let nextKey = 1;
 /** Create (/orders/new) and edit (/orders/:id/edit) form. */
 @Component({
   selector: 'app-order-form-page',
-  imports: [BdDatePipe, ReactiveFormsModule, RouterLink, TakaPipe, VariantPicker, SizeField, DateTimePicker],
+  imports: [BackToList, BdDatePipe, ReactiveFormsModule, RouterLink, TakaPipe, VariantPicker, SizeField, DateTimePicker],
   templateUrl: './order-form-page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -75,6 +76,7 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
 
   private readonly api = inject(OrderApi);
   private readonly router = inject(Router);
+  private readonly lists = inject(ListMemory);
   private readonly toast = inject(ToastService);
   private readonly soldProducts = inject(SoldProductsApi);
   /** Names already used, suggested in Product name so the same category is not typed differently. */
@@ -391,7 +393,7 @@ export class OrderFormPage implements OnInit, HasUnsavedChanges {
       },
       error: (err: unknown) => {
         this.toast.error(errorMessage(err));
-        void this.router.navigate(['/orders']);
+        void this.lists.backTo('/orders');
       },
     });
   }

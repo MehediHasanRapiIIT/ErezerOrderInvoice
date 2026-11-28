@@ -1,4 +1,4 @@
-<a routerLink="/orders" class="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white">
+<a appBackTo="/orders" class="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white">
   <i class="fas fa-arrow-left text-xs"></i> Orders
 </a>
 <h1 class="page-title"><i class="fas fa-shipping-fast mr-2 text-brand-light"></i>Send to Steadfast</h1>
@@ -55,7 +55,7 @@
       @if (b.failed > 0) {
         <button type="button" class="btn-secondary" (click)="retryFailed()"><i class="fas fa-redo"></i> Review failed orders</button>
       }
-      <a routerLink="/orders" class="btn-primary">Back to orders</a>
+      <a appBackTo="/orders" class="btn-primary">Back to orders</a>
     </div>
   }
 } @else {
@@ -129,7 +129,7 @@
   </section>
 
   <div class="sticky bottom-0 mt-4 flex items-center justify-end gap-3 border-t border-line bg-app/95 py-3 backdrop-blur">
-    <a routerLink="/orders" class="btn-secondary">Cancel</a>
+    <a appBackTo="/orders" class="btn-secondary">Cancel</a>
     <button type="button" class="btn-primary" [disabled]="!toSend().length || starting()" (click)="send()">
       @if (starting()) { <i class="fas fa-circle-notch fa-spin"></i> } @else { <i class="fas fa-paper-plane"></i> }
       Send {{ toSend().length }} parcel{{ toSend().length === 1 ? '' : 's' }}

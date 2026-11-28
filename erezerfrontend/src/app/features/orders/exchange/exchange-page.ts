@@ -21,6 +21,7 @@ import {
   ExchangeReason,
   OrderImage,
 } from '../data/order.models';
+import { BackToList } from '../../../core/list-memory';
 
 const MAX_IMAGES = 10;
 
@@ -49,7 +50,7 @@ interface Line {
  */
 @Component({
   selector: 'app-exchange-page',
-  imports: [FormsModule, RouterLink, TakaPipe, BdDatePipe, VariantPicker, SizeField],
+  imports: [BackToList, FormsModule, RouterLink, TakaPipe, BdDatePipe, VariantPicker, SizeField],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './exchange-page.html',
 })

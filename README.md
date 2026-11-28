@@ -298,7 +298,7 @@ Each product image can have a description of up to 500 characters, printed in bo
 
 ### Order status, order date, notes and courier cost permissions
 
-- **Flow:** Placed → Accepted → Processing → Shipped → Out for delivery → Delivered, plus Cancelled and Returned. *In production* is retired: its orders became Processing, and old timeline entries still show it.
+- **Flow:** Placed → Accepted → Call confirmation → Processing → Shipped → Out for delivery → Delivered, plus Cancelled and Returned. *Call confirmation* means the customer confirmed the order on the phone; like any step it can be skipped, and such orders can already be sent to the courier. *In production* is retired: its orders became Processing, and old timeline entries still show it.
 - **Change status freely** (`ORDER_STATUS_OVERRIDE`; admins always): move an order to **any** status at any time, backwards and after Cancelled or Delivered.
   - The change is logged as "Status changed manually".
   - The delivered/returned/cancelled dates follow the new status, so the dashboard and Sold Products stay right. Moving back before delivery removes the sale; undoing a mistaken return keeps the original delivery date.
@@ -385,7 +385,7 @@ Every return is a **record** on the order (reason, return charge, **Paid by Cust
    - Every webhook must carry the token as `Authorization: Bearer` **and** a valid `X-Signature`: the hex HMAC-SHA256 of the raw body, keyed with the token. Both are compared in constant time, and the token is stored encrypted.
    - Parcel events (`delivery_status`, `tracking_update`) are applied. Account events (`payment_request`, `user_update` and the rest) get 200 "ignored", so Steadfast doesn't retry them.
 
-**Sending** (permission **Send orders to courier**). Accepted, In production and Processing orders can be sent:
+**Sending** (permission **Send orders to courier**). Accepted, Call confirmation, In production and Processing orders can be sent:
 - **One order:** the **Send to Steadfast** button on the order page opens a preview.
   - It shows recipient, normalised phone and address, and has editable COD (default: the total for cash on delivery, ৳0 for prepaid), delivery type, item description and rider note.
   - It warns about every problem and about customers who returned parcels before.

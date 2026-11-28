@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, OnInit, signal } from '@angular/core';
 import { rxResource, toSignal } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 import { startWith } from 'rxjs';
 import { Permission, Role } from '../../../core/auth/auth.models';
 import { AuthService } from '../../../core/auth/auth.service';
@@ -11,13 +11,14 @@ import { generatePassword, PASSWORD_PATTERN } from '../../../shared/password';
 import { HasUnsavedChanges } from '../../../shared/unsaved-changes.guard';
 import { StaffApi } from '../data/staff.api';
 import { PermissionInfo, StaffMember } from '../data/staff.models';
+import { BackToList, ListMemory } from '../../../core/list-memory';
 
 const PHONE_PATTERN = /^[0-9+\-\s]{6,30}$/;
 
 /** Add (/staff/new) and edit (/staff/:id/edit) a staff account and its permissions. */
 @Component({
   selector: 'app-staff-form-page',
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [BackToList, ReactiveFormsModule],
   templateUrl: './staff-form-page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -26,6 +27,7 @@ export class StaffFormPage implements OnInit, HasUnsavedChanges {
 
   private readonly api = inject(StaffApi);
   private readonly router = inject(Router);
+  private readonly lists = inject(ListMemory);
   private readonly toast = inject(ToastService);
   private readonly auth = inject(AuthService);
   private readonly fb = inject(NonNullableFormBuilder);
@@ -94,7 +96,7 @@ export class StaffFormPage implements OnInit, HasUnsavedChanges {
       },
       error: (err: unknown) => {
         this.toast.error(errorMessage(err));
-        void this.router.navigate(['/staff']);
+        void this.lists.backTo('/staff');
       },
     });
   }
@@ -191,7 +193,7 @@ export class StaffFormPage implements OnInit, HasUnsavedChanges {
       next: (member) => {
         this.saved = true;
         this.toast.success(id ? `${member.fullName} updated` : `${member.fullName} added. Share the password with them.`);
-        void this.router.navigate(['/staff']);
+        void this.lists.backTo('/staff');
       },
       error: (err: unknown) => {
         this.saving.set(false);

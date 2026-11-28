@@ -1,5 +1,5 @@
 <div class="mx-auto max-w-3xl">
-  <a routerLink="/expenses" class="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white">
+  <a appBackTo="/expenses" class="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white">
     <i class="fas fa-arrow-left text-xs"></i> Expenses
   </a>
   <h1 class="page-title">{{ isEdit() ? 'Edit Expense' : 'Add Expense' }}</h1>
@@ -93,7 +93,7 @@
       </div>
 
       <div class="flex justify-end gap-3 border-t border-line pt-5 sm:col-span-2">
-        <a routerLink="/expenses" class="btn-secondary">Cancel</a>
+        <a appBackTo="/expenses" class="btn-secondary">Cancel</a>
         <button type="submit" class="btn-primary" [disabled]="saving() || uploading()">
           @if (saving()) {
             <i class="fas fa-circle-notch fa-spin"></i>

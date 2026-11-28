@@ -13,6 +13,8 @@ public enum OrderStatus {
 
     PLACED,
     ACCEPTED,
+    /** The customer confirmed the order on a phone call. */
+    CALL_CONFIRMED,
     /** No longer used (orders in it became PROCESSING); kept so old timeline entries can still be read. */
     IN_PRODUCTION,
     PROCESSING,
@@ -24,12 +26,12 @@ public enum OrderStatus {
 
     /** The happy path, in order. */
     public static final List<OrderStatus> FLOW =
-            List.of(PLACED, ACCEPTED, PROCESSING, SHIPPED, OUT_FOR_DELIVERY, DELIVERED);
+            List.of(PLACED, ACCEPTED, CALL_CONFIRMED, PROCESSING, SHIPPED, OUT_FOR_DELIVERY, DELIVERED);
 
     /** Statuses shown under the "History" tab; everything else is "Active". */
     public static final Set<OrderStatus> FINISHED = EnumSet.of(DELIVERED, CANCELLED, RETURNED);
 
-    public static final Set<OrderStatus> PENDING = EnumSet.of(PLACED, ACCEPTED, IN_PRODUCTION, PROCESSING);
+    public static final Set<OrderStatus> PENDING = EnumSet.of(PLACED, ACCEPTED, CALL_CONFIRMED, IN_PRODUCTION, PROCESSING);
 
     /** Every status an order can be put in (all but the retired IN_PRODUCTION). */
     public static Set<OrderStatus> selectable() {
@@ -39,6 +41,15 @@ public enum OrderStatus {
     }
 
     public static final Set<OrderStatus> IN_TRANSIT = EnumSet.of(SHIPPED, OUT_FOR_DELIVERY);
+
+    /** How the status reads, e.g. "Out for delivery". */
+    public String label() {
+        if (this == CALL_CONFIRMED) {
+            return "Call confirmation";
+        }
+        String text = name().replace('_', ' ').toLowerCase();
+        return Character.toUpperCase(text.charAt(0)) + text.substring(1);
+    }
 
     public boolean isFinished() {
         return FINISHED.contains(this);

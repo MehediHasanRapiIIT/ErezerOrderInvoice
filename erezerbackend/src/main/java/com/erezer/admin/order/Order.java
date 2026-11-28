@@ -409,7 +409,7 @@ public class Order extends AuditableEntity {
     }
 
     private static String label(OrderStatus status) {
-        return status.name().toLowerCase().replace('_', ' ');
+        return status.label().toLowerCase();
     }
 
     public String getOrderNumber() {

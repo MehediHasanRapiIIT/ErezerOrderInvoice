@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, OnInit, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 import { errorMessage, toProblem } from '../../../core/http/api-error';
 import { ToastService } from '../../../core/notify/toast.service';
 import { isoDate } from '../../../shared/date-range';
@@ -10,6 +10,7 @@ import { HasUnsavedChanges } from '../../../shared/unsaved-changes.guard';
 import { ExpenseApi } from '../data/expense.api';
 import { Expense, ExpenseRequest, Receipt } from '../data/expense.models';
 import { bdToday } from '../../../shared/ui/bd-date.pipe';
+import { BackToList, ListMemory } from '../../../core/list-memory';
 
 const MAX_RECEIPT_BYTES = 10 * 1024 * 1024;
 const RECEIPT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
@@ -17,7 +18,7 @@ const RECEIPT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf
 /** Add (/expenses/new) and edit (/expenses/:id/edit) form. */
 @Component({
   selector: 'app-expense-form-page',
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [BackToList, ReactiveFormsModule],
   templateUrl: './expense-form-page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -26,6 +27,7 @@ export class ExpenseFormPage implements OnInit, HasUnsavedChanges {
 
   private readonly api = inject(ExpenseApi);
   private readonly router = inject(Router);
+  private readonly lists = inject(ListMemory);
   private readonly toast = inject(ToastService);
   private readonly fb = inject(NonNullableFormBuilder);
 
@@ -73,7 +75,7 @@ export class ExpenseFormPage implements OnInit, HasUnsavedChanges {
         },
         error: (err: unknown) => {
           this.toast.error(errorMessage(err));
-          void this.router.navigate(['/expenses']);
+          void this.lists.backTo('/expenses');
         },
       });
     }
@@ -146,7 +148,7 @@ export class ExpenseFormPage implements OnInit, HasUnsavedChanges {
       next: () => {
         this.saved = true;
         this.toast.success(id ? 'Expense updated' : 'Expense added');
-        void this.router.navigate(['/expenses']);
+        void this.lists.backTo('/expenses');
       },
       error: (err: unknown) => {
         this.saving.set(false);

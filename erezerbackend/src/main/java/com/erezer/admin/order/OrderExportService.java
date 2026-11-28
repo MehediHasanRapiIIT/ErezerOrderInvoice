@@ -122,8 +122,7 @@ public class OrderExportService {
     }
 
     private static String label(OrderStatus status) {
-        String text = status.name().replace('_', ' ').toLowerCase();
-        return Character.toUpperCase(text.charAt(0)) + text.substring(1);
+        return status.label();
     }
 
     private static void text(Row row, int column, String value) {

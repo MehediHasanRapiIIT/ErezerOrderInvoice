@@ -126,6 +126,32 @@ class OrderDateIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void callConfirmationComesAfterAcceptedAndCanBeFilteredBy() throws Exception {
+        String tag = "Call " + ThreadLocalRandom.current().ints(8, 'a', 'z' + 1)
+                .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append);
+        long id = id(createNamed(tag, null));
+        // Someone who follows the normal flow (an admin may jump to any status).
+        String clerk = bearer(Role.MODERATOR, Permission.ORDER_VIEW, Permission.ORDER_STATUS_UPDATE);
+        moveTo(id, "ACCEPTED");
+        mvc.perform(get("/api/orders/" + id).header("Authorization", clerk))
+                .andExpect(jsonPath("$.allowedNextStatuses[0]").value("CALL_CONFIRMED"));
+        moveTo(id, "CALL_CONFIRMED");
+        mvc.perform(get("/api/orders/" + id).header("Authorization", clerk))
+                .andExpect(jsonPath("$.status").value("CALL_CONFIRMED"))
+                .andExpect(jsonPath("$.allowedNextStatuses[0]").value("PROCESSING"));
+
+        List<Number> confirmed = read(mvc.perform(get("/api/orders").param("tab", "active").param("q", tag)
+                .param("status", "CALL_CONFIRMED").header("Authorization", admin)).andReturn(), "$.content[*].id");
+        assertThat(confirmed.stream().map(Number::longValue).toList()).containsExactly(id);
+        moveTo(id, "PROCESSING");
+    }
+
+    private void moveTo(long id, String status) throws Exception {
+        mvc.perform(post("/api/orders/" + id + "/status").header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"" + status + "\"}")).andExpect(status().isOk());
+    }
+
+    @Test
     void withoutThePermissionTheDateCannotBeChosen() throws Exception {
         String clerk = bearer(Role.MODERATOR, Permission.ORDER_VIEW, Permission.ORDER_CREATE, Permission.ORDER_EDIT);
         create(clerk, Instant.now().minus(1, ChronoUnit.DAYS)).andExpect(status().isForbidden());

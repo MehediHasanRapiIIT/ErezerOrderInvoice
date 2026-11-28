@@ -1,7 +1,7 @@
 @if (order(); as o) {
   <div class="mx-auto max-w-6xl">
     <!-- Header -->
-    <a routerLink="/orders" class="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white">
+    <a appBackTo="/orders" class="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white">
       <i class="fas fa-arrow-left text-xs"></i> Orders
     </a>
     <div class="flex flex-wrap items-start justify-between gap-4">
@@ -608,7 +608,7 @@
     <i class="fas fa-search mb-4 text-4xl text-slate-600"></i>
     <h1 class="text-xl font-semibold text-white">Order not found</h1>
     <p class="mt-2 text-sm text-slate-400">It may have been deleted.</p>
-    <a routerLink="/orders" class="btn-secondary mt-6">Back to orders</a>
+    <a appBackTo="/orders" class="btn-secondary mt-6">Back to orders</a>
   </div>
 } @else {
   <div class="card mx-auto mt-10 max-w-lg px-6 py-12 text-center">

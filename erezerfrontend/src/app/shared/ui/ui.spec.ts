@@ -31,8 +31,40 @@ describe('Pagination', () => {
       .filter((text) => text !== '');
   }
 
-  it('shows first, last and neighbours with gaps', () => {
-    expect(render(5, 20)).toEqual(['1', '…', '5', '6', '7', '…', '20']);
+  it('shows first, last and two pages either side, with gaps', () => {
+    expect(render(9, 31)).toEqual(['1', '…', '8', '9', '10', '11', '12', '…', '31', 'Go']);
+  });
+
+  it('shows the first five pages at the start and the last five at the end', () => {
+    expect(render(0, 31)).toEqual(['1', '2', '3', '4', '5', '…', '31', 'Go']);
+    expect(render(30, 31)).toEqual(['1', '…', '27', '28', '29', '30', '31', 'Go']);
+  });
+
+  it('fills a one-page gap instead of showing "…"', () => {
+    expect(render(4, 31)).toEqual(['1', '2', '3', '4', '5', '6', '7', '…', '31', 'Go']);
+  });
+
+  it('leaves out the go-to box on short lists', () => {
+    expect(render(0, 3)).toEqual(['1', '2', '3']);
+  });
+
+  it('goes to a typed page, kept within the list', () => {
+    const fixture = TestBed.createComponent(Pagination);
+    fixture.componentRef.setInput('page', 0);
+    fixture.componentRef.setInput('size', 10);
+    fixture.componentRef.setInput('totalElements', 306);
+    fixture.componentRef.setInput('totalPages', 31);
+    fixture.detectChanges();
+    const emitted: number[] = [];
+    fixture.componentInstance.pageChange.subscribe((p) => emitted.push(p));
+    const nav = fixture.nativeElement as HTMLElement;
+    const box = nav.querySelector('input') as HTMLInputElement;
+    const form = nav.querySelector('form') as HTMLFormElement;
+    for (const typed of ['5', '99', '0']) {
+      box.value = typed;
+      form.dispatchEvent(new Event('submit'));
+    }
+    expect(emitted).toEqual([4, 30]);
   });
 
   it('shows the row range', () => {

@@ -37,6 +37,7 @@ export const RETURN_REASONS: { value: ReturnReason; label: string; suggestedPaye
 export const STATUS_FLOW: readonly OrderStatus[] = [
   'PLACED',
   'ACCEPTED',
+  'CALL_CONFIRMED',
   'PROCESSING',
   'SHIPPED',
   'OUT_FOR_DELIVERY',
@@ -51,6 +52,7 @@ export const TAB_STATUSES: Record<OrderTab, readonly OrderStatus[]> = {
 export const STATUS_LABELS: Record<OrderStatus, string> = {
   PLACED: 'Placed',
   ACCEPTED: 'Accepted',
+  CALL_CONFIRMED: 'Call confirmation',
   IN_PRODUCTION: 'In production',
   PROCESSING: 'Processing',
   SHIPPED: 'Shipped',
@@ -64,6 +66,7 @@ export const STATUS_LABELS: Record<OrderStatus, string> = {
 export const STATUS_STYLES: Record<OrderStatus, string> = {
   PLACED: 'text-amber-300 border-amber-500/40 bg-amber-500/10',
   ACCEPTED: 'text-blue-300 border-blue-500/40 bg-blue-500/10',
+  CALL_CONFIRMED: 'text-teal-300 border-teal-500/40 bg-teal-500/10',
   IN_PRODUCTION: 'text-violet-300 border-violet-500/40 bg-violet-500/10',
   PROCESSING: 'text-orange-300 border-orange-500/40 bg-orange-500/10',
   SHIPPED: 'text-cyan-300 border-cyan-500/40 bg-cyan-500/10',

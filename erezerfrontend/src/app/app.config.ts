@@ -9,6 +9,7 @@ import { provideRouter, TitleStrategy, withComponentInputBinding } from '@angula
 import { routes } from './app.routes';
 import { authInterceptor } from './core/auth/auth.interceptor';
 import { AuthService } from './core/auth/auth.service';
+import { ListMemory } from './core/list-memory';
 import { PageTitleStrategy } from './core/page-title.strategy';
 
 export const appConfig: ApplicationConfig = {
@@ -19,5 +20,7 @@ export const appConfig: ApplicationConfig = {
     { provide: TitleStrategy, useClass: PageTitleStrategy },
     // Restore the session from the refresh cookie before the first navigation runs its guards.
     provideAppInitializer(() => inject(AuthService).restoreSession()),
+    // Remembers each list's page and filters from the first visit, for the Back links.
+    provideAppInitializer(() => void inject(ListMemory)),
   ],
 };

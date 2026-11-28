@@ -7,6 +7,7 @@ import { ConfirmService } from '../../shared/ui/confirm-dialog';
 import { TakaPipe } from '../../shared/ui/taka.pipe';
 import { PAYMENT_LABELS } from '../orders/data/order-labels';
 import { BatchView, CourierApi, ParcelPreview, isValidCod } from './courier.api';
+import { BackToList, ListMemory } from '../../core/list-memory';
 
 interface Row {
   parcel: ParcelPreview;
@@ -20,7 +21,7 @@ interface Row {
  */
 @Component({
   selector: 'app-bulk-send-page',
-  imports: [FormsModule, RouterLink, TakaPipe],
+  imports: [BackToList, FormsModule, RouterLink, TakaPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './bulk-send-page.html',
 })
@@ -28,6 +29,7 @@ export class BulkSendPage implements OnInit {
   private readonly api = inject(CourierApi);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly lists = inject(ListMemory);
   private readonly toast = inject(ToastService);
   private readonly confirm = inject(ConfirmService);
 
@@ -56,7 +58,7 @@ export class BulkSendPage implements OnInit {
     const ids = (this.route.snapshot.queryParamMap.get('ids') ?? '')
       .split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0);
     if (!ids.length) {
-      void this.router.navigate(['/orders']);
+      void this.lists.backTo('/orders');
       return;
     }
     this.api.preview(ids.slice(0, 500)).subscribe({
@@ -66,7 +68,7 @@ export class BulkSendPage implements OnInit {
       },
       error: (err: unknown) => {
         this.toast.error(errorMessage(err));
-        void this.router.navigate(['/orders']);
+        void this.lists.backTo('/orders');
       },
     });
   }

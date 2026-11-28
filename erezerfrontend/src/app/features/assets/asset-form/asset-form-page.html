@@ -1,7 +1,13 @@
 <div class="mx-auto max-w-3xl">
-  <a [routerLink]="isEdit() ? ['/assets', id()] : ['/assets']" class="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white">
+  @if (isEdit()) {
+    <a [routerLink]="['/assets', id()]" class="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white">
     <i class="fas fa-arrow-left text-xs"></i> {{ isEdit() ? 'Asset' : 'Assets' }}
   </a>
+  } @else {
+    <a appBackTo="/assets" class="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white">
+    <i class="fas fa-arrow-left text-xs"></i> {{ isEdit() ? 'Asset' : 'Assets' }}
+  </a>
+  }
   <h1 class="page-title">{{ isEdit() ? 'Edit Asset' : 'Add Asset' }}</h1>
   <p class="page-subtitle">Not an expense: it never changes the expense totals or the dashboard.</p>
 

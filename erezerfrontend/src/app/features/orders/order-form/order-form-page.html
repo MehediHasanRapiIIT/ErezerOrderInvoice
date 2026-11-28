@@ -1,6 +1,12 @@
-<a [routerLink]="isEdit() ? ['/orders', id()] : ['/orders']" class="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white">
+@if (isEdit()) {
+  <a [routerLink]="['/orders', id()]" class="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white">
   <i class="fas fa-arrow-left text-xs"></i> {{ isEdit() ? 'Back to order' : 'Orders' }}
 </a>
+} @else {
+  <a appBackTo="/orders" class="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white">
+  <i class="fas fa-arrow-left text-xs"></i> {{ isEdit() ? 'Back to order' : 'Orders' }}
+</a>
+}
 <h1 class="page-title">{{ isEdit() ? (exchange() ? 'Edit Exchange' : 'Edit Order') : 'Add Order' }}</h1>
 @if (exchange(); as ex) {
   <p class="page-subtitle">Exchange of <a [routerLink]="['/orders', ex.ofOrderId]" class="font-mono text-brand-light hover:underline">{{ ex.ofOrderNumber }}</a> · the items below are what ships to the customer</p>

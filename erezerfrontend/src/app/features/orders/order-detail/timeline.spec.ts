@@ -13,16 +13,25 @@ function order(status: OrderStatus, path: OrderStatus[]): OrderDetail {
 describe('buildTimeline', () => {
   it('marks earlier steps done, the current step current and later steps upcoming', () => {
     const steps = buildTimeline(order('PROCESSING', ['PLACED', 'ACCEPTED', 'IN_PRODUCTION', 'PROCESSING']));
-    // 'In production' is retired: an old history entry for it is simply not a step any more.
+    // 'In production' is retired: an old history entry for it is simply not a step any more. Call confirmation,
+    // which this order skipped, counts as done.
     expect(steps.map((s) => s.state)).toEqual([
-      'done', 'done', 'current', 'upcoming', 'upcoming', 'upcoming',
+      'done', 'done', 'done', 'current', 'upcoming', 'upcoming', 'upcoming',
     ]);
     expect(steps[0].at).toBe('2026-10-01T10:00:00Z');
   });
 
+  it('has call confirmation between accepted and processing', () => {
+    const steps = buildTimeline(order('CALL_CONFIRMED', ['PLACED', 'ACCEPTED', 'CALL_CONFIRMED']));
+    expect(steps.map((s) => [s.status, s.state])).toEqual([
+      ['PLACED', 'done'], ['ACCEPTED', 'done'], ['CALL_CONFIRMED', 'current'], ['PROCESSING', 'upcoming'],
+      ['SHIPPED', 'upcoming'], ['OUT_FOR_DELIVERY', 'upcoming'], ['DELIVERED', 'upcoming'],
+    ]);
+  });
+
   it('treats skipped steps as done', () => {
     const steps = buildTimeline(order('SHIPPED', ['PLACED', 'SHIPPED']));
-    expect(steps.slice(0, 4).map((s) => s.state)).toEqual(['done', 'done', 'done', 'current']);
+    expect(steps.slice(0, 5).map((s) => s.state)).toEqual(['done', 'done', 'done', 'done', 'current']);
     expect(steps[1].at).toBeUndefined();
   });
 

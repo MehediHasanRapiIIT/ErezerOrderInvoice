@@ -8,6 +8,7 @@ import { TakaPipe } from '../../../shared/ui/taka.pipe';
 import { OrderApi } from '../data/order.api';
 import { RETURN_REASONS } from '../data/order-labels';
 import { DeliveryPaidBy, ExchangeCandidate, ReturnableItem, ReturnOptions, ReturnReason } from '../data/order.models';
+import { BackToList } from '../../../core/list-memory';
 
 /** One delivered line item and how many pieces come back. */
 interface Line {
@@ -22,7 +23,7 @@ interface Line {
  */
 @Component({
   selector: 'app-return-page',
-  imports: [FormsModule, RouterLink, TakaPipe, BdDatePipe],
+  imports: [BackToList, FormsModule, RouterLink, TakaPipe, BdDatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './return-page.html',
 })

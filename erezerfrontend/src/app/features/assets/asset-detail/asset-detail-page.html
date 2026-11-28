@@ -1,4 +1,4 @@
-<a routerLink="/assets" class="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white">
+<a appBackTo="/assets" class="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white">
   <i class="fas fa-arrow-left text-xs"></i> Assets
 </a>
 
@@ -6,7 +6,7 @@
   <div class="card mt-6 flex flex-col items-center gap-3 px-6 py-16 text-center">
     <i class="fas fa-exclamation-triangle text-3xl text-red-400"></i>
     <p class="text-slate-300">Could not load this asset. It may have been deleted.</p>
-    <a routerLink="/assets" class="btn-secondary">Back to assets</a>
+    <a appBackTo="/assets" class="btn-secondary">Back to assets</a>
   </div>
 } @else if (asset(); as a) {
   <!-- Header -->

@@ -7,14 +7,15 @@ import { HasPermissionDirective } from '../../shared/has-permission.directive';
 import { ConfirmService } from '../../shared/ui/confirm-dialog';
 import { EmployeeApi } from './data/employee.api';
 import { ACCOUNT_TYPE_LABELS } from './data/employee.models';
+import { BackToList, ListMemory } from '../../core/list-memory';
 
 /** Everything held about one employee. */
 @Component({
   selector: 'app-employee-detail-page',
-  imports: [HasPermissionDirective, RouterLink],
+  imports: [BackToList, HasPermissionDirective, RouterLink],
   template: `
     <div class="mx-auto max-w-3xl">
-      <a routerLink="/employees" class="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white">
+      <a appBackTo="/employees" class="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white">
         <i class="fas fa-arrow-left text-xs"></i> Employees
       </a>
 
@@ -103,6 +104,7 @@ export class EmployeeDetailPage {
 
   private readonly api = inject(EmployeeApi);
   private readonly router = inject(Router);
+  private readonly lists = inject(ListMemory);
   private readonly toast = inject(ToastService);
   private readonly confirm = inject(ConfirmService);
 
@@ -122,7 +124,7 @@ export class EmployeeDetailPage {
     this.api.delete(employee.id).subscribe({
       next: () => {
         this.toast.success('Employee deleted');
-        void this.router.navigate(['/employees']);
+        void this.lists.backTo('/employees');
       },
       error: (err: unknown) => this.toast.error(errorMessage(err)),
     });

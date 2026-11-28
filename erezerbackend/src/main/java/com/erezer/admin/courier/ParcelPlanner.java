@@ -22,7 +22,7 @@ import org.springframework.stereotype.Component;
 class ParcelPlanner {
 
     /** Orders that are confirmed but not yet with a courier. */
-    static final Set<OrderStatus> SENDABLE = EnumSet.of(OrderStatus.ACCEPTED, OrderStatus.PROCESSING);
+    static final Set<OrderStatus> SENDABLE = EnumSet.of(OrderStatus.ACCEPTED, OrderStatus.CALL_CONFIRMED, OrderStatus.PROCESSING);
 
     static final int MAX_NAME = 100;
     static final int MAX_ADDRESS = 490;

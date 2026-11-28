@@ -3,6 +3,7 @@ import { PaymentMethod } from '../../../shared/payment-methods';
 export type OrderStatus =
   | 'PLACED'
   | 'ACCEPTED'
+  | 'CALL_CONFIRMED'
   | 'IN_PRODUCTION'
   | 'PROCESSING'
   | 'SHIPPED'

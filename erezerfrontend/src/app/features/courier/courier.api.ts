@@ -151,7 +151,7 @@ export const DELIVERY_TYPES = [
 ];
 
 /** Orders that can be handed to the courier. */
-export const SENDABLE_STATUSES: readonly OrderStatus[] = ['ACCEPTED', 'PROCESSING'];
+export const SENDABLE_STATUSES: readonly OrderStatus[] = ['ACCEPTED', 'CALL_CONFIRMED', 'PROCESSING'];
 
 @Injectable({ providedIn: 'root' })
 export class CourierApi {

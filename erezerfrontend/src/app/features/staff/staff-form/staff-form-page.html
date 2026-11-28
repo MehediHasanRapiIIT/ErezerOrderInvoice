@@ -1,5 +1,5 @@
 <div class="mx-auto max-w-4xl">
-  <a routerLink="/staff" class="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white">
+  <a appBackTo="/staff" class="mb-2 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white">
     <i class="fas fa-arrow-left text-xs"></i> Staff
   </a>
   <h1 class="page-title">{{ isEdit() ? 'Edit staff member' : 'Add staff member' }}</h1>
@@ -114,7 +114,7 @@
       </section>
 
       <div class="flex justify-end gap-3">
-        <a routerLink="/staff" class="btn-secondary">Cancel</a>
+        <a appBackTo="/staff" class="btn-secondary">Cancel</a>
         <button type="submit" class="btn-primary" [disabled]="saving()">
           @if (saving()) { <i class="fas fa-circle-notch fa-spin"></i> }
           {{ isEdit() ? 'Save changes' : 'Add staff member' }}
