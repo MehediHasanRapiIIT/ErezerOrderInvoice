@@ -74,6 +74,12 @@ export const routes: Routes = [
         loadComponent: () => import('./features/notifications/notifications-page').then((m) => m.NotificationsPage),
       },
       {
+        path: 'print-queue',
+        title: 'Order to Print',
+        canActivate: [requirePermission('PRINT_QUEUE_VIEW')],
+        loadComponent: () => import('./features/print-queue/print-queue-page').then((m) => m.PrintQueuePage),
+      },
+      {
         path: 'rejects',
         title: 'Reject Track',
         canActivate: [requirePermission('REJECT_VIEW')],

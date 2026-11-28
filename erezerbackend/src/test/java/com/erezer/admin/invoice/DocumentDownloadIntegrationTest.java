@@ -46,6 +46,40 @@ class DocumentDownloadIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void severalInvoicesComeAsOnePdfInTheOrderChosen() throws Exception {
+        String admin = adminBearer();
+        String first = createOrder(admin, "INV-" + UUID.randomUUID().toString().substring(0, 6).toUpperCase());
+        String second = createOrder(admin, "INV-" + UUID.randomUUID().toString().substring(0, 6).toUpperCase());
+        long firstId = idOf(admin, first);
+        long secondId = idOf(admin, second);
+
+        MvcResult result = mvc.perform(get("/api/orders/invoices.pdf").param("ids", secondId + "," + firstId)
+                        .header("Authorization", admin))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", MediaType.APPLICATION_PDF_VALUE))
+                .andReturn();
+        PdfReader reader = new PdfReader(result.getResponse().getContentAsByteArray());
+        PdfTextExtractor text = new PdfTextExtractor(reader);
+        // Each invoice starts on its own page, in the order asked for.
+        assertThat(reader.getNumberOfPages()).isEqualTo(2);
+        assertThat(text.getTextFromPage(1)).contains(second);
+        assertThat(text.getTextFromPage(2)).contains(first);
+
+        // Viewing orders isn't enough: printing many at once has its own permission.
+        String viewer = bearer(Role.MODERATOR, Permission.ORDER_VIEW);
+        mvc.perform(get("/api/orders/invoices.pdf").param("ids", String.valueOf(firstId)).header("Authorization", viewer))
+                .andExpect(status().isForbidden());
+        String printer = bearer(Role.MODERATOR, Permission.INVOICE_BULK_PRINT);
+        mvc.perform(get("/api/orders/invoices.pdf").param("ids", String.valueOf(firstId)).header("Authorization", printer))
+                .andExpect(status().isOk());
+
+        String tooMany = java.util.stream.LongStream.rangeClosed(1, 101).mapToObj(Long::toString)
+                .collect(java.util.stream.Collectors.joining(","));
+        mvc.perform(get("/api/orders/invoices.pdf").param("ids", tooMany).header("Authorization", admin))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void excelExportContainsFilteredOrders() throws Exception {
         String admin = adminBearer();
         String phone = "0181" + String.format("%07d", Math.abs(UUID.randomUUID().getLeastSignificantBits() % 10_000_000));

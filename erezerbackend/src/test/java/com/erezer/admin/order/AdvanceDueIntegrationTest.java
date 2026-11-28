@@ -48,6 +48,24 @@ class AdvanceDueIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void aPartlyPrepaidOrderStillHasTheRestCollected() throws Exception {
+        // bKash with only part paid: the rider collects what is left, not nothing.
+        long partly = create(1000, 60, 300, "x", "BKASH");
+        // bKash with no advance recorded counts as paid in full.
+        long full = create(1000, 60, null, "x", "BKASH");
+        for (long id : List.of(partly, full)) {
+            mvc.perform(post("/api/orders/" + id + "/status").header("Authorization", admin)
+                    .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"ACCEPTED\"}")).andExpect(status().isOk());
+        }
+        mvc.perform(post("/api/courier/preview").header("Authorization", admin).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"orderIds\":[" + partly + "," + full + "]}"))
+                .andExpect(jsonPath("$.parcels[0].codAmount").value(760.0))
+                .andExpect(jsonPath("$.parcels[0].advance").value(300.0))
+                .andExpect(jsonPath("$.parcels[0].due").value(760.0))
+                .andExpect(jsonPath("$.parcels[1].codAmount").value(0.0));
+    }
+
+    @Test
     void advanceCannotExceedTheTotal() throws Exception {
         mvc.perform(post("/api/orders").header("Authorization", admin).contentType(MediaType.APPLICATION_JSON)
                         .content(json(1000, 60, 1061)))
@@ -88,8 +106,13 @@ class AdvanceDueIntegrationTest extends IntegrationTest {
     }
 
     private long create(int price, int delivery, Integer advance, String tag) throws Exception {
+        return create(price, delivery, advance, tag, "CASH");
+    }
+
+    private long create(int price, int delivery, Integer advance, String tag, String payment) throws Exception {
         MvcResult result = mvc.perform(post("/api/orders").header("Authorization", admin).contentType(MediaType.APPLICATION_JSON)
-                        .content(json(price, delivery, advance).replace("Advance Test", "Advance Test " + tag)))
+                        .content(json(price, delivery, advance).replace("Advance Test", "Advance Test " + tag)
+                                .replace("\"CASH\"", "\"" + payment + "\"")))
                 .andExpect(status().isCreated()).andReturn();
         return ((Number) read(result, "$.id")).longValue();
     }

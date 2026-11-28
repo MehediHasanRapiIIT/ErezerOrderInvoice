@@ -106,7 +106,7 @@ public class CourierService {
         var parcel = plan.parcel();
         return new ParcelPreview(order.getId(), order.getOrderNumber(), order.getStatus(), parcel.recipientName(),
                 parcel.recipientPhone(), parcel.recipientAddress(), order.getPaymentMethod(), order.getTotal(),
-                plan.codAmount(), plan.defaultCod(), parcel.deliveryType(), parcel.note(), parcel.itemDescription(),
+                order.getAdvanceAmount(), order.getDueAmount(), plan.codAmount(), plan.defaultCod(), parcel.deliveryType(), parcel.note(), parcel.itemDescription(),
                 plan.ready(), plan.blockedReason(), plan.problems(), history,
                 shipment == null ? null : shipment.getTrackingCode());
     }

@@ -1,6 +1,7 @@
 package com.erezer.admin.invoice;
 
 import com.erezer.admin.invoice.InvoiceService.Invoice;
+import java.util.List;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -36,5 +37,17 @@ class InvoiceController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
                 .cacheControl(CacheControl.noStore())
                 .body(invoice.pdf());
+    }
+
+    /** The invoices of several orders in one PDF, in the order given ({@code ids=3,1,7}), one per page group. */
+    @GetMapping("/api/orders/invoices.pdf")
+    @PreAuthorize("hasAuthority('INVOICE_BULK_PRINT')")
+    ResponseEntity<byte[]> invoices(@RequestParam List<Long> ids) {
+        String name = "invoices-" + ids.size() + ".pdf";
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.inline().filename(name).build().toString())
+                .cacheControl(CacheControl.noStore())
+                .body(invoiceService.renderMany(ids));
     }
 }

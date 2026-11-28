@@ -16,6 +16,8 @@ public enum NotificationAction {
     ORDER_COURIER_COST_CHANGED("Orders", "Courier cost recorded", ORDER),
     ORDER_NOTE_ADDED("Orders", "Internal note added", ORDER),
     ORDER_DELETED("Orders", "Order deleted", ORDER),
+    ORDER_PRINTED("Orders", "Order marked printed", ORDER, false, false),
+    ORDER_UNPRINTED("Orders", "Order unmarked as printed", ORDER, false, false),
     EXCHANGE_CREATED("Orders", "Exchange created", ORDER),
     RETURN_CREATED("Orders", "Return created", ORDER),
     RETURN_CORRECTED("Orders", "Return corrected", RETURN),

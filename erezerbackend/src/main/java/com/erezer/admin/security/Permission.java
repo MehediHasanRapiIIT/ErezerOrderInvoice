@@ -15,6 +15,10 @@ public enum Permission {
 
     ORDER_VIEW("Orders", "View orders", false),
     ORDER_EXPORT("Orders", "Export orders to Excel", false),
+    INVOICE_BULK_PRINT("Orders", "Print the invoices of several orders at once", false),
+
+    PRINT_QUEUE_VIEW("Order to Print", "View orders to print (products only, no prices or customers)", false),
+    PRINT_QUEUE_MARK("Order to Print", "Mark orders as printed", false),
     ORDER_CREATE("Orders", "Create orders", false),
     ORDER_EDIT("Orders", "Edit orders", false),
     ORDER_STATUS_UPDATE("Orders", "Update order status", false),
@@ -136,6 +140,7 @@ public enum Permission {
             case ORDER_STATUS_OVERRIDE -> EnumSet.of(ORDER_VIEW, ORDER_STATUS_UPDATE);
             case EXPENSE_CREATE, EXPENSE_EDIT, EXPENSE_DELETE, EXPENSE_EXPORT -> EnumSet.of(EXPENSE_VIEW);
             case SALES_EXPORT -> EnumSet.of(SALES_VIEW);
+            case PRINT_QUEUE_MARK -> EnumSet.of(PRINT_QUEUE_VIEW);
             case ASSET_COSTS_VIEW, ASSET_HISTORY_VIEW, ASSET_CREATE, ASSET_MANAGE, ASSET_STATUS, ASSET_REPAIRS,
                     ASSET_CATEGORIES, ASSET_EXPORT, ASSET_DELETE -> EnumSet.of(ASSET_VIEW);
             case STOCK_MANAGE, SIZE_MANAGE -> EnumSet.of(STOCK_VIEW);

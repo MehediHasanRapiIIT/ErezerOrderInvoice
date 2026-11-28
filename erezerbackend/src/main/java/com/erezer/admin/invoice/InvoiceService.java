@@ -10,11 +10,16 @@ import com.erezer.admin.order.OrderItem;
 import com.erezer.admin.order.OrderItemImage;
 import com.erezer.admin.order.OrderRepository;
 import com.erezer.admin.storage.StorageService;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import org.openpdf.text.Document;
+import org.openpdf.text.pdf.PdfReader;
+import org.openpdf.text.pdf.PdfSmartCopy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -46,6 +51,44 @@ public class InvoiceService {
     public Invoice render(long orderId) {
         Order order = orders.findDetailedById(orderId).orElseThrow(() -> ApiException.notFound("Order", orderId));
         return new Invoice(order.getOrderNumber(), renderer.render(toData(order)));
+    }
+
+    /** Most invoices in one file: each can carry product pictures, so the file grows quickly. */
+    public static final int MAX_BULK = 100;
+
+    /**
+     * Several invoices in one PDF, in the order given, each starting on its own page, so printing gives one invoice
+     * per order.
+     */
+    @Transactional(readOnly = true)
+    public byte[] renderMany(List<Long> orderIds) {
+        List<Long> ids = orderIds.stream().distinct().toList();
+        if (ids.isEmpty()) {
+            throw ApiException.badRequest("NO_ORDERS", "Choose at least one order");
+        }
+        if (ids.size() > MAX_BULK) {
+            throw ApiException.badRequest("TOO_MANY_INVOICES", "Print at most " + MAX_BULK + " invoices at a time");
+        }
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        Document document = new Document();
+        try {
+            PdfSmartCopy copy = new PdfSmartCopy(document, out);
+            document.open();
+            for (long id : ids) {
+                Order order = orders.findDetailedById(id).orElseThrow(() -> ApiException.notFound("Order", id));
+                PdfReader reader = new PdfReader(renderer.render(toData(order)));
+                for (int page = 1; page <= reader.getNumberOfPages(); page++) {
+                    copy.addPage(copy.getImportedPage(reader, page));
+                }
+                copy.freeReader(reader);
+                reader.close();
+            }
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        } finally {
+            document.close();
+        }
+        return out.toByteArray();
     }
 
     private InvoiceData toData(Order order) {

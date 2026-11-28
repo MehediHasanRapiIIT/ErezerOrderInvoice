@@ -39,6 +39,10 @@ export interface ParcelPreview {
   recipientAddress: string;
   paymentMethod: PaymentMethod;
   orderTotal: number;
+  /** Paid before delivery. */
+  advance: number;
+  /** Still to pay: total − advance. */
+  due: number;
   codAmount: number;
   defaultCodAmount: number;
   deliveryType: number;

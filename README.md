@@ -234,6 +234,19 @@ For people working from home: no camera and no location, just **Reply On** and *
 - **Safety rules:** you can't deactivate yourself or remove your own admin role, and the last active admin can't be removed.
 - Signing in updates last-login and lockout data with direct updates that leave the version unchanged, so a staff member signing in never makes an admin's open edit form "stale".
 
+### Printing many invoices
+
+Tick orders in the order list (or **Select all matching**) or in **Order to Print**, then **Print invoices**: one PDF opens in a new tab with every invoice, each starting on its own page and in the list's order, exactly as the single invoice (Urgent badge and picture pages included). Up to 100 at a time. Printing changes nothing on the orders and sends nothing to the courier. Permission: *Print the invoices of several orders at once* (`INVOICE_BULK_PRINT`), admins always; viewing orders alone isn't enough. `GET /api/orders/invoices.pdf?ids=…`.
+
+### Order to Print
+
+A work queue for printing products: **every order not yet shipped** (Placed, Accepted, Call confirmation, Hold, Processing), oldest first by default. An order leaves on its own when it is **Shipped** (or later) or **Cancelled**. Orders typed in Add Order, exchanges and orders sent by the Erezer shop all appear, with *Urgent*, *Exchange* and *Website* badges.
+
+- **Each order** shows its number, status and date, then every product with its **pictures large**, its **name**, **size**, colour, quantity, product code and the picture's description. Click a picture to see it full screen: click again for its real size, ← → or the arrows for the order's other pictures, Esc to close.
+- **Printed tick:** *Mark printed* records when and by whom; *Not printed* takes it back. The cards at the top (To ship, Not printed, Printed) also filter the list. The tick doesn't remove the order; shipping does.
+- **Permissions:** *View orders to print* (`PRINT_QUEUE_VIEW`) shows the queue: products only, no prices and no customer, so someone who only prints sees nothing else. *Mark orders as printed* (`PRINT_QUEUE_MARK`) adds the tick and includes viewing. Admins have both. The order number opens the order only for people who can view orders.
+- `GET /api/print-queue` (`q`, `printed`, `sort=oldest|newest`, `page`, `size`), `GET /api/print-queue/counts`, `PUT /api/print-queue/{id}/printed`.
+
 ### Sold Products
 
 **Delivered sales by category.** The category is the **product name** on the order, grouped ignoring capitals and extra spaces and shown with its most common spelling. Product name in Add Order suggests names already used, so a category isn't typed three ways.
@@ -387,7 +400,7 @@ Every return is a **record** on the order (reason, return charge, **Paid by Cust
 
 **Sending** (permission **Send orders to courier**). Accepted, Call confirmation, In production and Processing orders can be sent:
 - **One order:** the **Send to Steadfast** button on the order page opens a preview.
-  - It shows recipient, normalised phone and address, and has editable COD (default: the total for cash on delivery, ৳0 for prepaid), delivery type, item description and rider note.
+  - It shows recipient, normalised phone and address, and has editable COD (default: the **due**, total − advance; ৳0 only for a bKash, Nagad, bank or card order with no advance recorded, which counts as paid in full. A partly prepaid order still has the rest collected). The preview shows the total, the advance and the due, delivery type, item description and rider note.
   - It warns about every problem and about customers who returned parcels before.
   - **Check record** shows Steadfast's fraud check for the phone across all merchants: delivery and cancellation ratio, parcel counts, fraud reports. A ratio Steadfast can't compute is shown as "Unknown", never as 0%. The check runs on demand because Steadfast limits it per account; when the limit is used up, a 429 message appears and sending still works.
   - COD can have paisa (up to 2 decimals, ৳0-৳1,000,000). The characters `{ } ; < > $`, which Steadfast replaces with spaces, are removed in the preview, so it shows exactly what will be booked.

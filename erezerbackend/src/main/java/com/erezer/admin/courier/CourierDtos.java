@@ -58,6 +58,10 @@ public final class CourierDtos {
             String recipientAddress,
             PaymentMethod paymentMethod,
             BigDecimal orderTotal,
+            /** Paid before delivery. */
+            BigDecimal advance,
+            /** Still to pay: total − advance. */
+            BigDecimal due,
             BigDecimal codAmount,
             BigDecimal defaultCodAmount,
             int deliveryType,

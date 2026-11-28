@@ -97,7 +97,7 @@
               </td>
               <td class="px-4 py-3">
                 <a [routerLink]="['/orders', p.orderId]" class="font-mono text-xs text-slate-200 hover:text-white">{{ p.orderNumber }}</a>
-                <p class="text-xs text-slate-500">{{ paymentLabels[p.paymentMethod] }} · {{ p.orderTotal | taka }}</p>
+                <p class="text-xs text-slate-500">{{ paymentLabels[p.paymentMethod] }} · total {{ p.orderTotal | taka }}@if (p.advance > 0) { · <span class="text-emerald-300">advance {{ p.advance | taka }}</span> · <span class="text-amber-300">due {{ p.due | taka }}</span> }</p>
               </td>
               <td class="px-4 py-3" data-label="Recipient">
                 <p class="font-semibold text-white">{{ p.recipientName }}</p>

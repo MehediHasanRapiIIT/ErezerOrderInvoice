@@ -21,6 +21,11 @@ final class OrderSpecifications {
         return method == null ? null : (root, query, cb) -> cb.equal(root.get("paymentMethod"), method);
     }
 
+    /** True: only orders marked printed; false: only the others. */
+    static Specification<Order> printed(boolean printed) {
+        return (root, query, cb) -> printed ? cb.isNotNull(root.get("printedAt")) : cb.isNull(root.get("printedAt"));
+    }
+
     /** True: only urgent orders; false: only the others. */
     static Specification<Order> urgent(Boolean urgent) {
         return urgent == null ? null : (root, query, cb) -> cb.equal(root.get("urgent"), urgent);

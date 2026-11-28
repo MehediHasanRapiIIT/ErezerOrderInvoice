@@ -118,11 +118,12 @@ class ParcelPlanner {
     }
 
     /**
-     * Cash on delivery collects what is still due (total − any advance); prepaid orders (bKash, Nagad, bank, card)
-     * collect nothing.
+     * What the rider collects: what is still due (total − advance). A bKash, Nagad, bank or card order with no advance
+     * recorded counts as paid in full and collects nothing; one paid only in part collects the rest.
      */
     static BigDecimal defaultCod(Order order) {
-        return order.getPaymentMethod() == PaymentMethod.CASH ? order.getDueAmount() : BigDecimal.ZERO;
+        boolean paidInFull = order.getPaymentMethod() != PaymentMethod.CASH && order.getAdvanceAmount().signum() == 0;
+        return paidInFull ? BigDecimal.ZERO : order.getDueAmount();
     }
 
     /** "Regular Fit T-Shirt ×1, Cargo Pant ×2", shortened to fit Steadfast's limit. */

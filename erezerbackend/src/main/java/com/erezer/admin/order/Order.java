@@ -122,6 +122,13 @@ public class Order extends AuditableEntity {
     @Column(name = "urgent", nullable = false)
     private boolean urgent;
 
+    /** When its products were marked printed in "Order to Print", and by whom; empty while not printed. */
+    @Column(name = "printed_at")
+    private Instant printedAt;
+
+    @Column(name = "printed_by")
+    private Long printedBy;
+
     @CreatedBy
     @Column(name = "created_by", updatable = false)
     private Long createdBy;
@@ -511,6 +518,19 @@ public class Order extends AuditableEntity {
 
     void setUrgent(boolean urgent) {
         this.urgent = urgent;
+    }
+
+    public Instant getPrintedAt() {
+        return printedAt;
+    }
+
+    public Long getPrintedBy() {
+        return printedBy;
+    }
+
+    void setPrinted(Instant at, Long by) {
+        this.printedAt = at;
+        this.printedBy = by;
     }
 
     public OrderPlatform getPlatform() {

@@ -13,6 +13,7 @@ export interface NavItem {
 export const NAV_ITEMS: readonly NavItem[] = [
   { label: 'Dashboard', icon: 'fa-chart-pie', route: '/dashboard', permissions: ['DASHBOARD_VIEW'] },
   { label: 'Orders', icon: 'fa-receipt', route: '/orders', permissions: ['ORDER_VIEW', 'ORDER_CREATE'] },
+  { label: 'Order to Print', icon: 'fa-print', route: '/print-queue', permissions: ['PRINT_QUEUE_VIEW'] },
   { label: 'Sold Products', icon: 'fa-chart-bar', route: '/sold-products', permissions: ['SALES_VIEW'] },
   { label: 'Stock', icon: 'fa-boxes', route: '/stock', permissions: ['STOCK_VIEW'] },
   { label: 'Reject Track', icon: 'fa-ban', route: '/rejects', permissions: ['REJECT_VIEW'] },

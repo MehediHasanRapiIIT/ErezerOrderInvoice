@@ -80,7 +80,15 @@ import { CourierApi, DELIVERY_TYPES, FraudReport, isValidCod, ParcelPreview, Sen
               <div><dt class="text-xs text-slate-400">Phone</dt><dd class="font-mono text-white">{{ p.recipientPhone }}</dd></div>
               <div class="sm:col-span-2"><dt class="text-xs text-slate-400">Address</dt><dd class="text-white">{{ p.recipientAddress }}</dd></div>
               <div><dt class="text-xs text-slate-400">Invoice (order number)</dt><dd class="font-mono text-white">{{ p.orderNumber }}</dd></div>
-              <div><dt class="text-xs text-slate-400">Order total · payment</dt><dd class="text-white">{{ p.orderTotal | taka }} · {{ paymentLabels[p.paymentMethod] }}</dd></div>
+              <div><dt class="text-xs text-slate-400">Payment</dt><dd class="text-white">{{ paymentLabels[p.paymentMethod] }}</dd></div>
+              <div class="sm:col-span-2">
+                <dt class="text-xs text-slate-400">Total · advance paid · due</dt>
+                <dd class="text-white">
+                  {{ p.orderTotal | taka }}
+                  · <span [class]="p.advance > 0 ? 'text-emerald-300' : 'text-slate-400'">advance {{ p.advance | taka }}</span>
+                  · <span class="font-semibold" [class]="p.due > 0 ? 'text-amber-300' : 'text-slate-400'">due {{ p.due | taka }}</span>
+                </dd>
+              </div>
             </dl>
 
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -88,7 +96,7 @@ import { CourierApi, DELIVERY_TYPES, FraudReport, isValidCod, ParcelPreview, Sen
                 <span class="field-label">Cash to collect (COD) *</span>
                 <input type="number" min="0" step="0.01" class="field text-lg font-semibold" [(ngModel)]="cod" aria-label="COD amount" />
                 <span class="mt-1 block text-xs text-slate-500">
-                  Default {{ p.defaultCodAmount | taka }} ({{ p.paymentMethod === 'CASH' ? 'cash on delivery: full total' : 'prepaid: nothing to collect' }}). Up to 2 decimal places.
+                  Default {{ p.defaultCodAmount | taka }} ({{ codReason(p) }}). Up to 2 decimal places.
                 </span>
               </label>
               <label class="block">
@@ -162,6 +170,12 @@ export class SendToCourierDialog implements OnInit {
 
   protected validCod(): boolean {
     return isValidCod(this.cod);
+  }
+
+  /** Why the default cash to collect is what it is. */
+  protected codReason(p: ParcelPreview): string {
+    if (p.defaultCodAmount === 0) return p.paymentMethod === 'CASH' ? 'all paid in advance' : 'paid in full, nothing to collect';
+    return p.advance > 0 ? 'the due: total − advance' : 'cash on delivery: the full total';
   }
 
   protected checkFraud(p: ParcelPreview): void {

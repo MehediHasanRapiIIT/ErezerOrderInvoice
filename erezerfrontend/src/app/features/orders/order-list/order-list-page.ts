@@ -16,6 +16,7 @@ import { OrderApi } from '../data/order.api';
 import { isEditableStatus, PAYMENT_LABELS, PAYMENT_METHODS, STATUS_LABELS, TAB_STATUSES } from '../data/order-labels';
 import { OrderQuery, OrderStatus, OrderSummary, OrderTab, OrderType, PaymentMethod } from '../data/order.models';
 import { StatusBadge } from '../status-badge';
+import { BulkInvoices, MAX_BULK_INVOICES } from '../data/bulk-invoices';
 import { CourierApi, SENDABLE_STATUSES, SendResult } from '../../courier/courier.api';
 import { SendToCourierDialog } from '../../courier/send-to-courier-dialog';
 import { showBlobInTab } from '../../../core/http/file-download';
@@ -159,6 +160,15 @@ export class OrderListPage {
     }
   }
 
+  /** Every selected invoice in one PDF, in the list's order where the orders are on this page. */
+  protected async printSelected(): Promise<void> {
+    const onPage = this.rows().map((o) => o.id).filter((id) => this.selected().has(id));
+    const others = [...this.selected()].filter((id) => !onPage.includes(id));
+    this.printingMany.set(true);
+    await this.bulkInvoices.open([...onPage, ...others]);
+    this.printingMany.set(false);
+  }
+
   protected printInvoice(order: OrderSummary): void {
     // Open the tab inside the click so pop-up blockers allow it; fill it when the PDF arrives.
     const tab = window.open('', '_blank');
@@ -178,7 +188,11 @@ export class OrderListPage {
   // ---- Dates: change one from the list, or many at once ----
   protected readonly canEditDates = this.auth.hasPermission('ORDER_DATE_EDIT');
   /** Ticking orders is offered for sending to the courier and for changing dates. */
-  protected readonly canSelect = computed(() => this.canBulkSend() || this.canEditDates);
+  protected readonly canBulkPrint = this.auth.hasPermission('INVOICE_BULK_PRINT');
+  protected readonly maxInvoices = MAX_BULK_INVOICES;
+  protected readonly printingMany = signal(false);
+  private readonly bulkInvoices = inject(BulkInvoices);
+  protected readonly canSelect = computed(() => this.canBulkSend() || this.canEditDates || this.canBulkPrint);
   protected readonly editingDateId = signal<number | null>(null);
   protected inlineDate = '';
   protected readonly savingDate = signal(false);
