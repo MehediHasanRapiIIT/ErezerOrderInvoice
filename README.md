@@ -420,6 +420,23 @@ Every return is a **record** on the order (reason, return charge, **Paid by Cust
 
 **Checked against the official API guide** (base URL `https://portal.packzy.com/api/v1`, `Api-Key`/`Secret-Key` headers, field limits, statuses, webhook signing, fraud check). Steadfast has no sandbox, so before going live book **one real test parcel** and cancel it in the Steadfast panel. Bulk sending deliberately uses `create_order` once per parcel instead of `/create_order/bulk-order`. That keeps one safe path (reserve → book → confirm) with a per-order result. At 4 in parallel it stays far below the 6,000/min booking limit.
 
+### Shop connection: orders from the Erezer shop
+
+The Erezer shop (erezer.com) can send its website orders here. In the shop admin, staff tick one or more orders and choose **Send to Erezer Invoice**; nothing is sent automatically.
+
+**Setup (admin):** **Shop Connection** in the menu (permission *Manage the Erezer shop connection and its key*, admin-only).
+1. **Make a key.** It is shown once; only its SHA-256 and last characters are stored. Making a new key stops the old one at once; **Disconnect** removes it.
+2. Paste the key and this panel's address into the shop admin's **Settings**.
+
+**What arrives** (`POST /api/integrations/shop/orders`, key in `X-Shop-Key`, one order per request):
+- `multipart/form-data`: the order as JSON in the part `order`, and each product line's photos as files named `item-0`, `item-1`… (in the order of `items`).
+- The order keeps the shop's number (EZ-…). Order numbers are unique here, so sending an order again answers **EXISTS** with the first one and changes nothing.
+- Platform **Website**, taken by **Erezer website** (an inactive account that can't sign in; shop orders and their photos are recorded under it). The order date is when the customer ordered.
+- Payment: cash on delivery arrives as Cash; a paid bKash order as bKash with the paid amount as **Advance**, so nothing is due.
+- Products are plain items (not stock variants), so **stock doesn't move**. Colour, fit and size are on the item, and printed under each photo on the invoice.
+- **Photos** are stored like ones uploaded in Add Order (JPEG/PNG/WebP, up to 10 MB, 10 per line). A file that can't be kept is left out and counted in `missingPhotos`; it never stops the order.
+- The answer is `CREATED` (201), `EXISTS` or `FAILED` with the reason (e.g. an advance larger than the total); a wrong or missing key is 401 `SHOP_KEY_INVALID`.
+
 ### Object storage
 
 The backend talks to MinIO through the AWS S3 SDK, so any S3-compatible store works by changing `STORAGE_*`.

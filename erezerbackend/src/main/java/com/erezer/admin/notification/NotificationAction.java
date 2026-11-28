@@ -25,6 +25,8 @@ public enum NotificationAction {
     ORDERS_SENT_TO_COURIER("Courier", "Orders sent to courier in bulk", ORDERS),
     COURIER_SETTINGS_CHANGED("Courier", "Courier settings changed", COURIER_SETTINGS),
     COURIER_WEBHOOK_TOKEN_CHANGED("Courier", "Courier webhook token changed", COURIER_SETTINGS),
+    SHOP_KEY_CHANGED("Shop", "Shop connection key made", SHOP_CONNECTION),
+    SHOP_DISCONNECTED("Shop", "Shop disconnected", SHOP_CONNECTION),
 
     VARIANT_CREATED("Stock", "Stock item added", VARIANT),
     VARIANTS_CREATED("Stock", "Stock items added in bulk", VARIANTS),

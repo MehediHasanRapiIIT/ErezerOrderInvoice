@@ -64,6 +64,9 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
                         // Courier callbacks authenticate with their own Bearer token (checked in the controller).
                         .requestMatchers(HttpMethod.POST, "/api/webhooks/steadfast").permitAll()
+                        // The Erezer shop sends orders with its own key (checked in the controller).
+                        .requestMatchers(HttpMethod.POST, "/api/integrations/shop/orders").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/integrations/shop/ping").permitAll()
                         .requestMatchers("/api/docs/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         .anyRequest().authenticated())
@@ -85,7 +88,8 @@ public class SecurityConfig {
      */
     private static BearerTokenResolver bearerTokenResolver() {
         DefaultBearerTokenResolver standard = new DefaultBearerTokenResolver();
-        return request -> request.getRequestURI().startsWith("/api/webhooks/") ? null : standard.resolve(request);
+        return request -> request.getRequestURI().startsWith("/api/webhooks/")
+                || request.getRequestURI().startsWith("/api/integrations/") ? null : standard.resolve(request);
     }
 
     @Bean

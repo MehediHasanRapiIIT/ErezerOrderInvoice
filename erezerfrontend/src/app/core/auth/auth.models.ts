@@ -71,6 +71,7 @@ export type Permission =
   | 'CUSTOMER_EXPORT'
   | 'COURIER_SEND'
   | 'COURIER_SETTINGS'
+  | 'SHOP_CONNECTION'
   | 'STAFF_MANAGE';
 
 export type Role = 'ADMIN' | 'MODERATOR' | 'EMPLOYEE';

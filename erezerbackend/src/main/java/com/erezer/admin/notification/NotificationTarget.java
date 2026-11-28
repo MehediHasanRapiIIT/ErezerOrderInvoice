@@ -43,6 +43,7 @@ public enum NotificationTarget {
     SPECIAL_HOURS(null, "/attendance"),
     PERSONAL(null, "/account/password"),
     COURIER_SETTINGS(null, "/settings/courier"),
+    SHOP_CONNECTION(null, "/settings/shop"),
     ORDERS(null, "/orders"),
     SIZES(null, "/stock"),
     VARIANTS(null, "/stock"),

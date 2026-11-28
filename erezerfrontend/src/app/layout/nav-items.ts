@@ -26,5 +26,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { label: 'Attendance', icon: 'fa-user-clock', route: '/attendance', permissions: ['ATTENDANCE_VIEW', 'REMOTE_VIEW'] },
   { label: 'Notifications', icon: 'fa-bell', route: '/notifications', permissions: ['NOTIFICATION_VIEW'] },
   { label: 'Courier Settings', icon: 'fa-shipping-fast', route: '/settings/courier', permissions: ['COURIER_SETTINGS'] },
+  { label: 'Shop Connection', icon: 'fa-plug', route: '/settings/shop', permissions: ['SHOP_CONNECTION'] },
   { label: 'Staff Management', icon: 'fa-users-cog', route: '/staff', permissions: ['STAFF_MANAGE'] },
 ];

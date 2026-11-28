@@ -97,6 +97,9 @@ public enum Permission {
     COURIER_SEND("Courier", "Send orders to courier", false),
     COURIER_SETTINGS("Courier", "Manage courier settings and API keys", false),
 
+    /** The key the Erezer shop sends its website orders with: whoever holds it can add orders. */
+    SHOP_CONNECTION("Shop", "Manage the Erezer shop connection and its key", true),
+
     STAFF_MANAGE("Staff", "Manage staff and permissions (not admins)", false);
 
     private final String group;

@@ -114,6 +114,12 @@ export const routes: Routes = [
         loadComponent: () => import('./features/courier/courier-settings-page').then((m) => m.CourierSettingsPage),
       },
       {
+        path: 'settings/shop',
+        title: 'Shop connection',
+        canActivate: [requirePermission('SHOP_CONNECTION')],
+        loadComponent: () => import('./features/shop/shop-connection-page').then((m) => m.ShopConnectionPage),
+      },
+      {
         path: 'staff',
         loadChildren: () => import('./features/staff/staff.routes').then((m) => m.STAFF_ROUTES),
       },
